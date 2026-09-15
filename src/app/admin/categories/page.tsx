@@ -110,7 +110,7 @@ export default function ManageCategoriesPage() {
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-primary"
+                className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-primary text-slate-900 placeholder-slate-400"
                 placeholder="e.g. Web Development"
               />
             </div>
@@ -120,7 +120,7 @@ export default function ManageCategoriesPage() {
                 required
                 value={formData.slug}
                 onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\\s+/g, '-') })}
-                className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-primary"
+                className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-primary text-slate-900 placeholder-slate-400"
                 placeholder="e.g. web-development"
               />
             </div>

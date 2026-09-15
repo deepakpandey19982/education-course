@@ -148,7 +148,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             name="title"
             value={formData.title}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
             placeholder="e.g. Full Stack Web Development"
           />
         </div>
@@ -160,7 +160,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             name="category_id"
             value={formData.category_id}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
           >
             <option value="">Select a Category</option>
             {categories.map(cat => (
@@ -178,7 +178,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             name="price"
             value={formData.price}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
             placeholder="0.00"
           />
         </div>
@@ -193,7 +193,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             max="100"
             value={formData.discount}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
             placeholder="0"
           />
           <div className="text-xs text-slate-500 font-medium mt-1">
@@ -208,7 +208,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             name="thumbnail_url"
             value={formData.thumbnail_url}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
             placeholder="https://..."
           />
         </div>
@@ -221,7 +221,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             value={formData.description}
             onChange={handleInputChange}
             rows={4}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
             placeholder="Describe what students will learn..."
           />
         </div>
@@ -241,7 +241,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
                 <input
                   value={point}
                   onChange={(e) => handlePointChange(index, e.target.value)}
-                  className="flex-grow p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                  className="flex-grow p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
                   placeholder="Enter a key learning outcome..."
                 />
                 <Button
