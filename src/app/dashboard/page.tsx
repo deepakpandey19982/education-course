@@ -66,10 +66,21 @@ export default function UserDashboard() {
       alert('You must be logged in to download.');
       return;
     }
-
-    // Redirect the user to the secure download API
-    // The API now verifies the session server-side using cookies
     window.location.href = `/api/courses/download?courseId=${courseId}`;
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (err) {
+      console.error('Logout failed:', err);
+      alert('Logout failed. Please try again.');
+    }
+  };
+
+  const handleEditProfile = () => {
+    router.push('/profile/edit');
   };
 
   if (isLoading) {
@@ -106,12 +117,13 @@ export default function UserDashboard() {
                     <div className="w-20 h-20 bg-brand-primary text-white rounded-full flex items-center justify-center text-3xl font-bold mx-auto mb-4">
                       {profile?.full_name?.[0] || 'U'}
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">{profile?.full_name || 'Student'}</h3>
-                    <p className="text-sm text-slate-500">{profile?.email}</p>
+                    <h3 className="text-2xl font-extrabold text-slate-900">{profile?.full_name || 'Student'}</h3>
+                    <p className="text-sm font-medium text-slate-500 mb-1">Student</p>
+                    <p className="text-sm text-slate-400">{profile?.email}</p>
                   </div>
                   <div className="space-y-3 pt-6 border-t border-slate-100">
-                    <Button variant="outline" fullWidth size="sm">Edit Profile</Button>
-                    <Button variant="ghost" fullWidth size="sm" className="text-red-500">Logout</Button>
+                    <Button variant="outline" fullWidth size="sm" onClick={handleEditProfile}>Edit Profile</Button>
+                    <Button variant="ghost" fullWidth size="sm" className="text-red-500" onClick={handleLogout}>Logout</Button>
                   </div>
                 </div>
               </div>
