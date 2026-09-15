@@ -1,0 +1,265 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { supabase, getUserProfile } from '@/lib/supabase';
+import { Course } from '@/types/supabase';
+import Navbar from '@/components/shared/Navbar';
+import Footer from '@/components/shared/Footer';
+import { Button } from '@/components/ui/Button';
+import Script from 'next/script';
+
+export default function CourseDetailsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [hasPurchased, setHasPurchased] = useState(false);
+
+  useEffect(() => {
+    async function fetchData() {
+      // 1. Fetch User Profile
+      const profile = await getUserProfile();
+      setUserProfile(profile);
+
+      // 2. Fetch Course
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching course:', error);
+      } else {
+        setCourse(data);
+
+        // 3. Check if user has purchased this course
+        if (profile) {
+          const { data: order } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('user_id', profile.id)
+            .eq('course_id', data.id)
+            .eq('status', 'paid')
+            .single();
+
+          setHasPurchased(!!order);
+        }
+      }
+      setIsLoading(false);
+    }
+    fetchData();
+  }, [params.id]);
+
+  const handlePayment = async () => {
+    if (!userProfile) {
+      alert('Please login to purchase this course.');
+      router.push('/login');
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      // 1. Create Order on Server
+      const response = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: course?.id,
+          userId: userProfile.id,
+        }),
+      });
+
+      const orderData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(orderData.error || 'Failed to create order');
+      }
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Education-Course',
+        description: course?.title,
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          alert('Payment Successful! Your course is now available in your dashboard.');
+          router.push('/dashboard');
+        },
+        prefill: {
+          name: userProfile.full_name || '',
+          email: userProfile.email,
+        },
+        theme: {
+          color: '#1e3a8a',
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+
+    } catch (error: any) {
+      alert(error.message || 'Payment initiation failed');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleDownload = () => {
+    window.location.href = `/api/courses/download?courseId=${course?.id}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+        <Navbar />
+        <div className="text-center py-20">
+          <div className="text-6xl mb-4">🚫</div>
+          <h1 className="text-2xl font-bold text-slate-900">Course Not Found</h1>
+          <p className="text-slate-500 mb-8">The course you are looking for doesn't exist or is not published.</p>
+          <Button variant="primary" onClick={() => window.location.href = '/courses'}>Back to Courses</Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
+      <Navbar />
+
+      <main className="flex-grow">
+        <div className="bg-slate-50 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+              {/* Left: Course Content */}
+              <div className="lg:col-span-2 space-y-8">
+                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 overflow-hidden">
+                  <img
+                    src={course.thumbnail_url || 'https://via.placeholder.com/800x400?text=Course+Image'}
+                    alt={course.title}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x400?text=Course+Image';
+                    }}
+                    className="w-full h-64 md:h-96 object-cover"
+                  />
+                  <div className="p-8">
+                    <div className="flex justify-between items-start mb-4">
+                      <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900">
+                        {course.title}
+                      </h1>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mb-6">
+                      <span className="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                        Professional Certification
+                      </span>
+                      <span className="bg-amber-100 text-amber-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                        Digital PDF
+                      </span>
+                    </div>
+                    <div className="prose prose-slate max-w-none">
+                      <h3 className="text-xl font-bold text-slate-900 mb-3">About this course</h3>
+                      <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
+                        {course.description || 'No description provided for this course.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-8">
+                  <h3 className="text-xl font-bold text-slate-900 mb-4">What you will learn</h3>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                      <li key={i} className="flex items-start gap-3 text-slate-600">
+                        <span className="text-green-500">✓</span>
+                        <span>Industry-standard professional knowledge and techniques.</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Right: Purchase Card */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-8 sticky top-24">
+                  <div className="text-center mb-8">
+                    {course.discount > 0 ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-lg text-slate-400 line-through">₹{course.price}</span>
+                        <span className="text-4xl font-extrabold text-brand-primary">₹{(course.price * (1 - course.discount / 100)).toFixed(2)}</span>
+                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded mt-2 uppercase">{course.discount}% OFF</span>
+                      </div>
+                    ) : (
+                      <span className="text-4xl font-extrabold text-brand-primary">₹{course.price}</span>
+                    )}
+                    <p className="text-slate-500 text-sm mt-2">One-time payment for lifetime access</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {hasPurchased ? (
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        fullWidth
+                        className="text-lg py-4 bg-green-600 hover:bg-green-700"
+                        onClick={handleDownload}
+                      >
+                        Download PDF Now
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        fullWidth
+                        className="text-lg py-4"
+                        onClick={handlePayment}
+                        disabled={paymentLoading}
+                      >
+                        {paymentLoading ? 'Processing...' : 'Buy Now & Download'}
+                      </Button>
+                    )}
+                    <p className="text-center text-xs text-slate-400">
+                      Secure payment powered by Razorpay. <br />
+                      Instant PDF delivery to your dashboard.
+                    </p>
+                  </div>
+
+                  <div className="mt-8 pt-8 border-t border-slate-100 space-y-4">
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <span>📄</span>
+                      <span>High-quality Professional PDF</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <span>♾️</span>
+                      <span>Lifetime Access</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <span>🛡️</span>
+                      <span>Verified Certification</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand-primary: #1e3a8a;
+  --color-brand-primary-foreground: #ffffff;
+  --color-brand-secondary: #f59e0b;
+  --color-brand-secondary-foreground: #1e3a8a;
+  --color-brand-accent: #ef4444;
+  --color-brand-background: #f8fafc;
+  --color-brand-text: #0f172a;
+  --color-brand-muted: #64748b;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: var(--color-brand-background);
+  --foreground: var(--color-brand-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom utilities for professional education look */
+@utility glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@utility soft-shadow {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 10px -2px rgba(0, 0, 0, 0.03);
+}
