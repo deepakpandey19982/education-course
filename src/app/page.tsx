@@ -139,12 +139,12 @@ export default function HomePage() {
                 <div
                   key={idx}
                   onClick={() => router.push(`/courses?category=${encodeURIComponent(cat.name)}`)}
-                  className="p-6 rounded-xl border border-slate-100 text-center soft-shadow hover:border-brand-primary transition-all cursor-pointer group min-w-[140px] max-w-[200px]"
+                  className="p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center soft-shadow hover:border-brand-primary transition-all cursor-pointer group min-w-[140px] max-w-[200px]"
                 >
-                  <div className={`w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 group-hover:scale-110 transition-transform`}>
+                  <div className={`w-12 h-12 bg-blue-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 group-hover:scale-110 transition-transform`}>
                     📚
                   </div>
-                  <span className="font-bold text-brand-text block text-center">{cat.name}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 block text-center">{cat.name}</span>
                 </div>
               ))}
             </div>
