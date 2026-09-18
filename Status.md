@@ -2,37 +2,40 @@
 
 ## Current Phase
 
-Phase 7 — Authentication flow repair: forgot password and reset password using Supabase Auth.
+Phase 8 — Password recovery and account security: forgot password + change password using Supabase Auth.
 
 ## What Changed
 
-- Repaired the dead forgot-password entry point on the login page by linking it to the real reset flow instead of a non-functional anchor.
-- Added a working forgot-password page that submits the user email using Supabase Auth `resetPasswordForEmail` and sends the reset link to the configured redirect URL.
-- Added a proper reset-password page that validates the recovery code/session, handles invalid or expired links clearly, and updates the user password via Supabase Auth `updateUser`.
-- Kept the existing login/signup flow intact and continued using the same Supabase authentication system instead of introducing a separate auth implementation.
-- Ensured the reset flow uses the app’s origin-based redirect to the project reset-password route, which is required for Supabase recovery links to work in the browser.
-- Added meaningful success and error states so the user can see whether the email was sent, whether the reset link is valid, and whether the password update succeeded.
+- Fixed the root cause of the reset-link issue by validating the Supabase recovery session before allowing password updates and by exchanging the recovery code when a PKCE-style reset link contains a code param.
+- Kept the existing Supabase Auth implementation and redirect flow instead of introducing a second authentication layer.
+- Repaired the dead forgot-password entry point on the login form so it routes to the real password reset page.
+- Added a proper forgot-password page that sends a recovery email and handles success/error states clearly.
+- Added a password reset page that checks for a valid Supabase recovery session, rejects invalid or expired links, and calls Supabase Auth updateUser only after session validation succeeds.
+- Added a logged-in Change Password section under the profile/account settings view with current password, new password, and confirm password validation.
+- Verified the current password using the existing Supabase sign-in flow before updating the account password, and ensured the user is not logged out unnecessarily after success.
+- Kept secrets, keys, and password values out of app code, URLs, logs, and git history.
 
 ## Files Updated
 
 - [src/app/login/page.tsx](src/app/login/page.tsx)
 - [src/app/forgot-password/page.tsx](src/app/forgot-password/page.tsx)
 - [src/app/reset-password/page.tsx](src/app/reset-password/page.tsx)
+- [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
 - [Status.md](Status.md)
 
 ## Validation Results
 
 - TypeScript check passed via `npx tsc --noEmit`
 - Production build passed via `npm run build`
-- The forgot-password and reset-password flow was wired into the existing Supabase Auth flow and the app still builds cleanly.
+- The forgot-password reset route and account change-password flow both compile cleanly and integrate with the existing Supabase Auth setup.
 
 ## Remaining Bugs / Blockers
 
-- None for the requested authentication recovery fix.
+- None for the requested auth recovery and password change work.
 
 ## Next Task
 
-- Continue only with work directly related to auth and app stability.
+- Continue with final validation and project release workflow.
 
 ## Last Updated
 

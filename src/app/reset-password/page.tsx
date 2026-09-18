@@ -25,18 +25,21 @@ export default function ResetPasswordPage() {
       const code = params.get('code');
       const hash = window.location.hash;
 
-      if (!code && !(hash && hash.includes('type=recovery'))) {
-        if (!ignore) setIsValidLink(false);
-        return;
-      }
-
       try {
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
         }
 
-        if (!ignore) setIsValidLink(true);
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        if (session || (hash && hash.includes('type=recovery'))) {
+          if (!ignore) setIsValidLink(true);
+          return;
+        }
+
+        if (!ignore) setIsValidLink(false);
       } catch (err: any) {
         if (!ignore) {
           setIsValidLink(false);
