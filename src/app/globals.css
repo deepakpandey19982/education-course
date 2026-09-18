@@ -10,7 +10,7 @@
   --color-brand-text: #0f172a;
   --color-brand-muted: #64748b;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 :root {
@@ -32,6 +32,29 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+input,
+textarea,
+select,
+option {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  color: #0f172a;
+  outline: 2px solid rgba(30, 58, 138, 0.2);
+  outline-offset: 1px;
+  border-color: #cbd5e1;
 }
 
 /* Custom utilities for professional education look */

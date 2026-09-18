@@ -38,12 +38,16 @@ const Navbar = () => {
   const navLinks = [
     { name: 'Home', href: '/' },
     { name: 'Courses', href: '/courses' },
+    { name: 'Free Test Series', href: '/test-series' },
+    { name: 'Paid Test Series', href: '/test-series/paid' },
     { name: 'About', href: '/about' },
     { name: 'Contact', href: '/contact' },
   ];
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
+    if (path === '/test-series') return pathname === '/test-series';
+    if (path === '/test-series/paid') return pathname.startsWith('/test-series/paid');
     return pathname.startsWith(path);
   };
 

@@ -6,6 +6,8 @@ import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { CourseCard } from '@/components/shared/CourseCard';
 import { Button } from '@/components/ui/Button';
+import { HomeBannerSlider } from '@/components/shared/HomeBannerSlider';
+import { HomeQuickOptions } from '@/components/shared/HomeQuickOptions';
 import { supabase } from '@/lib/supabase';
 import { Course, Category } from '@/types/supabase';
 
@@ -61,33 +63,14 @@ export default function HomePage() {
       <Navbar />
 
       <main className="flex-grow">
-        {/* Hero Section */}
-        <section className="relative pt-20 pb-32 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col lg:flex-row items-center gap-12">
-              <div className="flex-1 text-center lg:text-left">
-                <h1 className="text-4xl md:text-6xl font-extrabold text-brand-text leading-tight mb-6">
-                  Unlock Your Potential with <span className="text-brand-primary">Professional Courses</span>
-                </h1>
-                <p className="text-lg text-brand-muted mb-8 max-w-2xl mx-auto lg:mx-0">
-                  Join thousands of students across India. Master the most in-demand skills and land your dream job with our industry-certified programs.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                  <Button size="lg" variant="primary" onClick={() => window.location.href = '/courses'}>Explore Courses</Button>
-                  <Button size="lg" variant="outline">Learn More</Button>
-                </div>
-              </div>
-              <div className="flex-1 relative">
-                <div className="absolute -top-10 -left-10 w-64 h-64 bg-brand-secondary/20 rounded-full blur-3xl"></div>
-                <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-brand-primary/20 rounded-full blur-3xl"></div>
-                <img
-                  src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=800"
-                  alt="Students learning"
-                  className="relative rounded-2xl shadow-2xl border-8 border-white"
-                />
-              </div>
-            </div>
-          </div>
+        {/* Dynamic Banner Slider */}
+        <section className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <HomeBannerSlider />
+        </section>
+
+        {/* Quick-Link Options Grid */}
+        <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <HomeQuickOptions />
         </section>
 
         {/* Featured Courses Section */}

@@ -52,6 +52,16 @@ export default function AdminDashboard() {
                 <span>📂</span> Manage Categories
               </Button>
             </Link>
+            <Link href="/admin/test-series/free">
+              <Button variant="outline" fullWidth className="justify-start gap-2">
+                <span>🧪</span> Free Test Series
+              </Button>
+            </Link>
+            <Link href="/admin/test-series/paid">
+              <Button variant="outline" fullWidth className="justify-start gap-2">
+                <span>💳</span> Paid Test Series
+              </Button>
+            </Link>
           </div>
         </div>
 
