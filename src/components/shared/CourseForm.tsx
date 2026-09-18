@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, uploadSiteAsset } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Course } from '@/types/supabase';
 
@@ -33,6 +33,8 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(initialCourse?.thumbnail_url || null);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -83,6 +85,28 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
     }
   };
 
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      alert('Only JPG, PNG, or WebP images are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const handleRemoveThumbnail = () => {
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setFormData((prev) => ({ ...prev, thumbnail_url: '' }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -90,6 +114,11 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
     try {
       let courseId = initialCourse?.id;
       let filePath = '';
+      let uploadedThumbnailUrl = formData.thumbnail_url || '';
+
+      if (thumbnailFile) {
+        uploadedThumbnailUrl = await uploadSiteAsset(thumbnailFile, 'courses');
+      }
 
       // 1. Upload PDF if provided
       if (pdfFile) {
@@ -112,6 +141,7 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
 
       const normalizedFormData = {
         ...formData,
+        thumbnail_url: uploadedThumbnailUrl || null,
         price: courseAccess === 'free' ? 0 : Number(formData.price || 0),
         discount: courseAccess === 'free' ? 0 : Number(formData.discount || 0),
       };
@@ -256,16 +286,34 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
           </div>
         </div>
 
-        {/* Thumbnail URL */}
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">Thumbnail Image URL</label>
-          <input
-            name="thumbnail_url"
-            value={formData.thumbnail_url}
-            onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
-            placeholder="https://..."
-          />
+        {/* Thumbnail Image */}
+        <div className="space-y-3 md:col-span-2">
+          <label className="text-sm font-bold text-slate-700">Thumbnail Image</label>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-brand-primary-foreground hover:bg-blue-900">
+                {thumbnailPreview ? 'Change Image' : 'Upload Image'}
+                <input type="file" accept="image/*" hidden onChange={handleThumbnailChange} />
+              </label>
+              {(thumbnailPreview || formData.thumbnail_url) && (
+                <Button type="button" variant="outline" onClick={handleRemoveThumbnail}>Remove Image</Button>
+              )}
+            </div>
+
+            {(thumbnailPreview || formData.thumbnail_url) && (
+              <div className="mt-4">
+                <img
+                  src={thumbnailPreview || formData.thumbnail_url}
+                  alt="Course thumbnail preview"
+                  className="h-28 w-full max-w-xs rounded-lg border border-slate-200 object-cover"
+                />
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-slate-500">
+              {thumbnailFile ? `Selected: ${thumbnailFile.name}` : 'Choose a JPG, PNG, or WebP image to upload.'}
+            </p>
+          </div>
         </div>
 
         {/* Description */}

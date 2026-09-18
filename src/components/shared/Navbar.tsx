@@ -54,8 +54,6 @@ const Navbar = () => {
     { name: 'Courses', href: '/courses' },
     { name: 'Free Test Series', href: '/test-series' },
     { name: 'Paid Test Series', href: '/test-series/paid' },
-    { name: 'About', href: '/about' },
-    { name: 'Contact', href: '/contact' },
   ];
 
   const isActive = (path: string) => {
