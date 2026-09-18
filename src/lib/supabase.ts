@@ -46,10 +46,31 @@ export async function getUserProfile(): Promise<Profile | null> {
   return data;
 }
 
+const SITE_ASSET_BUCKET_CANDIDATES = ['site-assets', 'site_assets'];
+
+export async function getSiteAssetBucketName(): Promise<string> {
+  const client = getSupabase();
+
+  try {
+    const { data, error } = await client.storage.listBuckets();
+
+    if (!error && Array.isArray(data)) {
+      const match = data.find((bucket) => SITE_ASSET_BUCKET_CANDIDATES.includes(bucket.name));
+      if (match) {
+        return match.name;
+      }
+    }
+  } catch {
+    // Fall through to the project’s configured bucket name.
+  }
+
+  return 'site-assets';
+}
+
 export async function uploadSiteAsset(file: File, folder: string): Promise<string> {
   const ext = file.name.split('.').pop() || 'png';
   const fileName = `${folder}/${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`;
-  const bucket = 'site-assets';
+  const bucket = await getSiteAssetBucketName();
 
   const { error } = await supabase.storage.from(bucket).upload(fileName, file, {
     cacheControl: '3600',
