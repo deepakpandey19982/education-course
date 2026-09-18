@@ -22,6 +22,7 @@ const Navbar = () => {
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+    document.documentElement.style.transition = 'background-color 250ms ease, color 250ms ease';
     localStorage.setItem('education-course-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
@@ -86,10 +87,16 @@ const Navbar = () => {
             <button
               type="button"
               onClick={() => setDarkMode((value) => !value)}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
-              aria-label="Toggle dark mode"
+              className="relative inline-flex h-10 w-16 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {darkMode ? 'Light' : 'Night'}
+              <span
+                className={`absolute flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg shadow-md transition-transform duration-300 ease-in-out ${darkMode ? 'translate-x-8' : 'translate-x-1'}`}
+              >
+                {darkMode ? '☀️' : '🌙'}
+              </span>
+              <span className="sr-only">Toggle dark mode</span>
             </button>
             {navLinks.map((link) => (
               <Link
@@ -147,10 +154,16 @@ const Navbar = () => {
             <button
               type="button"
               onClick={() => setDarkMode((value) => !value)}
-              className="mr-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700"
-              aria-label="Toggle dark mode"
+              className="relative mr-2 inline-flex h-8 w-14 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {darkMode ? 'Light' : 'Night'}
+              <span
+                className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm shadow-md transition-transform duration-300 ease-in-out ${darkMode ? 'translate-x-7' : 'translate-x-1'}`}
+              >
+                {darkMode ? '☀️' : '🌙'}
+              </span>
+              <span className="sr-only">Toggle dark mode</span>
             </button>
             <button
               onClick={() => setIsOpen(!isOpen)}

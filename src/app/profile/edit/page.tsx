@@ -1,11 +1,57 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Cropper, { Area } from 'react-easy-crop';
 import { useRouter } from 'next/navigation';
 import { supabase, getUserProfile, uploadSiteAsset } from '@/lib/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
+
+const createImage = (url: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+
+async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Unable to create crop canvas.');
+  }
+
+  const outputSize = 800;
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    outputSize,
+    outputSize,
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to generate cropped image.'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/jpeg', 0.92);
+  });
+}
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -25,6 +71,13 @@ export default function EditProfilePage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropSource, setCropSource] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
@@ -78,22 +131,41 @@ export default function EditProfilePage() {
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
       setError('Only JPG, PNG, or WebP images are allowed.');
+      event.target.value = '';
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError('Please choose an image smaller than 2MB.');
+    const imageUrl = URL.createObjectURL(file);
+    setPendingFile(file);
+    setCropSource(imageUrl);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCropModalOpen(true);
+    setError(null);
+    event.target.value = '';
+  };
+
+  const handleCropConfirm = async () => {
+    if (!pendingFile || !cropSource || !croppedAreaPixels) {
+      setError('Please adjust the crop before saving.');
       return;
     }
 
     try {
-      const url = await uploadSiteAsset(file, 'avatars');
+      const croppedBlob = await getCroppedImg(cropSource, croppedAreaPixels);
+      const croppedFile = new File([croppedBlob], pendingFile.name || 'profile.jpg', {
+        type: pendingFile.type || 'image/jpeg',
+      });
+
+      const url = await uploadSiteAsset(croppedFile, 'avatars');
       setAvatarUrl(url);
+      setCropModalOpen(false);
+      setPendingFile(null);
+      setCropSource(null);
+      setCroppedAreaPixels(null);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Profile photo upload failed.');
-    } finally {
-      event.target.value = '';
     }
   };
 
@@ -177,7 +249,6 @@ export default function EditProfilePage() {
               <p className="text-slate-500">Manage your profile and password</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" type="button" onClick={() => router.back()}>Back</Button>
               <button
                 type="button"
                 aria-label="Close account settings"
@@ -211,6 +282,7 @@ export default function EditProfilePage() {
                   <Button variant="outline" type="button" onClick={handleRemoveAvatar}>Remove Photo</Button>
                 </div>
               </div>
+              <p className="text-xs text-slate-500">Recommended: square 1:1 image, ideally 400×400 px or larger.</p>
             </div>
 
             <div className="space-y-2">
@@ -337,6 +409,63 @@ export default function EditProfilePage() {
           </form>
         </div>
       </main>
+      {cropModalOpen && cropSource && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-4 py-6">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Crop profile photo</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setCropModalOpen(false);
+                  setCropSource(null);
+                  setPendingFile(null);
+                  setCroppedAreaPixels(null);
+                }}
+                className="h-8 w-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+            <div className="relative h-72 w-full overflow-hidden rounded-xl bg-slate-100">
+              <Cropper
+                image={cropSource}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, croppedArea) => setCroppedAreaPixels(croppedArea)}
+              />
+            </div>
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">Zoom</label>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(event) => setZoom(Number(event.target.value))}
+                className="w-full accent-brand-primary"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="outline" type="button" onClick={() => {
+                setCropModalOpen(false);
+                setCropSource(null);
+                setPendingFile(null);
+                setCroppedAreaPixels(null);
+              }}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="button" onClick={handleCropConfirm}>
+                Use Cropped Photo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   );

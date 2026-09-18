@@ -44,10 +44,15 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  transition: background-color 250ms ease, color 250ms ease;
 }
 
 html[data-theme='dark'] body {
   background: #020817;
+}
+
+html[data-theme='dark'] * {
+  transition: background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease;
 }
 
 input,
@@ -83,6 +88,66 @@ html[data-theme='dark'] .border-slate-100,
 html[data-theme='dark'] .rounded-2xl,
 html[data-theme='dark'] .rounded-xl {
   box-shadow: none;
+}
+
+html[data-theme='dark'] body,
+html[data-theme='dark'] .bg-white,
+html[data-theme='dark'] .bg-slate-50,
+html[data-theme='dark'] .bg-slate-100,
+html[data-theme='dark'] .bg-slate-200,
+html[data-theme='dark'] .glass-panel,
+html[data-theme='dark'] .soft-shadow,
+html[data-theme='dark'] .border-slate-200,
+html[data-theme='dark'] .border-slate-100,
+html[data-theme='dark'] .text-slate-900,
+html[data-theme='dark'] .text-slate-800,
+html[data-theme='dark'] .text-slate-700,
+html[data-theme='dark'] .text-slate-600,
+html[data-theme='dark'] .text-slate-500,
+html[data-theme='dark'] .text-slate-400,
+html[data-theme='dark'] .text-brand-muted {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme='dark'] .bg-white,
+html[data-theme='dark'] .bg-slate-50,
+html[data-theme='dark'] .bg-slate-100,
+html[data-theme='dark'] .glass-panel,
+html[data-theme='dark'] .soft-shadow,
+html[data-theme='dark'] .border-slate-200,
+html[data-theme='dark'] .border-slate-100 {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme='dark'] input,
+html[data-theme='dark'] textarea,
+html[data-theme='dark'] select,
+html[data-theme='dark'] option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme='dark'] button:not(.bg-brand-primary):not(.text-brand-primary-foreground) {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .text-brand-primary {
+  color: #93c5fd !important;
+}
+
+html[data-theme='dark'] .text-brand-muted {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme='dark'] .bg-brand-primary {
+  background-color: #1d4ed8 !important;
 }
 
 /* Custom utilities for professional education look */
