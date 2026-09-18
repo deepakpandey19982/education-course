@@ -70,6 +70,7 @@ export function HomeBannerSlider() {
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [bannerAspectRatio, setBannerAspectRatio] = useState(16 / 9);
 
   useEffect(() => {
     async function fetchData() {
@@ -88,6 +89,21 @@ export function HomeBannerSlider() {
   }, []);
 
   const intervalSeconds = banners[currentIndex]?.interval_seconds || 3;
+
+  useEffect(() => {
+    if (!banners.length) {
+      setBannerAspectRatio(16 / 9);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        setBannerAspectRatio(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = banners[currentIndex]?.image_url || '';
+  }, [banners, currentIndex]);
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -113,7 +129,7 @@ export function HomeBannerSlider() {
   const hasMultiple = banners.length > 1;
 
   return (
-    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={{ height: 'clamp(220px, 42vw, 500px)' }}>
+    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={{ aspectRatio: `${bannerAspectRatio}` }}>
       <AnimatePresence mode="wait">
         <motion.a
           key={banner.id}
@@ -128,7 +144,8 @@ export function HomeBannerSlider() {
           <img
             src={banner.image_url}
             alt={banner.title || 'Banner'}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
+            style={{ width: '100%', height: '100%' }}
           />
           {(banner.title || banner.subtitle) && (
             <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/75 via-black/20 to-transparent px-4 pb-5 text-white sm:px-8 sm:pb-8 md:px-14">

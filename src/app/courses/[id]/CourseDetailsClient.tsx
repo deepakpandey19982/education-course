@@ -155,7 +155,7 @@ export default function CourseDetailsClient() {
               <div className="lg:col-span-2 space-y-8">
                 <div className="bg-white rounded-2xl soft-shadow border border-slate-100 overflow-hidden">
                   <img
-                    src={course.thumbnail_url || 'https://via.placeholder.com/800x400?text=Course+Image'}
+                    src={course.thumbnail_url || '/placeholder-course.svg'}
                     alt={course.title}
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x400?text=Course+Image';

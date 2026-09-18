@@ -146,7 +146,7 @@ export default function UserDashboard() {
                     {myCourses.map((course, idx) => (
                       <div key={idx} className="bg-white rounded-xl soft-shadow border border-slate-100 p-5 flex items-center gap-4 group hover:border-brand-primary transition-all">
                         <img
-                          src={course.thumbnail_url || 'https://via.placeholder.com/80'}
+                          src={course.thumbnail_url || '/placeholder-course.svg'}
                           alt=""
                           className="w-20 h-20 rounded-lg object-cover"
                         />

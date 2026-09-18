@@ -18,7 +18,7 @@ export const CourseCard = ({ title, instructor, price, discount, rating, categor
   const finalPrice = price * (1 - discount / 100);
   const isFree = price === 0 || Number(price) === 0;
 
-  const fallbackImage = 'https://via.placeholder.com/300x200?text=Course+Image';
+  const fallbackImage = '/placeholder-course.svg';
 
   return (
     <div className="bg-white rounded-xl overflow-hidden soft-shadow border border-slate-100 group hover:border-brand-primary transition-all hover:-translate-y-1">

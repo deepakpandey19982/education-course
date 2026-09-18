@@ -106,7 +106,7 @@ function CoursesList() {
                 discount={course.discount || 0}
                 rating={4.8}
                 category="Course"
-                image={course.thumbnail_url || 'https://via.placeholder.com/300x200?text=Course'}
+                image={course.thumbnail_url || '/placeholder-course.svg'}
               />
             ))}
           </div>

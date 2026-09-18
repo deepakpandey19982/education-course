@@ -95,7 +95,6 @@ function OptionForm({ option, onDone }: { option?: HomeOption; onDone: () => voi
   const [title, setTitle] = useState(option?.title || '');
   const [description, setDescription] = useState(option?.description || '');
   const [link, setLink] = useState(option?.link || '');
-  const [iconUrl, setIconUrl] = useState(option?.icon_url || '');
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -103,7 +102,7 @@ function OptionForm({ option, onDone }: { option?: HomeOption; onDone: () => voi
     e.preventDefault();
     setSaving(true);
     try {
-      let finalIcon = iconUrl;
+      let finalIcon = option?.icon_url || null;
       if (file) finalIcon = await uploadSiteAsset(file, 'options');
 
       const payload = {
@@ -143,10 +142,14 @@ function OptionForm({ option, onDone }: { option?: HomeOption; onDone: () => voi
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-bold text-slate-600">Icon (upload image, or type an emoji e.g. 📘)</label>
-        <div className="flex items-center gap-3">
-          <input value={iconUrl} onChange={(e) => setIconUrl(e.target.value)} placeholder="📘" className="w-24 p-2 border border-slate-200 rounded-lg text-sm" />
+        <label className="text-xs font-bold text-slate-600">Icon</label>
+        <div className="flex flex-col gap-3">
           <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+          <p className="text-[11px] text-slate-500">Upload an icon image for this quick-link card.</p>
+          {option?.icon_url && !file && (
+            <img src={option.icon_url} className="h-12 w-12 rounded-lg object-cover border border-slate-200" alt="" />
+          )}
+          {file && <img src={URL.createObjectURL(file)} className="h-12 w-12 rounded-lg object-cover border border-slate-200" alt="" />}
         </div>
       </div>
       <div className="flex justify-end gap-2">
