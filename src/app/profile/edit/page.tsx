@@ -161,15 +161,17 @@ export default function EditProfilePage() {
       setAvatarUrl(url);
 
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: url })
-          .eq('id', user.id);
+      if (!user) {
+        throw new Error('You must be logged in to update your profile photo.');
+      }
 
-        if (updateError) {
-          throw new Error(updateError.message || 'Unable to save the cropped profile photo.');
-        }
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', user.id);
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Unable to save the cropped profile photo.');
       }
 
       setCropModalOpen(false);
@@ -177,6 +179,7 @@ export default function EditProfilePage() {
       setCropSource(null);
       setCroppedAreaPixels(null);
       setError(null);
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Profile photo upload failed.');
     }

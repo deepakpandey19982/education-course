@@ -17,10 +17,10 @@ export const Button = ({
   const baseStyles = 'inline-flex items-center justify-center rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none';
 
   const variants = {
-    primary: 'bg-brand-primary text-brand-primary-foreground hover:bg-blue-900 shadow-sm',
-    secondary: 'bg-brand-secondary text-brand-secondary-foreground hover:bg-amber-600 shadow-sm',
-    outline: 'border-2 border-brand-primary text-brand-primary hover:bg-blue-50',
-    ghost: 'text-brand-muted hover:bg-slate-100 hover:text-brand-text',
+    primary: 'bg-brand-primary text-white hover:bg-blue-900 shadow-sm',
+    secondary: 'bg-brand-secondary text-slate-900 hover:bg-amber-500 shadow-sm',
+    outline: 'border-2 border-slate-300 bg-transparent text-slate-900 hover:bg-slate-100 hover:border-slate-400',
+    ghost: 'text-slate-800 hover:bg-slate-100 hover:text-slate-900',
   };
 
   const sizes = {

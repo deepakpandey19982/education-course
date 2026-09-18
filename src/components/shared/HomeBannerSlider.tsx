@@ -6,6 +6,66 @@ import { supabase } from '@/lib/supabase';
 import { HomeBanner } from '@/types/supabase';
 import { Button } from '@/components/ui/Button';
 
+const createDummyBannerSvg = (title: string, colorA: string, colorB: string, accent: string) => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 600">
+      <defs>
+        <linearGradient id="grad" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="${colorA}" />
+          <stop offset="100%" stop-color="${colorB}" />
+        </linearGradient>
+      </defs>
+      <rect width="1600" height="600" fill="url(#grad)" />
+      <circle cx="1320" cy="120" r="180" fill="rgba(255,255,255,0.12)" />
+      <circle cx="1460" cy="430" r="220" fill="rgba(255,255,255,0.08)" />
+      <rect x="110" y="180" width="620" height="220" rx="30" fill="rgba(15,23,42,0.12)" />
+      <text x="150" y="280" fill="white" font-size="54" font-weight="700" font-family="Segoe UI, Arial, sans-serif">${title}</text>
+      <text x="150" y="340" fill="${accent}" font-size="28" font-weight="600" font-family="Segoe UI, Arial, sans-serif">Professional learning for future careers</text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
+const dummyBanners: HomeBanner[] = [
+  {
+    id: 'dummy-banner-1',
+    title: 'Build Your Career',
+    subtitle: 'Industry-ready skills for students and professionals.',
+    link: '/courses',
+    image_url: createDummyBannerSvg('Build Your Career', '#1d4ed8', '#0f172a', '#93c5fd'),
+    is_enabled: true,
+    interval_seconds: 3,
+    order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'dummy-banner-2',
+    title: 'Learn Smarter',
+    subtitle: 'Flexible, practical courses designed for real-world goals.',
+    link: '/courses',
+    image_url: createDummyBannerSvg('Learn Smarter', '#0f766e', '#0f172a', '#99f6e4'),
+    is_enabled: true,
+    interval_seconds: 3,
+    order: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'dummy-banner-3',
+    title: 'Grow Faster',
+    subtitle: 'Upgrade your knowledge with guided, expert content.',
+    link: '/courses',
+    image_url: createDummyBannerSvg('Grow Faster', '#7c3aed', '#111827', '#e9d5ff'),
+    is_enabled: true,
+    interval_seconds: 3,
+    order: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
 export function HomeBannerSlider() {
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -19,7 +79,9 @@ export function HomeBannerSlider() {
         .eq('is_enabled', true)
         .order('order');
 
-      if (data) setBanners(data);
+      const list = (data && data.length > 0) ? data : dummyBanners;
+      setBanners(list);
+      setCurrentIndex(0);
       setIsLoading(false);
     }
     fetchData();
@@ -30,25 +92,28 @@ export function HomeBannerSlider() {
   useEffect(() => {
     if (banners.length <= 1) return;
 
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % banners.length);
     }, intervalSeconds * 1000);
 
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [banners.length, intervalSeconds, currentIndex]);
 
-  const goTo = (idx: number) => setCurrentIndex(((idx % banners.length) + banners.length) % banners.length);
+  const goTo = (idx: number) => {
+    if (!banners.length) return;
+    setCurrentIndex(((idx % banners.length) + banners.length) % banners.length);
+  };
   const goPrev = () => goTo(currentIndex - 1);
   const goNext = () => goTo(currentIndex + 1);
 
-  if (isLoading) return <div className="w-full h-[400px] bg-slate-100 animate-pulse rounded-2xl" />;
+  if (isLoading) return <div className="w-full h-[220px] sm:h-[320px] md:h-[440px] lg:h-[500px] bg-slate-100 animate-pulse rounded-2xl" />;
   if (banners.length === 0) return null;
 
   const banner = banners[currentIndex];
   const hasMultiple = banners.length > 1;
 
   return (
-    <div className="relative w-full h-[220px] sm:h-[320px] md:h-[440px] lg:h-[500px] rounded-2xl overflow-hidden shadow-xl group">
+    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={{ height: 'clamp(220px, 42vw, 500px)' }}>
       <AnimatePresence mode="wait">
         <motion.a
           key={banner.id}
@@ -57,20 +122,20 @@ export function HomeBannerSlider() {
           initial={{ opacity: 0, x: 80 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -80 }}
-          transition={{ duration: 0.6, ease: 'easeInOut' }}
-          className="absolute inset-0 block w-full h-full cursor-pointer"
+          transition={{ duration: 0.45, ease: 'easeInOut' }}
+          className="absolute inset-0 block h-full w-full cursor-pointer"
         >
           <img
             src={banner.image_url}
             alt={banner.title || 'Banner'}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
           />
           {(banner.title || banner.subtitle) && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent flex flex-col justify-end sm:justify-center px-6 sm:px-10 md:px-16 pb-8 sm:pb-0 text-white">
-              {banner.title && <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-2 md:mb-4">{banner.title}</h2>}
-              {banner.subtitle && <p className="text-sm sm:text-lg md:text-xl mb-4 md:mb-6 opacity-90 max-w-xl">{banner.subtitle}</p>}
+            <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/75 via-black/20 to-transparent px-4 pb-5 text-white sm:px-8 sm:pb-8 md:px-14">
+              {banner.title && <h2 className="mb-1 text-xl font-bold sm:text-3xl md:text-5xl">{banner.title}</h2>}
+              {banner.subtitle && <p className="mb-3 max-w-xl text-xs opacity-90 sm:text-base md:text-xl">{banner.subtitle}</p>}
               {banner.link && (
-                <Button variant="primary" className="w-fit">
+                <Button variant="primary" className="w-fit px-3 py-2 text-xs sm:text-sm md:text-base">
                   Learn More
                 </Button>
               )}
@@ -84,26 +149,26 @@ export function HomeBannerSlider() {
           <button
             aria-label="Previous banner"
             onClick={(e) => { e.preventDefault(); goPrev(); }}
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+            className="absolute left-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/30 text-lg text-white opacity-100 transition-opacity hover:bg-black/50 sm:left-4"
           >
             ‹
           </button>
           <button
             aria-label="Next banner"
             onClick={(e) => { e.preventDefault(); goNext(); }}
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+            className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/30 text-lg text-white opacity-100 transition-opacity hover:bg-black/50 sm:right-4"
           >
             ›
           </button>
 
-          <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+          <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center gap-2 sm:bottom-5">
             {banners.map((b, idx) => (
               <button
                 key={b.id}
                 aria-label={`Go to banner ${idx + 1}`}
                 onClick={(e) => { e.preventDefault(); goTo(idx); }}
                 className={`h-2.5 rounded-full transition-all ${
-                  idx === currentIndex ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80 w-2.5'
+                  idx === currentIndex ? 'w-8 bg-white' : 'w-2.5 bg-white/60 hover:bg-white/85'
                 }`}
               />
             ))}

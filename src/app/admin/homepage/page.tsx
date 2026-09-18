@@ -77,7 +77,9 @@ function BannerForm({ banner, onDone }: { banner?: HomeBanner; onDone: () => voi
       <div className="space-y-1">
         <label className="text-xs font-bold text-slate-600">Banner Image</label>
         <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+        <p className="text-[11px] text-slate-500">Recommended: wide landscape banner, ideally around 1920×600 px.</p>
         {imageUrl && !file && <img src={imageUrl} className="h-20 mt-2 rounded-lg object-cover" alt="" />}
+        {file && <img src={URL.createObjectURL(file)} className="h-20 mt-2 rounded-lg object-cover" alt="" />}
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>Cancel</Button>

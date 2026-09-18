@@ -52,6 +52,11 @@ export default function AdminDashboard() {
                 <span>📂</span> Manage Categories
               </Button>
             </Link>
+            <Link href="/admin/homepage">
+              <Button variant="outline" fullWidth className="justify-start gap-2">
+                <span>🖼️</span> Homepage Banners
+              </Button>
+            </Link>
             <Link href="/admin/test-series/free">
               <Button variant="outline" fullWidth className="justify-start gap-2">
                 <span>🧪</span> Free Test Series
@@ -73,7 +78,7 @@ export default function AdminDashboard() {
               <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded">CONNECTED</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-sm text-slate-600">Storage Bucket (course-pdfs)</span>
+              <span className="text-sm text-slate-600">Storage Bucket (site-assets)</span>
               <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded">ACTIVE</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
