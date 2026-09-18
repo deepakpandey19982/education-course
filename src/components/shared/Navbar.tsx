@@ -10,7 +10,20 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('education-course-theme');
+    const preferredDark = storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setDarkMode(preferredDark);
+    document.documentElement.dataset.theme = preferredDark ? 'dark' : 'light';
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+    localStorage.setItem('education-course-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   useEffect(() => {
     async function updateProfile() {
@@ -70,6 +83,14 @@ const Navbar = () => {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-8">
+            <button
+              type="button"
+              onClick={() => setDarkMode((value) => !value)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? 'Light' : 'Night'}
+            </button>
             {navLinks.map((link) => (
               <Link
                 key={link.name}
@@ -123,6 +144,14 @@ const Navbar = () => {
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
+            <button
+              type="button"
+              onClick={() => setDarkMode((value) => !value)}
+              className="mr-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700"
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? 'Light' : 'Night'}
+            </button>
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="inline-flex items-center justify-center p-2 rounded-md text-brand-muted hover:text-brand-primary hover:bg-slate-100 focus:outline-none"

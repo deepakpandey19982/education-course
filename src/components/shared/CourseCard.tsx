@@ -16,6 +16,7 @@ interface CourseCardProps {
 export const CourseCard = ({ title, instructor, price, discount, rating, category, image, courseId }: CourseCardProps) => {
   const router = useRouter();
   const finalPrice = price * (1 - discount / 100);
+  const isFree = price === 0 || Number(price) === 0;
 
   const fallbackImage = 'https://via.placeholder.com/300x200?text=Course+Image';
 
@@ -47,7 +48,9 @@ export const CourseCard = ({ title, instructor, price, discount, rating, categor
             <span>{rating}</span>
           </div>
           <div className="text-right">
-            {discount > 0 ? (
+            {isFree ? (
+              <span className="text-xl font-bold text-green-600">FREE</span>
+            ) : discount > 0 ? (
               <div className="flex flex-col items-end">
                 <span className="text-xs text-slate-400 line-through">₹{price}</span>
                 <span className="text-xl font-bold text-brand-primary">₹{finalPrice.toFixed(2)}</span>

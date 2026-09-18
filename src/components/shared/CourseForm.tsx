@@ -13,6 +13,7 @@ interface CourseFormProps {
 export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
+  const [courseAccess, setCourseAccess] = useState<'free' | 'paid'>(initialCourse && Number(initialCourse.price) === 0 ? 'free' : 'paid');
   const [formData, setFormData] = useState({
     title: initialCourse?.title || '',
     description: initialCourse?.description || '',
@@ -48,6 +49,16 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked :
               type === 'number' ? parseFloat(value) : value,
     }));
+  };
+
+  const handleNumericFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    const target = event.target;
+    if (target.value === '0') target.value = '';
+  };
+
+  const handleNumericBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    const target = event.target;
+    if (target.value === '') target.value = '0';
   };
 
   const handlePointChange = (index: number, value: string) => {
@@ -99,12 +110,18 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
       // Filter out empty points before saving
       const filteredPoints = learningPoints.filter(p => p.trim() !== '');
 
+      const normalizedFormData = {
+        ...formData,
+        price: courseAccess === 'free' ? 0 : Number(formData.price || 0),
+        discount: courseAccess === 'free' ? 0 : Number(formData.discount || 0),
+      };
+
       // 2. Save Course Metadata
       const { data: courseData, error: courseError } = await supabase
         .from('courses')
         .upsert({
           id: courseId,
-          ...formData,
+          ...normalizedFormData,
           learning_points: filteredPoints,
           updated_at: new Date().toISOString(),
         })
@@ -169,16 +186,51 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
           </select>
         </div>
 
+        {/* Course Access */}
+        <div className="space-y-2 md:col-span-2">
+          <label className="text-sm font-bold text-slate-700">Course Access</label>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+              <input
+                type="radio"
+                checked={courseAccess === 'free'}
+                onChange={() => {
+                  setCourseAccess('free');
+                  setFormData((prev) => ({ ...prev, price: 0, discount: 0 }));
+                }}
+              />
+              Free
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+              <input
+                type="radio"
+                checked={courseAccess === 'paid'}
+                onChange={() => {
+                  setCourseAccess('paid');
+                  setFormData((prev) => ({ ...prev, price: prev.price || 0, discount: prev.discount || 0 }));
+                }}
+              />
+              Paid
+            </label>
+          </div>
+          <div className="text-xs text-slate-500 font-medium mt-1">
+            {courseAccess === 'free' ? 'This course is free and will not trigger payment.' : 'This course is paid and the regular pricing/discount logic will apply.'}
+          </div>
+        </div>
+
         {/* Price */}
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700">Price (₹)</label>
           <input
-            required
+            required={courseAccess === 'paid'}
+            disabled={courseAccess === 'free'}
             type="number"
             name="price"
-            value={formData.price}
+            value={courseAccess === 'free' ? 0 : formData.price}
+            onFocus={handleNumericFocus}
+            onBlur={handleNumericBlur}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
             placeholder="0.00"
           />
         </div>
@@ -191,13 +243,16 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
             name="discount"
             min="0"
             max="100"
-            value={formData.discount}
+            value={courseAccess === 'free' ? 0 : formData.discount}
+            onFocus={handleNumericFocus}
+            onBlur={handleNumericBlur}
+            disabled={courseAccess === 'free'}
             onChange={handleInputChange}
-            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400"
+            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-slate-900 placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
             placeholder="0"
           />
           <div className="text-xs text-slate-500 font-medium mt-1">
-            Final Price: <span className="text-brand-primary font-bold">₹{(formData.price * (1 - formData.discount / 100)).toFixed(2)}</span>
+            Final Price: <span className="text-brand-primary font-bold">₹{(Number(courseAccess === 'free' ? 0 : formData.price) * (1 - Number(courseAccess === 'free' ? 0 : formData.discount) / 100)).toFixed(2)}</span>
           </div>
         </div>
 

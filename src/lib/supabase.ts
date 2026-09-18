@@ -46,6 +46,20 @@ export async function getUserProfile(): Promise<Profile | null> {
   return data;
 }
 
+export async function uploadSiteAsset(file: File, folder: string): Promise<string> {
+  const ext = file.name.split('.').pop() || 'png';
+  const fileName = `${folder}/${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('site-assets').upload(fileName, file, {
+    cacheControl: '3600',
+    upsert: false,
+  });
+
+  if (error) throw new Error('Image upload failed: ' + error.message);
+
+  const { data } = supabase.storage.from('site-assets').getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
 export async function isAdmin(): Promise<boolean> {
   const profile = await getUserProfile();
   return profile?.role === 'admin';

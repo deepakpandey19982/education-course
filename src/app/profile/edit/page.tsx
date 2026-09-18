@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, getUserProfile } from '@/lib/supabase';
+import { supabase, getUserProfile, uploadSiteAsset } from '@/lib/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 export default function EditProfilePage() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function EditProfilePage() {
           return;
         }
         setFullName(profile.full_name || '');
+        setAvatarUrl(profile.avatar_url || null);
       } catch (err) {
         console.error('Error loading profile:', err);
         setError('Failed to load profile information.');
@@ -55,7 +57,7 @@ export default function EditProfilePage() {
 
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ full_name: fullName })
+        .update({ full_name: fullName, avatar_url: avatarUrl })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
@@ -67,6 +69,37 @@ export default function EditProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      setError('Only JPG, PNG, or WebP images are allowed.');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Please choose an image smaller than 2MB.');
+      return;
+    }
+
+    try {
+      const url = await uploadSiteAsset(file, 'avatars');
+      setAvatarUrl(url);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Profile photo upload failed.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setAvatarUrl(null);
+    setError(null);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -138,12 +171,48 @@ export default function EditProfilePage() {
       <Navbar />
       <main className="flex-grow flex items-center justify-center px-4 py-12">
         <div className="bg-white w-full max-w-lg rounded-2xl soft-shadow border border-slate-100 p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Account Settings</h1>
-            <p className="text-slate-500">Manage your profile and password</p>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">Account Settings</h1>
+              <p className="text-slate-500">Manage your profile and password</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" type="button" onClick={() => router.back()}>Back</Button>
+              <button
+                type="button"
+                aria-label="Close account settings"
+                onClick={() => router.push('/dashboard')}
+                className="h-9 w-9 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleSave} className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700">Profile Picture</label>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="h-20 w-20 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-2xl font-bold text-slate-500">{fullName?.[0]?.toUpperCase() || 'U'}</span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-brand-primary-foreground hover:bg-blue-900">
+                    Change Photo
+                    <input type="file" accept="image/*" hidden onChange={handleAvatarUpload} />
+                  </label>
+                  <Button variant="outline" type="button" onClick={handleRemoveAvatar}>Remove Photo</Button>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Full Name</label>
               <input

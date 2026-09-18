@@ -16,13 +16,25 @@
 :root {
   --background: var(--color-brand-background);
   --foreground: var(--color-brand-text);
+  --panel: #ffffff;
+  --panel-alt: #f8fafc;
+  --panel-border: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --input-bg: #ffffff;
+  --input-text: #0f172a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-  }
+:root[data-theme='dark'] {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --panel: #111827;
+  --panel-alt: #0b1220;
+  --panel-border: #1f2937;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --input-bg: #0f172a;
+  --input-text: #f8fafc;
 }
 
 body {
@@ -34,27 +46,43 @@ body {
   overflow-x: hidden;
 }
 
+html[data-theme='dark'] body {
+  background: #020817;
+}
+
 input,
 textarea,
 select,
 option {
-  color: #0f172a;
-  background-color: #ffffff;
+  color: var(--input-text);
+  background-color: var(--input-bg);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #64748b;
+  color: var(--text-muted);
   opacity: 1;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  color: #0f172a;
+  color: var(--input-text);
   outline: 2px solid rgba(30, 58, 138, 0.2);
   outline-offset: 1px;
-  border-color: #cbd5e1;
+  border-color: var(--panel-border);
+}
+
+html[data-theme='dark'] .bg-white,
+html[data-theme='dark'] .bg-slate-50,
+html[data-theme='dark'] .bg-slate-100,
+html[data-theme='dark'] .glass-panel,
+html[data-theme='dark'] .soft-shadow,
+html[data-theme='dark'] .border-slate-200,
+html[data-theme='dark'] .border-slate-100,
+html[data-theme='dark'] .rounded-2xl,
+html[data-theme='dark'] .rounded-xl {
+  box-shadow: none;
 }
 
 /* Custom utilities for professional education look */

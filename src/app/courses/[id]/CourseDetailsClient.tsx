@@ -54,10 +54,17 @@ export default function CourseDetailsClient() {
     fetchData();
   }, [params.id]);
 
+  const isFreeCourse = (course?.price ?? 0) === 0;
+
   const handlePayment = async () => {
     if (!userProfile) {
       alert('Please login to purchase this course.');
       router.push('/login');
+      return;
+    }
+
+    if (isFreeCourse) {
+      alert('This course is free. No payment is required.');
       return;
     }
 
@@ -199,7 +206,12 @@ export default function CourseDetailsClient() {
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-8 sticky top-24">
                   <div className="text-center mb-8">
-                    {course.discount > 0 ? (
+                    {isFreeCourse ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-4xl font-extrabold text-green-600">FREE</span>
+                        <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded mt-2 uppercase">No payment required</span>
+                      </div>
+                    ) : course.discount > 0 ? (
                       <div className="flex flex-col items-center">
                         <span className="text-lg text-slate-400 line-through">₹{course.price}</span>
                         <span className="text-4xl font-extrabold text-brand-primary">₹{(course.price * (1 - course.discount / 100)).toFixed(2)}</span>
@@ -208,11 +220,11 @@ export default function CourseDetailsClient() {
                     ) : (
                       <span className="text-4xl font-extrabold text-brand-primary">₹{course.price}</span>
                     )}
-                    <p className="text-slate-500 text-sm mt-2">One-time payment for lifetime access</p>
+                    <p className="text-slate-500 text-sm mt-2">{isFreeCourse ? 'Free lifetime access' : 'One-time payment for lifetime access'}</p>
                   </div>
 
                   <div className="space-y-4">
-                    {hasPurchased ? (
+                    {hasPurchased || isFreeCourse ? (
                       <Button
                         variant="primary"
                         size="lg"
@@ -220,7 +232,7 @@ export default function CourseDetailsClient() {
                         className="text-lg py-4 bg-green-600 hover:bg-green-700"
                         onClick={handleDownload}
                       >
-                        Download PDF Now
+                        {isFreeCourse ? 'Open Course PDF' : 'Download PDF Now'}
                       </Button>
                     ) : (
                       <Button
