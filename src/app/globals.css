@@ -23,18 +23,30 @@
   --text-muted: #64748b;
   --input-bg: #ffffff;
   --input-text: #0f172a;
+  --card-bg: #ffffff;
+  --card-muted: #f8fafc;
+  --button-text: #0f172a;
+  --shadow-soft: 0 4px 20px -2px rgba(15, 23, 42, 0.08);
 }
 
 :root[data-theme='dark'] {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --panel: #111827;
-  --panel-alt: #0b1220;
-  --panel-border: #1f2937;
+  --background: #020817;
+  --foreground: #e2e8f0;
+  --panel: #0f172a;
+  --panel-alt: #111827;
+  --panel-border: #334155;
   --text-main: #f8fafc;
   --text-muted: #cbd5e1;
   --input-bg: #0f172a;
   --input-text: #f8fafc;
+  --card-bg: #111827;
+  --card-muted: #0f172a;
+  --button-text: #e2e8f0;
+  --shadow-soft: 0 4px 20px -2px rgba(2, 8, 23, 0.7);
+}
+
+html {
+  background: var(--background);
 }
 
 body {
@@ -44,23 +56,27 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  transition: background-color 250ms ease, color 250ms ease;
+  transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease;
 }
 
-html[data-theme='dark'] body {
-  background: #020817;
-}
-
-html[data-theme='dark'] * {
+* {
   transition: background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease;
 }
 
 input,
 textarea,
 select,
-option {
+option,
+button {
   color: var(--input-text);
+}
+
+input,
+textarea,
+select {
   background-color: var(--input-bg);
+  border-color: var(--panel-border);
+  color: var(--input-text);
 }
 
 input::placeholder,
@@ -78,15 +94,25 @@ select:focus {
   border-color: var(--panel-border);
 }
 
-html[data-theme='dark'] .bg-white,
-html[data-theme='dark'] .bg-slate-50,
-html[data-theme='dark'] .bg-slate-100,
-html[data-theme='dark'] .glass-panel,
-html[data-theme='dark'] .soft-shadow,
-html[data-theme='dark'] .border-slate-200,
-html[data-theme='dark'] .border-slate-100,
-html[data-theme='dark'] .rounded-2xl,
-html[data-theme='dark'] .rounded-xl {
+.bg-white,
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-200,
+.glass-panel,
+.soft-shadow,
+.border-slate-200,
+.border-slate-100,
+.rounded-2xl,
+.rounded-xl,
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .bg-slate-50,
+[data-theme='dark'] .bg-slate-100,
+[data-theme='dark'] .glass-panel,
+[data-theme='dark'] .soft-shadow,
+[data-theme='dark'] .border-slate-200,
+[data-theme='dark'] .border-slate-100,
+[data-theme='dark'] .rounded-2xl,
+[data-theme='dark'] .rounded-xl {
   box-shadow: none;
 }
 

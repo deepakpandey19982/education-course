@@ -159,6 +159,19 @@ export default function EditProfilePage() {
 
       const url = await uploadSiteAsset(croppedFile, 'avatars');
       setAvatarUrl(url);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: url })
+          .eq('id', user.id);
+
+        if (updateError) {
+          throw new Error(updateError.message || 'Unable to save the cropped profile photo.');
+        }
+      }
+
       setCropModalOpen(false);
       setPendingFile(null);
       setCropSource(null);
@@ -171,6 +184,21 @@ export default function EditProfilePage() {
 
   const handleRemoveAvatar = async () => {
     setAvatarUrl(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: null })
+          .eq('id', user.id);
+
+        if (updateError) {
+          throw new Error(updateError.message || 'Unable to remove the profile photo.');
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Unable to remove the profile photo.');
+    }
     setError(null);
   };
 

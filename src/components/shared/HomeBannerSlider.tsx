@@ -25,7 +25,7 @@ export function HomeBannerSlider() {
     fetchData();
   }, []);
 
-  const intervalSeconds = banners[currentIndex]?.interval_seconds || 5;
+  const intervalSeconds = banners[currentIndex]?.interval_seconds || 3;
 
   useEffect(() => {
     if (banners.length <= 1) return;

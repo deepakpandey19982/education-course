@@ -5,26 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '../ui/Button';
 import { getUserProfile, supabase } from '@/lib/supabase';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
-
-  useEffect(() => {
-    const storedTheme = localStorage.getItem('education-course-theme');
-    const preferredDark = storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    setDarkMode(preferredDark);
-    document.documentElement.dataset.theme = preferredDark ? 'dark' : 'light';
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
-    document.documentElement.style.transition = 'background-color 250ms ease, color 250ms ease';
-    localStorage.setItem('education-course-theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
 
   useEffect(() => {
     async function updateProfile() {
@@ -84,15 +72,15 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <button
               type="button"
-              onClick={() => setDarkMode((value) => !value)}
+              onClick={toggleTheme}
               className="relative inline-flex h-10 w-16 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
-              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               <span
-                className={`absolute flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg shadow-md transition-transform duration-300 ease-in-out ${darkMode ? 'translate-x-8' : 'translate-x-1'}`}
+                className={`absolute flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-8' : 'translate-x-1'}`}
               >
-                {darkMode ? '☀️' : '🌙'}
+                {theme === 'dark' ? '☀️' : '🌙'}
               </span>
               <span className="sr-only">Toggle dark mode</span>
             </button>
@@ -151,15 +139,15 @@ const Navbar = () => {
           <div className="md:hidden flex items-center">
             <button
               type="button"
-              onClick={() => setDarkMode((value) => !value)}
+              onClick={toggleTheme}
               className="relative mr-2 inline-flex h-8 w-14 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
-              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               <span
-                className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm shadow-md transition-transform duration-300 ease-in-out ${darkMode ? 'translate-x-7' : 'translate-x-1'}`}
+                className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-7' : 'translate-x-1'}`}
               >
-                {darkMode ? '☀️' : '🌙'}
+                {theme === 'dark' ? '☀️' : '🌙'}
               </span>
               <span className="sr-only">Toggle dark mode</span>
             </button>
