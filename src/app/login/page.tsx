@@ -63,7 +63,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <label className="text-sm font-bold text-slate-700">Password</label>
-                <a href="#" className="text-xs text-brand-primary hover:underline">Forgot password?</a>
+                <Link href="/forgot-password" className="text-xs text-brand-primary hover:underline">Forgot password?</Link>
               </div>
               <input
                 required
