@@ -71,6 +71,15 @@ export function HomeBannerSlider() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [bannerAspectRatio, setBannerAspectRatio] = useState(16 / 9);
+  const [viewportWidth, setViewportWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    updateViewportWidth();
+    window.addEventListener('resize', updateViewportWidth);
+
+    return () => window.removeEventListener('resize', updateViewportWidth);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -127,9 +136,21 @@ export function HomeBannerSlider() {
 
   const banner = banners[currentIndex];
   const hasMultiple = banners.length > 1;
+  const effectiveBannerRatio = (() => {
+    if (!viewportWidth) return bannerAspectRatio;
+    if (viewportWidth < 640) return Math.min(bannerAspectRatio, 2.2);
+    if (viewportWidth < 1024) return Math.min(bannerAspectRatio, 2.5);
+    return bannerAspectRatio;
+  })();
+
+  const bannerContainerStyle = {
+    aspectRatio: `${effectiveBannerRatio}`,
+    minHeight: viewportWidth && viewportWidth < 640 ? '220px' : viewportWidth && viewportWidth < 1024 ? '260px' : '300px',
+    maxHeight: viewportWidth && viewportWidth < 640 ? '420px' : '520px',
+  };
 
   return (
-    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={{ aspectRatio: `${bannerAspectRatio}` }}>
+    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={bannerContainerStyle}>
       <AnimatePresence mode="wait">
         <motion.a
           key={banner.id}
@@ -149,10 +170,10 @@ export function HomeBannerSlider() {
           />
           {(banner.title || banner.subtitle) && (
             <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/75 via-black/20 to-transparent px-4 pb-5 text-white sm:px-8 sm:pb-8 md:px-14">
-              {banner.title && <h2 className="mb-1 text-xl font-bold sm:text-3xl md:text-5xl">{banner.title}</h2>}
-              {banner.subtitle && <p className="mb-3 max-w-xl text-xs opacity-90 sm:text-base md:text-xl">{banner.subtitle}</p>}
+              {banner.title && <h2 className="mb-1 max-w-[75%] text-lg font-bold leading-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] sm:max-w-none sm:text-3xl md:text-5xl">{banner.title}</h2>}
+              {banner.subtitle && <p className="mb-3 max-w-[75%] text-[11px] leading-snug opacity-90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] sm:max-w-xl sm:text-base md:text-xl">{banner.subtitle}</p>}
               {banner.link && (
-                <Button variant="primary" className="w-fit px-3 py-2 text-xs sm:text-sm md:text-base">
+                <Button variant="primary" className="w-fit px-3 py-2 text-[11px] sm:text-sm md:text-base">
                   Learn More
                 </Button>
               )}
