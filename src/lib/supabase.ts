@@ -55,16 +55,19 @@ export async function getSiteAssetBucketName(): Promise<string> {
     const { data, error } = await client.storage.listBuckets();
 
     if (!error && Array.isArray(data)) {
-      const match = data.find((bucket) => SITE_ASSET_BUCKET_CANDIDATES.includes(bucket.name));
-      if (match) {
-        return match.name;
-      }
+      let match = data.find((bucket) => SITE_ASSET_BUCKET_CANDIDATES.includes(bucket.name));
+      if (match) return match.name;
+      
+      // Fallback to course-pdfs if site-assets isn't found, as course-pdfs is known to exist
+      match = data.find((bucket) => bucket.name === 'course-pdfs' || bucket.name === 'course_pdfs');
+      if (match) return match.name;
     }
   } catch {
     // Fall through to the project’s configured bucket name.
   }
 
-  return 'site-assets';
+  // Default to the known existing bucket
+  return 'course-pdfs';
 }
 
 export async function uploadSiteAsset(file: File, folder: string): Promise<string> {

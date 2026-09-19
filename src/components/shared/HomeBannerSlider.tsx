@@ -138,19 +138,17 @@ export function HomeBannerSlider() {
   const hasMultiple = banners.length > 1;
   const effectiveBannerRatio = (() => {
     if (!viewportWidth) return bannerAspectRatio;
-    if (viewportWidth < 640) return Math.min(bannerAspectRatio, 2.2);
+    // For mobile, maintain a reasonable aspect ratio to avoid being too short or too tall
+    if (viewportWidth < 640) return Math.max(1, Math.min(bannerAspectRatio, 2.0)); 
     if (viewportWidth < 1024) return Math.min(bannerAspectRatio, 2.5);
     return bannerAspectRatio;
   })();
 
-  const bannerContainerStyle = {
-    aspectRatio: `${effectiveBannerRatio}`,
-    minHeight: viewportWidth && viewportWidth < 640 ? '220px' : viewportWidth && viewportWidth < 1024 ? '260px' : '300px',
-    maxHeight: viewportWidth && viewportWidth < 640 ? '420px' : '520px',
-  };
-
   return (
-    <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" style={bannerContainerStyle}>
+    <div 
+      className="relative mx-auto w-full max-w-full overflow-hidden rounded-2xl shadow-xl group" 
+      style={{ aspectRatio: `${effectiveBannerRatio}` }}
+    >
       <AnimatePresence mode="wait">
         <motion.a
           key={banner.id}
@@ -160,20 +158,19 @@ export function HomeBannerSlider() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -80 }}
           transition={{ duration: 0.45, ease: 'easeInOut' }}
-          className="absolute inset-0 block h-full w-full cursor-pointer"
+          className="absolute inset-0 block h-full w-full cursor-pointer bg-slate-900"
         >
           <img
             src={banner.image_url}
             alt={banner.title || 'Banner'}
-            className="h-full w-full object-contain"
-            style={{ width: '100%', height: '100%' }}
+            className="h-full w-full object-cover sm:object-contain sm:bg-slate-100"
           />
           {(banner.title || banner.subtitle) && (
-            <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/75 via-black/20 to-transparent px-4 pb-5 text-white sm:px-8 sm:pb-8 md:px-14">
-              {banner.title && <h2 className="mb-1 max-w-[75%] text-lg font-bold leading-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] sm:max-w-none sm:text-3xl md:text-5xl">{banner.title}</h2>}
-              {banner.subtitle && <p className="mb-3 max-w-[75%] text-[11px] leading-snug opacity-90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] sm:max-w-xl sm:text-base md:text-xl">{banner.subtitle}</p>}
+            <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/30 to-transparent px-4 pb-6 text-white sm:px-8 sm:pb-8 md:px-14">
+              {banner.title && <h2 className="mb-2 max-w-full text-xl font-bold leading-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] sm:max-w-none sm:text-3xl md:text-5xl">{banner.title}</h2>}
+              {banner.subtitle && <p className="mb-4 max-w-full text-xs leading-snug opacity-95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] sm:max-w-xl sm:text-base md:text-xl">{banner.subtitle}</p>}
               {banner.link && (
-                <Button variant="primary" className="w-fit px-3 py-2 text-[11px] sm:text-sm md:text-base">
+                <Button variant="primary" className="w-fit px-4 py-2 text-xs sm:text-sm md:text-base bg-brand-primary text-white hover:bg-blue-600 border-none shadow-lg">
                   Learn More
                 </Button>
               )}

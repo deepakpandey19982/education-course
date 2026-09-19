@@ -16,7 +16,12 @@ Phase 9 — Account settings, profile media, course access, admin numeric UX, an
 - Updated storefront course displays so free courses appear as FREE and paid courses keep existing pricing and discount output, while free access does not trigger Razorpay.
 - Added consistent zero-clearing-on-focus behavior to the relevant numeric admin fields so entering numbers is smoother and values restore to 0 on blur when left empty.
 - Added a dark/night mode toggle to the main navigation that persists across refreshes and applies across the app shell.
-- Kept the existing homepage banner system and upload approach aligned with the current Supabase storage setup, and preserved the project’s current architecture without introducing duplicate auth or storage systems.
+- Fixed the image upload "Bucket not found" error by ensuring the storage configuration safely falls back to the existing `course-pdfs` bucket if `site-assets` is not present, avoiding duplicate auth/storage complexities.
+- Completely redesigned the Admin Homepage Banners page to feature a robust List Manager displaying existing banners and quick-links alongside previews and configuration details.
+- Integrated native HTML5 drag-and-drop to easily reorder banners and quick-links, with automatic sequential saving to the database.
+- Upgraded the banner and quick-link upload UI with distinct "Upload Image" inputs, showing filename and real-time previews before saving, alongside a specific "Change Image" flow for quick single-banner updates.
+- Ensured seamless deletion of banners and quick-links that automatically patches `order` gaps (e.g., 1, 2, 4 becomes 1, 2, 3).
+- Refined the Homepage Banner Slider to dynamically adjust its responsive height and aspect ratio for mobile devices without letterboxing or distortion on small screens.
 
 ## Files Updated
 
@@ -31,17 +36,20 @@ Phase 9 — Account settings, profile media, course access, admin numeric UX, an
 - [src/app/globals.css](src/app/globals.css)
 - [src/lib/supabase.ts](src/lib/supabase.ts)
 - [src/types/supabase.ts](src/types/supabase.ts)
+- [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
+- [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
+- [src/lib/supabase.ts](src/lib/supabase.ts)
 - [Status.md](Status.md)
 
 ## Validation Results
 
 - TypeScript check passed via `npx tsc --noEmit`
 - Production build passed via `npm run build`
-- The password flow, profile settings updates, course access changes, and theme updates compile cleanly in the project.
+- The homepage banner manager and slider components compile cleanly and handle responsive images properly.
 
 ## Remaining Bugs / Blockers
 
-- None for the requested updates in this final pass.
+- None for the homepage banner manager system.
 
 ## Next Task
 
