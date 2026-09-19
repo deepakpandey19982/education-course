@@ -157,13 +157,24 @@ export default function EditProfilePage() {
         type: pendingFile.type || 'image/jpeg',
       });
 
-      const url = await uploadSiteAsset(croppedFile, 'avatars');
-      setAvatarUrl(url);
+      // Show an immediate local preview so the user sees the change right away
+      const localPreviewUrl = URL.createObjectURL(croppedBlob);
+      setAvatarUrl(localPreviewUrl);
 
+      // Close the crop modal first — Account Settings panel stays open
+      setCropModalOpen(false);
+      setPendingFile(null);
+      setCropSource(null);
+      setCroppedAreaPixels(null);
+      setError(null);
+
+      // Now upload to storage and persist the permanent URL
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('You must be logged in to update your profile photo.');
       }
+
+      const url = await uploadSiteAsset(croppedFile, 'avatars');
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -174,12 +185,8 @@ export default function EditProfilePage() {
         throw new Error(updateError.message || 'Unable to save the cropped profile photo.');
       }
 
-      setCropModalOpen(false);
-      setPendingFile(null);
-      setCropSource(null);
-      setCroppedAreaPixels(null);
-      setError(null);
-      router.push('/dashboard');
+      // Replace the blob URL with the permanent CDN URL
+      setAvatarUrl(url);
     } catch (err: any) {
       setError(err.message || 'Profile photo upload failed.');
     }
@@ -298,11 +305,21 @@ export default function EditProfilePage() {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="h-20 w-20 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                <div className="h-24 w-24 shrink-0 rounded-full overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-sm">
                   {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                    <img
+                      src={avatarUrl}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        // Fallback gracefully if URL is broken
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        (e.currentTarget.parentElement as HTMLDivElement).innerHTML =
+                          `<span class="text-2xl font-bold text-slate-400">${(fullName?.[0] ?? 'U').toUpperCase()}</span>`;
+                      }}
+                    />
                   ) : (
-                    <span className="text-2xl font-bold text-slate-500">{fullName?.[0]?.toUpperCase() || 'U'}</span>
+                    <span className="text-3xl font-bold text-slate-400">{fullName?.[0]?.toUpperCase() || 'U'}</span>
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
