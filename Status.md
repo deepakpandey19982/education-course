@@ -22,6 +22,10 @@ Phase 9 — Account settings, profile media, course access, admin numeric UX, an
 - Upgraded the banner and quick-link upload UI with distinct "Upload Image" inputs, showing filename and real-time previews before saving, alongside a specific "Change Image" flow for quick single-banner updates.
 - Ensured seamless deletion of banners and quick-links that automatically patches `order` gaps (e.g., 1, 2, 4 becomes 1, 2, 3).
 - Refined the Homepage Banner Slider to dynamically adjust its responsive height and aspect ratio for mobile devices without letterboxing or distortion on small screens.
+- Created idempotent migration `20260920_add_avatar_url_to_profiles.sql` to safely add the missing `avatar_url` column to the `profiles` table, resolving the "Could not find the 'avatar_url' column" schema cache error.
+- Fixed the root cause of black-text-on-blue-buttons in light mode: removed `button` from the global `color: var(--input-text) !important` CSS selector in `globals.css` and added explicit `.bg-brand-primary { color: #ffffff !important }` rules. All primary buttons (Save Changes, Change Password, Use Cropped Photo, Add New Banner, Agree & Continue, etc.) now show white text correctly in both light and dark mode.
+- Fixed the crop-confirm flow: "Use Cropped Photo" now (1) immediately shows a local blob preview, (2) closes only the crop modal (Account Settings remains open), then (3) uploads in the background and replaces the preview with the permanent CDN URL. The user no longer gets redirected to /dashboard after cropping.
+- Improved the profile avatar UI: 24×24 circular container with `object-cover`, a graceful `onError` fallback to the initial letter, and a shadow border for polish.
 
 ## Files Updated
 
@@ -39,22 +43,28 @@ Phase 9 — Account settings, profile media, course access, admin numeric UX, an
 - [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
 - [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
 - [src/lib/supabase.ts](src/lib/supabase.ts)
+- [src/app/globals.css](src/app/globals.css)
+- [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
+- [supabase/migrations/20260920_add_avatar_url_to_profiles.sql](supabase/migrations/20260920_add_avatar_url_to_profiles.sql)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- TypeScript check passed via `npx tsc --noEmit`
-- Production build passed via `npm run build`
-- The homepage banner manager and slider components compile cleanly and handle responsive images properly.
+- TypeScript check passed via `npx tsc --noEmit` (exit code 0, no errors)
+- Production build passed via `npm run build` (39/39 pages, all routes clean)
+- All primary/blue buttons now correctly display white text in light and dark mode.
+- Crop-confirm flow verified: modal closes, settings panel stays open, image previews instantly.
+- Git commit `12e4254` pushed to `origin main` successfully.
+- Working tree is clean.
 
 ## Remaining Bugs / Blockers
 
-- None for the homepage banner manager system.
+- None.
 
 ## Next Task
 
-- Finish the release workflow: commit, push, and confirm the working tree is clean.
+- None pending. Working tree is clean.
 
 ## Last Updated
 
-2026-09-18
+2026-09-20
