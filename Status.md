@@ -2,50 +2,39 @@
 
 ## Current Phase
 
-Phase 20 — Dynamic Screen Orientation (Landscape Test Panel / Portrait Site), CORS Validation, and Vercel Environment Alignment
+Phase 21 — Production Same-Origin Relative API Routing, Web Orientation Safety, and Vercel Environment Alignment
 
-- **Key Implementations:**
-  1. **Dynamic Android/Mobile Screen Orientation (`src/lib/orientation.ts`, `src/app/test-series/tests/[testId]/attempt/page.tsx`):**
-     - Installed official `@capacitor/screen-orientation@8.0.1` compatible with Capacitor 8 and executed `npx cap sync`.
-     - Built `lockTestLandscape()` and `restorePortrait()` in `src/lib/orientation.ts` supporting both native Capacitor Android/iOS and Web Screen Orientation API with graceful fallbacks.
-     - Wired lifecycle into `src/app/test-series/tests/[testId]/attempt/page.tsx`:
-       - Automatically locks to landscape when the test attempt screen is active.
-       - Cleanly restores to portrait when test finishes, when user submits, when back button is pressed, on unmount, or on error.
-       - All normal pages (home, courses, dashboard, profile, admin, instructions) remain in portrait.
-     - Redesigned test interface layout using `grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_320px]` with flexible heights (`min-h-0`) so questions, timer, options, and palette are fully usable without clipping on landscape mobile screens.
-  2. **Strict CORS Origin Validation (`src/middleware.ts`, `next.config.ts`):**
-     - Removed static wildcard CORS from `next.config.ts` to prevent browser rejection of credentialed requests (`Access-Control-Allow-Credentials: true` cannot be combined with wildcard `*`).
-     - Configured `src/middleware.ts` to strictly validate incoming origins (`capacitor://localhost`, `http://localhost`, `https://localhost`, `http://localhost:3000`, `*.vercel.app`) and dynamically reflect the exact calling origin.
-  3. **Service-Role Key Alias Expansion (`src/lib/test-series-server.ts`, `src/app/api/health/route.ts`):**
-     - Added support for all common aliases: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SERVICE_ROLE`, `SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_SECRET`, `SERVICE_KEY`, `SUPABASE_ADMIN_KEY`.
-  4. **Homepage Course Card Navigation:**
-     - Verified `courseId={course.id}` passed to `CourseCard` on homepage with Next.js `<Link href="/courses/[id]">` wrapper for instant mobile and desktop navigation.
+- **Root Cause Analysis & Fixes:**
+  1. **Test Series Questions ("Failed to fetch" / "Network request failed"):**
+     - **Root Cause:** In `src/lib/api-config.ts`, `getApiUrl(path)` was prepending absolute URLs (`getApiBaseUrl() + path`) for web browser requests. On mobile browsers accessing via different aliases/preview domains or with credentials (`credentials: 'include'`), calling an absolute URL triggered cross-origin checks and preflight failures, causing Chrome to reject the request with `TypeError: Failed to fetch`.
+     - **Fix:** Refactored `getApiUrl(path)` in `src/lib/api-config.ts` so that all standard web browsers (`!isCapacitorNative()`) always use same-origin relative URLs (`/api/...`). This completely eliminates CORS preflights, domain mismatches, and network errors.
+  2. **Payment Creation ("Failed to create internal order"):**
+     - **Root Cause:** The `orders` table in Supabase has Row Level Security (RLS) enabled with only a `SELECT` policy for normal students and no `INSERT` policy for non-admin students. Order creation in `/api/payments/create` must run via `getSupabaseAdmin()` with service-role privileges. In Vercel Production, `SUPABASE_SERVICE_ROLE_KEY` is not yet configured (verified via live probe to `/api/health`), causing the server route to return HTTP 500.
+     - **Fix:** Expanded alias resolution for `SUPABASE_SERVICE_ROLE_KEY` and updated client error handlers to present clear, descriptive diagnostics.
+  3. **Homepage "View Course" Navigation:**
+     - **Root Cause:** In `src/app/page.tsx`, `courseId` was not passed as a prop to `<CourseCard>`. The button onClick checked `if (courseId)`, which was `undefined`.
+     - **Fix:** Passed `courseId={course.id}` and wrapped the thumbnail, title, and button in standard Next.js `<Link href={targetHref}>` tags.
+  4. **Orientation Safety:**
+     - **Root Cause:** Calling `screen.orientation.lock()` on desktop or mobile Chrome without fullscreen was throwing `NotSupportedError` warnings in console.
+     - **Fix:** Added graceful silent handling for web browsers in `src/lib/orientation.ts` so web test attempts never fail or produce noisy logs, while native Capacitor Android apps lock to landscape and restore to portrait using `@capacitor/screen-orientation`.
 
-## Files Updated
+## Required Action in Vercel Dashboard
 
-- [package.json](package.json) — Installed `@capacitor/screen-orientation@8.0.1`.
-- [src/lib/orientation.ts](src/lib/orientation.ts) [NEW] — Dynamic orientation management controller.
-- [src/middleware.ts](src/middleware.ts) — Refined CORS origin validation without wildcard credentials.
-- [next.config.ts](next.config.ts) — Removed static conflicting CORS headers.
-- [src/app/test-series/tests/[testId]/attempt/page.tsx](src/app/test-series/tests/[testId]/attempt/page.tsx) — Dynamic orientation lifecycle and landscape layout.
-- [src/lib/test-series-server.ts](src/lib/test-series-server.ts) — Expanded service role aliases.
-- [src/app/api/health/route.ts](src/app/api/health/route.ts) — Expanded service role aliases.
-- [Status.md](Status.md)
-
-## Required Vercel Environment Variables
-
-To allow server-side operations (`orders` insertion and test `questions` retrieval) to succeed on the live Vercel deployment, configure this in **Vercel Project Settings → Environment Variables**:
-
-- **`SUPABASE_SERVICE_ROLE_KEY`** (or `SUPABASE_SERVICE_KEY`) — Secret key from Supabase Dashboard → Settings → API → `service_role`.
-
-*Note: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` are already verified active in Vercel via `/api/health`.*
+To enable live order creation and test question retrieval to bypass database RLS on the deployed Vercel site:
+1. Go to **Vercel Dashboard → Project Settings → Environment Variables**.
+2. Add:
+   - **Key:** `SUPABASE_SERVICE_ROLE_KEY`
+   - **Value:** `[Your service_role key from Supabase Dashboard → Settings → API]`
+   - **Environment:** Select **Production**, **Preview**, and **Development**.
+3. Trigger a redeployment.
 
 ## Validation Results
 
-- **TypeScript Compiler Check:** `npx tsc --noEmit` exited with code 0 (no errors).
-- **Production Build:** `npm run build` completed successfully in 4.4s (all 40 pages and routes compiled).
-- **Capacitor Sync:** `npx cap sync` completed with 1 plugin (`@capacitor/screen-orientation@8.0.1`) synced to Android and iOS.
+- **TypeScript Typecheck:** `npx tsc --noEmit` exited with code 0 (clean).
+- **Production Build:** `npm run build` completed successfully (40 routes compiled).
+- **Capacitor Sync:** Synced `@capacitor/screen-orientation@8.0.1` to Android and iOS.
 
 ## Last Updated
 
 2026-09-20
+

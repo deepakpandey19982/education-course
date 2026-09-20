@@ -145,6 +145,9 @@ export default function TestAttemptPage() {
           // Response body is not valid JSON
         }
         if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Authentication required. Please sign in to start this test.');
+          }
           throw new Error(payload.error || `Unable to start test (Server returned ${response.status})`);
         }
         if (payload.attempt.status !== 'in_progress') {
@@ -166,7 +169,7 @@ export default function TestAttemptPage() {
       .catch((reason) => {
         const msg = reason?.message || 'Could not start this test.';
         if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-          setError('Network request failed. Please check internet connection and CORS / server configuration.');
+          setError('Network connection error. Could not reach the server. Please check your connection.');
         } else {
           setError(msg);
         }

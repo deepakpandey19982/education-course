@@ -17,20 +17,19 @@ export async function lockTestLandscape(): Promise<void> {
       isLandscapeActive = true;
       return;
     }
-  } catch (capErr) {
-    console.warn('[Orientation] Capacitor lock failed:', capErr);
+  } catch {
+    // Gracefully ignore native lock issues
   }
 
-  // 2. Web Screen Orientation API fallback for mobile Chrome/Edge
+  // 2. Web Screen Orientation API fallback for mobile Chrome/Edge (where supported)
   try {
     const screenAny = window.screen as any;
     if (screenAny?.orientation?.lock) {
-      await screenAny.orientation.lock('landscape');
+      await screenAny.orientation.lock('landscape').catch(() => {});
       isLandscapeActive = true;
     }
-  } catch (webErr) {
-    // Expected on desktop browsers or without fullscreen permission
-    console.warn('[Orientation] Web lock landscape not supported:', webErr);
+  } catch {
+    // Browsers require fullscreen permission for screen.orientation.lock, so silently ignore
   }
 }
 
@@ -49,20 +48,20 @@ export async function restorePortrait(): Promise<void> {
       isLandscapeActive = false;
       return;
     }
-  } catch (capErr) {
-    console.warn('[Orientation] Capacitor restore portrait failed:', capErr);
+  } catch {
+    // Gracefully ignore native restore issues
   }
 
   // 2. Web Screen Orientation API fallback
   try {
     const screenAny = window.screen as any;
     if (screenAny?.orientation?.lock) {
-      await screenAny.orientation.lock('portrait');
+      await screenAny.orientation.lock('portrait').catch(() => {});
     } else if (screenAny?.orientation?.unlock) {
       screenAny.orientation.unlock();
     }
     isLandscapeActive = false;
-  } catch (webErr) {
-    console.warn('[Orientation] Web restore portrait failed:', webErr);
+  } catch {
+    // Silently ignore web unsupported error
   }
 }

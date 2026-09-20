@@ -78,6 +78,16 @@ export function getApiUrl(path: string): string {
     return path;
   }
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // 1. In standard web browsers (desktop Chrome, mobile Chrome on Android, Safari, etc.),
+  // ALWAYS return a same-origin relative URL (e.g. '/api/...').
+  // This guarantees zero CORS errors, eliminates preflight requests, avoids origin mismatches,
+  // and natively preserves cookies across all deployment domains and aliases.
+  if (typeof window !== 'undefined' && !isCapacitorNative()) {
+    return cleanPath;
+  }
+
+  // 2. Only for native Capacitor apps (where WebView origin is capacitor://localhost) or SSR:
   const base = getApiBaseUrl();
   return `${base}${cleanPath}`;
 }

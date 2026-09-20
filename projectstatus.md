@@ -32,16 +32,15 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 20)
+## Latest Production Status & Updates (Phase 21)
 
-- **Commit:** `548bfd9` (pushed to `origin/main`)
 - **Key Changes:**
-  1. **Test Series Questions & CORS:** Fixed CORS credential spec issue by removing wildcard origin with credentials in `next.config.ts` and implementing strict dynamic origin reflection in `src/middleware.ts` for `capacitor://localhost`, `https://education-course-nine.vercel.app`, and `http://localhost:3000`.
-  2. **Payment Creation:** Expanded service role aliases in server libraries. Identified missing Vercel environment variable `SUPABASE_SERVICE_ROLE_KEY` required for bypass of `orders` and `questions` admin RLS.
-  3. **Homepage Course Card Navigation:** Verified Next.js `<Link>` wrapping for image, title, and "View Course" button with `courseId` correctly passed.
-  4. **Dynamic Android Orientation:** Installed `@capacitor/screen-orientation@8.0.1` and ran `npx cap sync`. Created `src/lib/orientation.ts` which automatically locks to landscape on test attempt screen and restores portrait on unmount, back button, error, or submit. Normal pages remain portrait.
+  1. **Same-Origin Relative API URLs (`src/lib/api-config.ts`):** Standardized all browser fetch requests to use relative URLs (`/api/...`), completely avoiding CORS preflights, domain mismatches, and `TypeError: Failed to fetch` errors in mobile/desktop Chrome.
+  2. **Orientation Web Safety (`src/lib/orientation.ts`):** Made orientation lock/restore completely safe on mobile and desktop web browsers without throwing errors or unhandled rejections, while keeping native Capacitor Android screen locking intact.
+  3. **Error Reporting (`src/app/test-series/tests/[testId]/attempt/page.tsx`):** Improved error reporting to clearly differentiate between network reachability errors and authentication requirements.
+  4. **Production Database Security & Service Role Alignment:** Identified that Supabase Row Level Security (RLS) protects `orders` (no public insert) and `questions` (admin-only select to avoid exposing answers). Documented the missing `SUPABASE_SERVICE_ROLE_KEY` in Vercel.
 - **Verification:**
   - `npx tsc --noEmit`: Code 0 (clean).
   - `npm run build`: Code 0 (clean, 40 routes).
-  - `npx cap sync`: Synced `@capacitor/screen-orientation` to Android & iOS platforms.
-  - Vercel live health check: Deployed and responsive.
+  - `npx cap sync`: Synced `@capacitor/screen-orientation` to Android & iOS.
+
