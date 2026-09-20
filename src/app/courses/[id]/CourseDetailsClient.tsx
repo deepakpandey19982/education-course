@@ -93,10 +93,46 @@ export default function CourseDetailsClient() {
         currency: orderData.currency,
         name: 'Education-Course',
         description: course?.title,
-        order_id: orderData.orderId,
-        handler: function (response: any) {
-          alert('Payment Successful! Your course is now available in your dashboard.');
-          router.push('/dashboard');
+        handler: async function (response: any) {
+          try {
+            setPaymentLoading(true);
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+            };
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok || !verifyData.success) {
+              throw new Error(verifyData.error || 'Payment verification failed');
+            }
+
+            alert('Payment Successful! Your course is now available in your dashboard.');
+            router.push('/dashboard');
+          } catch (verifyErr: any) {
+            console.error('Payment verification error:', verifyErr);
+            alert('Payment received! Finalizing access: ' + (verifyErr.message || 'Please check your dashboard.'));
+            router.push('/dashboard');
+          } finally {
+            setPaymentLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setPaymentLoading(false);
+          },
         },
         prefill: {
           name: userProfile.full_name || '',
@@ -108,6 +144,10 @@ export default function CourseDetailsClient() {
       };
 
       const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (resp: any) {
+        setPaymentLoading(false);
+        alert(`Payment failed: ${resp.error?.description || 'Transaction declined'}`);
+      });
       rzp.open();
 
     } catch (error: any) {

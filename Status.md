@@ -2,60 +2,61 @@
 
 ## Current Phase
 
-Phase 12 — Course PDF Download Authentication and Access Verification Fix.
+Phase 13 — Razorpay Live Mode Payment Verification, Dashboard Auto-Reconciliation & Admin Revenue Metrics.
 
 ## What Changed
 
-- **Course PDF Download Authentication Fix (`src/app/api/courses/download/route.ts`, `src/lib/test-series-server.ts`, `src/lib/supabase.ts`):**
+- **Payment Verification Endpoint (`src/app/api/payments/verify/route.ts`):**
   - **Diagnosed Root Cause:**
-    - The client-side Supabase client (`@supabase/supabase-js`) persists authentication tokens in browser `localStorage`, not in HTTP cookies.
-    - Previous PDF download triggers performed direct full-page navigations (`window.location.href = /api/courses/download?courseId=...`), which sent no `Authorization` header and contained no session cookies, causing the `@supabase/ssr` cookie parser to fail with `{"error": "Authentication required"}` (HTTP 401).
-    - Furthermore, `/api/courses/download` was hard-coded to require a paid entry in the `orders` table, which erroneously blocked all free courses (`price === 0`).
-  - **Server-Side Authentication Enhancement (`src/lib/test-series-server.ts`):**
-    - Enhanced `getRequestUser(request)` to check multiple authentication vectors:
-      1. `Authorization: Bearer <token>` HTTP header.
-      2. `token` or `access_token` query parameter from the request URL.
-      3. `sb-access-token` cookie directly.
-      4. `@supabase/ssr` structured cookies via `cookieStore`.
-    - If a valid token is provided via any of these channels, the server verifies it against Supabase Auth.
-  - **Client-Side Cookie Synchronization (`src/lib/supabase.ts`):**
-    - Added `onAuthStateChange` listener in `getSupabase()` to keep `sb-access-token` cookie synchronized across login, session refresh, and logout events.
-    - Synchronized existing `localStorage` sessions on initial load so server-side routes can recognize browser sessions.
-  - **Access & Payment Verification Logic (`src/app/api/courses/download/route.ts`):**
-    - Authenticates the user via `getRequestUser(req)`. Unauthenticated requests return HTTP 401 `{"error": "Authentication required"}`.
-    - Checks course details from the `courses` table:
-      - **Free Courses (`price === 0`):** Authenticated users are granted access without requiring a paid order row.
-      - **Paid Courses (`price > 0`):** Checks `orders` for `status === 'paid'` matching `user_id` and `course_id`. Unpurchased paid requests return HTTP 403 `{"error": "Unauthorized: You must purchase the course before downloading."}`.
-      - **Admins:** Users with `profiles.role === 'admin'` are granted access to all course PDFs for inspection/management.
-    - Fetches the private storage file path from `course_files` and generates a secure signed URL (15-minute expiry) from the private `course-pdfs` bucket.
-    - Supports both JSON response format (`{ success: true, downloadUrl, fileName }`) for programmatic API requests and 302 redirects for direct browser navigation.
-    - Implemented both `GET` and `POST` handlers.
-  - **Frontend Authenticated Download Helper & UI (`src/lib/course-download.ts`, `CourseDetailsClient.tsx`, `src/app/dashboard/page.tsx`):**
-    - Created `downloadCoursePdf(courseId)` helper in `src/lib/course-download.ts` that retrieves the user's active access token, makes an authenticated `fetch()` request, checks JSON responses, and securely opens/downloads the signed PDF.
-    - Updated `src/app/courses/[id]/CourseDetailsClient.tsx` and `src/app/dashboard/page.tsx` with loading states ("Preparing PDF...") while generating signed URLs.
+    - Razorpay Checkout client handler previously displayed an alert and redirected directly to `/dashboard` without sending the checkout response (`razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`) to the server.
+    - There was no `/api/payments/verify` endpoint in the codebase; the application relied entirely on `/api/payments/webhook`, which could not receive incoming webhook events from Razorpay on localhost or without webhook URL registration in Razorpay dashboard.
+    - Orders created via `/api/payments/create` thus remained in `status: 'pending'` even after successful payment in Razorpay Live Mode.
+  - **Implemented Cryptographic & API Verification:**
+    - Added `POST /api/payments/verify` endpoint with dual-verification paths:
+      1. Cryptographic HMAC SHA256 signature verification (`crypto.createHmac('sha256', key_secret).update(order_id + '|' + payment_id).digest('hex') === signature`).
+      2. Server-to-server Razorpay API verification (`razorpay.orders.fetch(orderId)`) for automatic reconciliation and recovery.
+    - Updates order to `status: 'paid'` and updates timestamps.
+    - Rejects invalid or forged signatures with HTTP 400.
+
+- **Frontend Razorpay Checkout Flow (`src/app/courses/[id]/CourseDetailsClient.tsx`):**
+  - Updated `options.handler` callback to immediately invoke `POST /api/payments/verify` with checkout tokens and user session authorization header before navigating.
+  - Added `modal.ondismiss` callback to reset payment loading state when user cancels or dismisses checkout.
+  - Added `rzp.on('payment.failed')` event handler to display helpful error descriptions.
+
+- **User Dashboard Auto-Reconciliation (`src/app/dashboard/page.tsx`):**
+  - On dashboard load, queries the user's pending orders and automatically verifies any unverified orders with Razorpay API via `/api/payments/verify`.
+  - Reconciled existing live order (`order_TeEsE5JVj1pTCO`), immediately displaying the purchased course under "My Learning".
+
+- **Admin Real-time Revenue & Sales Metrics (`src/app/api/admin/stats/route.ts`, `src/app/admin/page.tsx`):**
+  - Created `GET /api/admin/stats` API endpoint:
+    - Calculates live `totalRevenue` (sum of paid orders in INR).
+    - Counts `totalSales` (total paid orders).
+    - Counts `activeCourses` and `totalStudents`.
+    - Returns dynamic system status (checks Razorpay configuration and database connection).
+  - Updated `src/app/admin/page.tsx` to dynamically query and display real revenue (e.g. `₹1.00`), live sales count, and active Razorpay status badge (`ACTIVE` in emerald green).
+
+- **Webhook Handler Enhancement (`src/app/api/payments/webhook/route.ts`):**
+  - Added support for both `payment.captured` and `order.paid` events.
+  - Synchronized `updated_at` timestamps.
 
 ## Files Updated
 
-- [src/lib/test-series-server.ts](src/lib/test-series-server.ts)
-- [src/lib/supabase.ts](src/lib/supabase.ts)
-- [src/lib/course-download.ts](src/lib/course-download.ts)
-- [src/app/api/courses/download/route.ts](src/app/api/courses/download/route.ts)
+- [src/app/api/payments/verify/route.ts](src/app/api/payments/verify/route.ts)
+- [src/app/api/payments/webhook/route.ts](src/app/api/payments/webhook/route.ts)
+- [src/app/api/admin/stats/route.ts](src/app/api/admin/stats/route.ts)
+- [src/app/admin/page.tsx](src/app/admin/page.tsx)
 - [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx)
 - [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
-- [scripts/test-course-download.mjs](scripts/test-course-download.mjs)
+- [scripts/test-payment-flow.mjs](scripts/test-payment-flow.mjs)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- **Automated Test Suite (`scripts/test-course-download.mjs`):**
-  - Test 1 (Unauthenticated access to Free Course): HTTP 401 `{"error":"Authentication required"}` (PASS).
-  - Test 2 (Logged-in student requesting Free Course PDF): HTTP 200, valid signed URL returned, downloaded 439,699 bytes of PDF (PASS).
-  - Test 3 (Logged-in student requesting Paid Course without purchase): HTTP 403 `{"error":"Unauthorized: You must purchase the course before downloading."}` (PASS).
-  - Test 4 (Logged-in student requesting Paid Course with purchase): HTTP 200, valid signed URL returned (PASS).
-  - Test 5 (Admin accessing Paid Course): HTTP 200, access granted (PASS).
-  - Test 6 (Direct browser GET with query param token): HTTP 302 redirecting to secure signed URL (PASS).
-  - Test 7 (Direct browser GET with session cookie): HTTP 302 redirecting to secure signed URL (PASS).
-  - Test 8 (Private storage check): Raw public bucket access rejected (HTTP 400), confirming private storage remains secure (PASS).
+- **Automated Test Suite (`scripts/test-payment-flow.mjs`):**
+  - Test 1 (Security check with invalid signature): HTTP 400 `{"error":"Invalid payment signature"}` (PASS).
+  - Test 2 (Reconciling real live order `order_TeEsE5JVj1pTCO`): HTTP 200, marked as `status: 'paid'` in database (PASS).
+  - Test 3 (Admin live stats): Returns `totalRevenue: 1`, `totalSales: 1`, `activeCourses: 7`, `totalStudents: 2`, `systemStatus.razorpay: 'ACTIVE'` (PASS).
+  - Test 4 (Dashboard courses query): Purchased course "Group D" actively retrieved and displayed (PASS).
 - **TypeScript check:** `npx tsc --noEmit` passed with 0 errors (exit code 0).
 - **Production build:** `npm run build` passed cleanly (exit code 0, 41/41 routes compiled).
 

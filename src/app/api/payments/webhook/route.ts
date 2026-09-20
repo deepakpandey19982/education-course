@@ -28,19 +28,23 @@ export async function POST(req: Request) {
 
     const event = JSON.parse(body);
 
-    // 2. Handle 'payment.captured' event
-    if (event.event === 'payment.captured') {
-      const paymentId = event.payload.payment.entity.id;
-      const orderId = event.payload.payment.entity.order_id;
+    // 2. Handle 'payment.captured' or 'order.paid' events
+    if (event.event === 'payment.captured' || event.event === 'order.paid') {
+      const orderId = event.payload?.payment?.entity?.order_id || event.payload?.order?.entity?.id;
 
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .update({ status: 'paid' })
-        .eq('payment_id', orderId); // In Razorpay, the order_id is what we stored as payment_id
+      if (orderId) {
+        const { error } = await supabaseAdmin
+          .from('orders')
+          .update({
+            status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('payment_id', orderId);
 
-      if (error) {
-        console.error('Error updating order status:', error);
-        return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+        if (error) {
+          console.error('Error updating order status in webhook:', error);
+          return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+        }
       }
     }
 

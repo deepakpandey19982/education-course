@@ -36,6 +36,35 @@ export default function UserDashboard() {
         setProfile(userProfile);
         setImageError(false);
 
+        // Auto-reconcile any pending orders that were paid via Razorpay Live
+        try {
+          const { data: pendingOrders } = await supabase
+            .from('orders')
+            .select('id, payment_id')
+            .eq('user_id', userProfile.id)
+            .eq('status', 'pending');
+
+          if (pendingOrders && pendingOrders.length > 0) {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            for (const pending of pendingOrders) {
+              if (pending.payment_id && pending.payment_id.startsWith('order_')) {
+                await fetch('/api/payments/verify', {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({ orderId: pending.payment_id }),
+                }).catch(() => {});
+              }
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Order reconciliation notice:', syncErr);
+        }
+
         // Fetch purchased courses
         // JOIN orders -> courses
         const { data, error } = await supabase

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { supabase } from '@/lib/supabase';
 
 const StatCard = ({ title, value, icon, color }: { title: string, value: string, icon: string, color: string }) => (
   <div className="bg-white dark:bg-slate-900 p-6 rounded-xl soft-shadow border border-slate-100 dark:border-slate-800">
@@ -17,6 +18,46 @@ const StatCard = ({ title, value, icon, color }: { title: string, value: string,
 );
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    activeCourses: 0,
+    totalStudents: 0,
+    totalSales: 0,
+    systemStatus: {
+      database: 'CONNECTED',
+      storage: 'ACTIVE',
+      razorpay: 'ACTIVE',
+    },
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        const res = await fetch('/api/admin/stats', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to load admin stats:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStats();
+  }, []);
+
+  const formattedRevenue = `₹${Number(stats.totalRevenue).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
   return (
     <div className="space-y-8">
       <div className="mb-8">
@@ -25,10 +66,30 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <StatCard title="Total Revenue" value="₹0.00" icon="💰" color="bg-green-100 dark:bg-emerald-950/70 text-green-600 dark:text-emerald-400" />
-        <StatCard title="Active Courses" value="0" icon="📚" color="bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400" />
-        <StatCard title="Total Students" value="0" icon="👥" color="bg-purple-100 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400" />
-        <StatCard title="Total Sales" value="0" icon="📈" color="bg-orange-100 dark:bg-orange-950/70 text-orange-600 dark:text-orange-400" />
+        <StatCard
+          title="Total Revenue"
+          value={loading ? '...' : formattedRevenue}
+          icon="💰"
+          color="bg-green-100 dark:bg-emerald-950/70 text-green-600 dark:text-emerald-400"
+        />
+        <StatCard
+          title="Active Courses"
+          value={loading ? '...' : String(stats.activeCourses)}
+          icon="📚"
+          color="bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400"
+        />
+        <StatCard
+          title="Total Students"
+          value={loading ? '...' : String(stats.totalStudents)}
+          icon="👥"
+          color="bg-purple-100 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400"
+        />
+        <StatCard
+          title="Total Sales"
+          value={loading ? '...' : String(stats.totalSales)}
+          icon="📈"
+          color="bg-orange-100 dark:bg-orange-950/70 text-orange-600 dark:text-orange-400"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -80,15 +141,27 @@ export default function AdminDashboard() {
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/70 rounded-lg">
               <span className="text-sm text-slate-600 dark:text-slate-300">Database Connection</span>
-              <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded">CONNECTED</span>
+              <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded">
+                {stats.systemStatus.database}
+              </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/70 rounded-lg">
               <span className="text-sm text-slate-600 dark:text-slate-300">Storage Bucket (site-assets)</span>
-              <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded">ACTIVE</span>
+              <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded">
+                {stats.systemStatus.storage}
+              </span>
             </div>
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/70 rounded-lg">
               <span className="text-sm text-slate-600 dark:text-slate-300">Payment Gateway (Razorpay)</span>
-              <span className="text-xs font-bold text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-1 rounded">PENDING SETUP</span>
+              {stats.systemStatus.razorpay === 'ACTIVE' ? (
+                <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded">
+                  ACTIVE
+                </span>
+              ) : (
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-1 rounded">
+                  PENDING SETUP
+                </span>
+              )}
             </div>
           </div>
         </div>
