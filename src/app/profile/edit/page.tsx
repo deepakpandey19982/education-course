@@ -283,11 +283,11 @@ export default function EditProfilePage() {
                         // Fallback gracefully if URL is broken
                         (e.currentTarget as HTMLImageElement).style.display = 'none';
                         (e.currentTarget.parentElement as HTMLDivElement).innerHTML =
-                          `<span class="text-2xl font-bold text-slate-400">${(fullName?.[0] ?? 'U').toUpperCase()}</span>`;
+                          `<span class="text-2xl font-bold text-slate-400">${(fullName?.[0] ?? 'D').toUpperCase()}</span>`;
                       }}
                     />
                   ) : (
-                    <span className="text-3xl font-bold text-slate-400">{fullName?.[0]?.toUpperCase() || 'U'}</span>
+                    <span className="text-3xl font-bold text-slate-400">{fullName?.[0]?.toUpperCase() || 'D'}</span>
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">

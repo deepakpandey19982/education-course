@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, getUserProfile } from '@/lib/supabase';
+import { supabase, getUserProfile, resolveStorageUrl } from '@/lib/supabase';
 import { Profile, Order, Course } from '@/types/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
@@ -18,6 +18,7 @@ export default function UserDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myCourses, setMyCourses] = useState<PurchasedCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -27,7 +28,11 @@ export default function UserDashboard() {
           router.replace('/login');
           return;
         }
+        if (userProfile.avatar_url) {
+          userProfile.avatar_url = await resolveStorageUrl(userProfile.avatar_url);
+        }
         setProfile(userProfile);
+        setImageError(false);
 
         // Fetch purchased courses
         // JOIN orders -> courses
@@ -114,8 +119,19 @@ export default function UserDashboard() {
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-6">
                   <div className="text-center mb-6">
-                    <div className="w-20 h-20 bg-brand-primary text-white rounded-full flex items-center justify-center text-3xl font-bold mx-auto mb-4">
-                      {profile?.full_name?.[0] || 'U'}
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center mx-auto mb-4 shadow-sm relative">
+                      {profile?.avatar_url && !imageError ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt={profile.full_name || 'Profile'}
+                          className="h-full w-full object-cover"
+                          onError={() => setImageError(true)}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-brand-primary text-white rounded-full flex items-center justify-center text-3xl font-bold">
+                          {profile?.full_name?.[0]?.toUpperCase() || 'D'}
+                        </div>
+                      )}
                     </div>
                     <h3 className="text-2xl font-extrabold text-slate-900">{profile?.full_name || 'Student'}</h3>
                     <p className="text-sm font-medium text-slate-500 mb-1">Student</p>

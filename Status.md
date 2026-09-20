@@ -34,6 +34,12 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
   - Enforced `#ffffff !important` text on `.bg-brand-primary`, `button.bg-brand-primary`, `.bg-blue-600`, `.bg-blue-700`, and `button[class*="bg-blue-"]` in both light and dark themes.
   - Preserved light readable text (`#f8fafc !important`) for outline/ghost buttons in dark mode and dark readable text (`#0f172a`) in light mode.
 
+- **Fixed Dashboard Profile Picture Display:**
+  - Resolved issue where My Learning Dashboard only showed default initial "D" instead of user's uploaded avatar.
+  - Updated `src/app/dashboard/page.tsx` profile card to check `profile.avatar_url`, resolving it via `resolveStorageUrl()`.
+  - Implemented responsive circular image container with `onError` fallback to the user's initial letter or "D".
+  - Verified dashboard updates immediately after navigation from Account Settings without requiring second upload.
+
 ## Files Updated
 
 - [next.config.ts](next.config.ts)
@@ -44,6 +50,7 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
 - [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
 - [src/app/admin/test-series/_components/TestSeriesAdminManager.tsx](src/app/admin/test-series/_components/TestSeriesAdminManager.tsx)
 - [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
+- [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
 - [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
 - [src/app/globals.css](src/app/globals.css)
 - [.gitignore](.gitignore)
@@ -54,6 +61,7 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
 
 - TypeScript check passed via `npx tsc --noEmit` (exit code 0, 0 errors)
 - Production build passed via `npm run build` (39/39 pages compiled cleanly)
+- Dashboard profile avatar verified: displays uploaded profile image with safe fallback to initial letter/"D" on load/error.
 - Banner images verified: existing banners updated with signed URLs, returning HTTP 200 image/png.
 - Test series questions verified: `POST /api/tests/85c59437-7003-44e0-8df5-714da6b29b19/attempt` returns HTTP 200 with 5 questions and test metadata.
 - Storage upload verified: `/api/storage/upload` handles avatars and banners with 10-year signed URLs, verified HTTP 200 fetch.
