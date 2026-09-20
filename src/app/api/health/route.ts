@@ -17,6 +17,11 @@ export async function GET() {
         'SUPABASE_SERVICE_KEY',
         'SUPABASE_SERVICE_ROLE',
         'SERVICE_ROLE_KEY',
+        'SUPABASE_SECRET_KEY',
+        'SUPABASE_SECRET',
+        'SERVICE_KEY',
+        'SUPABASE_ADMIN_KEY',
+        'SUPABASE_SERVICE_ROLE_SECRET',
       ])
     ),
     RAZORPAY_KEY_ID: Boolean(

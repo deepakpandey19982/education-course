@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { testSeriesFetch } from '@/lib/test-series-client';
+import { lockTestLandscape, restorePortrait } from '@/lib/orientation';
 
 type Question = {
   id: string;
@@ -113,6 +114,7 @@ export default function TestAttemptPage() {
       const response = await testSeriesFetch(`/api/test-attempts/${attempt.id}/submit`, { method: 'POST' });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
+      await restorePortrait();
       router.replace(`/test-series/tests/${testId}/results?attempt=${payload.attempt.id}`);
     } catch (reason) {
       submittedRef.current = false;
@@ -121,6 +123,17 @@ export default function TestAttemptPage() {
       setSaving(false);
     }
   }, [attempt, router, testId]);
+
+  // Dynamic screen orientation: automatically switch to landscape when test attempt screen is active,
+  // and safely restore to portrait when exiting, unmounting, submitting, or navigating away.
+  useEffect(() => {
+    if (attempt && attempt.status === 'in_progress') {
+      void lockTestLandscape();
+    }
+    return () => {
+      void restorePortrait();
+    };
+  }, [attempt]);
 
   useEffect(() => {
     testSeriesFetch(`/api/tests/${testId}/attempt`, { method: 'POST' })
@@ -268,7 +281,10 @@ export default function TestAttemptPage() {
             )}
             <Button
               variant={isAuthError ? 'outline' : 'primary'}
-              onClick={() => router.push(`/test-series/tests/${testId}/instructions`)}
+              onClick={async () => {
+                await restorePortrait();
+                router.push(`/test-series/tests/${testId}/instructions`);
+              }}
             >
               Back to Instructions
             </Button>
@@ -328,8 +344,8 @@ export default function TestAttemptPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 pb-20 lg:p-6 lg:pb-24 grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6">
-        <section className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-5 md:p-8 flex flex-col min-h-[620px]">
+      <main className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 pb-20 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_320px] gap-4 md:gap-6">
+        <section className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-4 sm:p-6 md:p-8 flex flex-col min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-bold text-brand-primary dark:text-blue-400">Question {index + 1}</p>
             <div className="flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
@@ -399,7 +415,7 @@ export default function TestAttemptPage() {
           </div>
         </section>
 
-        <aside className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-5 h-fit lg:sticky lg:top-24 flex flex-col min-h-[620px]">
+        <aside className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-4 sm:p-5 h-fit md:sticky md:top-20 flex flex-col min-h-0">
           <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
             <button type="button" onClick={() => setPaletteOpen((value) => !value)} className="flex w-full items-center justify-between gap-2 font-bold text-slate-900 dark:text-slate-100">
               <span>Question palette</span>
