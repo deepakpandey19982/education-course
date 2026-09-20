@@ -2,63 +2,64 @@
 
 ## Current Phase
 
-Phase 13 — Razorpay Live Mode Payment Verification, Dashboard Auto-Reconciliation & Admin Revenue Metrics.
+Phase 14 — Admin Dashboard Android Cache Fix & Admin User Management Panel with PDF Download Tracking.
 
-## What Changed
-
-- **Payment Verification Endpoint (`src/app/api/payments/verify/route.ts`):**
+- **Feature 1: Admin Dashboard Stats on Android/Mobile (`src/app/api/admin/stats/route.ts`, `src/app/admin/page.tsx`):**
   - **Diagnosed Root Cause:**
-    - Razorpay Checkout client handler previously displayed an alert and redirected directly to `/dashboard` without sending the checkout response (`razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`) to the server.
-    - There was no `/api/payments/verify` endpoint in the codebase; the application relied entirely on `/api/payments/webhook`, which could not receive incoming webhook events from Razorpay on localhost or without webhook URL registration in Razorpay dashboard.
-    - Orders created via `/api/payments/create` thus remained in `status: 'pending'` even after successful payment in Razorpay Live Mode.
-  - **Implemented Cryptographic & API Verification:**
-    - Added `POST /api/payments/verify` endpoint with dual-verification paths:
-      1. Cryptographic HMAC SHA256 signature verification (`crypto.createHmac('sha256', key_secret).update(order_id + '|' + payment_id).digest('hex') === signature`).
-      2. Server-to-server Razorpay API verification (`razorpay.orders.fetch(orderId)`) for automatic reconciliation and recovery.
-    - Updates order to `status: 'paid'` and updates timestamps.
-    - Rejects invalid or forged signatures with HTTP 400.
+    - Android WebView / Chromium aggressively caches GET requests when `Cache-Control` is absent or permissive.
+    - On mobile / Capacitor, backgrounding and resuming the app does not unmount React components, so the standard `useEffect` did not trigger re-fetching when returning to the dashboard.
+  - **Fixes Applied:**
+    - Added rigorous anti-caching HTTP response headers in `/api/admin/stats`: `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`.
+    - Added `cache: 'no-store'` and dynamic timestamp query parameter `?_t=${Date.now()}` on client fetch requests to defeat client/proxy caching.
+    - Registered `document.addEventListener('visibilitychange')` and `window.addEventListener('focus')` handlers to automatically re-fetch current stats whenever the user resumes or focuses the app on Android/mobile.
+    - Added a clean manual "Refresh Stats" button in the Admin header with an animated spinning state.
+    - Added a quick action card directly linking to `👥 Manage Users` (`/admin/users`).
 
-- **Frontend Razorpay Checkout Flow (`src/app/courses/[id]/CourseDetailsClient.tsx`):**
-  - Updated `options.handler` callback to immediately invoke `POST /api/payments/verify` with checkout tokens and user session authorization header before navigating.
-  - Added `modal.ondismiss` callback to reset payment loading state when user cancels or dismisses checkout.
-  - Added `rzp.on('payment.failed')` event handler to display helpful error descriptions.
+- **Feature 2: Admin User Management (`/admin/users`, `/api/admin/users`):**
+  - Added dedicated Users management section to Admin Panel navigation (`src/app/admin/layout.tsx`).
+  - Added `/api/admin/users` endpoint:
+    - Strictly protected by admin session authorization (`role === 'admin'`). Non-admins receive HTTP 403 Forbidden.
+    - Lists all registered users with avatar, name, email, role, joined date, total purchased courses count, and total PDF downloads count.
+    - Supports user drill-down (`?userId=...`) returning detailed purchased courses (course name, purchase date, amount paid, status) and PDF download history (PDF name, download date/time, access type FREE/PAID, linked order).
+  - Built responsive Admin Users page (`src/app/admin/users/page.tsx`):
+    - Search by name or email with live filtering.
+    - Displays user stats cards (Total Registered Users, Total Course Purchases, Total PDF Downloads).
+    - Responsive desktop table and mobile cards with role badges (Admin / Student) and avatars.
+    - Comprehensive User Details modal showing Profile, Purchased Courses list (with amount, date, status badges), and PDF Download History list (with access type tags, timestamps, and order references).
+    - Clean empty states when users have no purchases or downloads yet.
+    - Fully styled for both Dark and Light themes with high-contrast text.
 
-- **User Dashboard Auto-Reconciliation (`src/app/dashboard/page.tsx`):**
-  - On dashboard load, queries the user's pending orders and automatically verifies any unverified orders with Razorpay API via `/api/payments/verify`.
-  - Reconciled existing live order (`order_TeEsE5JVj1pTCO`), immediately displaying the purchased course under "My Learning".
-
-- **Admin Real-time Revenue & Sales Metrics (`src/app/api/admin/stats/route.ts`, `src/app/admin/page.tsx`):**
-  - Created `GET /api/admin/stats` API endpoint:
-    - Calculates live `totalRevenue` (sum of paid orders in INR).
-    - Counts `totalSales` (total paid orders).
-    - Counts `activeCourses` and `totalStudents`.
-    - Returns dynamic system status (checks Razorpay configuration and database connection).
-  - Updated `src/app/admin/page.tsx` to dynamically query and display real revenue (e.g. `₹1.00`), live sales count, and active Razorpay status badge (`ACTIVE` in emerald green).
-
-- **Webhook Handler Enhancement (`src/app/api/payments/webhook/route.ts`):**
-  - Added support for both `payment.captured` and `order.paid` events.
-  - Synchronized `updated_at` timestamps.
+- **PDF Download Tracking (`supabase/migrations/20260920_course_downloads.sql`, `src/lib/download-tracker.ts`, `src/app/api/courses/download/route.ts`):**
+  - Differentiated Course Purchases from Course PDF Downloads.
+  - Created migration `20260920_course_downloads.sql` defining `public.course_downloads` table with RLS.
+  - Implemented dual-resilient download tracking in `src/lib/download-tracker.ts`:
+    - Records verified downloads into `public.course_downloads`.
+    - Synchronizes download event logs into `site_settings` fallback store (`download_log_...`), guaranteeing immediate persistence without manual SQL execution.
+  - Integrated into `/api/courses/download/route.ts` immediately upon successful verification and signed-URL creation. Unauthorized or failed attempts are never logged as successful downloads.
 
 ## Files Updated
 
-- [src/app/api/payments/verify/route.ts](src/app/api/payments/verify/route.ts)
-- [src/app/api/payments/webhook/route.ts](src/app/api/payments/webhook/route.ts)
+- [supabase/migrations/20260920_course_downloads.sql](supabase/migrations/20260920_course_downloads.sql)
+- [src/lib/download-tracker.ts](src/lib/download-tracker.ts)
+- [src/app/api/courses/download/route.ts](src/app/api/courses/download/route.ts)
 - [src/app/api/admin/stats/route.ts](src/app/api/admin/stats/route.ts)
 - [src/app/admin/page.tsx](src/app/admin/page.tsx)
-- [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx)
-- [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
-- [scripts/test-payment-flow.mjs](scripts/test-payment-flow.mjs)
+- [src/app/admin/layout.tsx](src/app/admin/layout.tsx)
+- [src/app/api/admin/users/route.ts](src/app/api/admin/users/route.ts)
+- [src/app/admin/users/page.tsx](src/app/admin/users/page.tsx)
+- [scripts/test-admin-features.mjs](scripts/test-admin-features.mjs)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- **Automated Test Suite (`scripts/test-payment-flow.mjs`):**
-  - Test 1 (Security check with invalid signature): HTTP 400 `{"error":"Invalid payment signature"}` (PASS).
-  - Test 2 (Reconciling real live order `order_TeEsE5JVj1pTCO`): HTTP 200, marked as `status: 'paid'` in database (PASS).
-  - Test 3 (Admin live stats): Returns `totalRevenue: 1`, `totalSales: 1`, `activeCourses: 7`, `totalStudents: 2`, `systemStatus.razorpay: 'ACTIVE'` (PASS).
-  - Test 4 (Dashboard courses query): Purchased course "Group D" actively retrieved and displayed (PASS).
+- **Automated Test Suite (`scripts/test-admin-features.mjs`):**
+  - Test 1: Admin Stats anti-cache headers (`Cache-Control: no-store, no-cache, ...`) (PASS).
+  - Test 2: Admin Users API security check (unauthorized/non-admin blocked with HTTP 403) (PASS).
+  - Test 3: Admin Users API returns user list with purchases and downloads counts (PASS).
+  - Test 4: Course PDF download tracking records FREE & PAID downloads (PASS).
+  - Test 5: Detailed user drill-down returns profile, purchased courses, and download history (PASS).
 - **TypeScript check:** `npx tsc --noEmit` passed with 0 errors (exit code 0).
-- **Production build:** `npm run build` passed cleanly (exit code 0, 41/41 routes compiled).
+- **Production build:** `npm run build` passed cleanly (exit code 0, 42/42 routes compiled).
 
 ## Remaining Bugs / Blockers
 

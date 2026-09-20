@@ -30,27 +30,57 @@ export default function AdminDashboard() {
     },
   });
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadStats = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      // Cache-busting query param ensures Android WebView / Chromium never serves stale disk cache
+      const res = await fetch(`/api/admin/stats?_t=${Date.now()}`, {
+        headers,
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to load admin stats:', err);
+    } finally {
+      setLoading(false);
+      if (isManual) setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadStats() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers: Record<string, string> = {};
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-        const res = await fetch('/api/admin/stats', { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        }
-      } catch (err) {
-        console.error('Failed to load admin stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadStats();
+
+    // Re-fetch when Android app / WebView returns to foreground or window regains focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadStats();
+      }
+    };
+
+    const handleFocus = () => {
+      loadStats();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const formattedRevenue = `₹${Number(stats.totalRevenue).toLocaleString('en-IN', {
@@ -60,9 +90,32 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h2>
-        <p className="text-slate-500 dark:text-slate-400">Quick glimpse of your platform's performance.</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h2>
+          <p className="text-slate-500 dark:text-slate-400">Quick glimpse of your platform's live performance.</p>
+        </div>
+        <button
+          onClick={() => loadStats(true)}
+          disabled={isRefreshing || loading}
+          className="self-start sm:self-auto inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
+          title="Refresh live statistics"
+        >
+          <svg
+            className={`w-4 h-4 text-brand-primary dark:text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          <span>{isRefreshing ? 'Refreshing...' : 'Refresh Stats'}</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
@@ -131,6 +184,11 @@ export default function AdminDashboard() {
             <Link href="/admin/test-series/paid">
               <Button variant="outline" fullWidth className="justify-start gap-2">
                 <span>💳</span> Paid Test Series
+              </Button>
+            </Link>
+            <Link href="/admin/users">
+              <Button variant="outline" fullWidth className="justify-start gap-2">
+                <span>👥</span> Manage Users
               </Button>
             </Link>
           </div>

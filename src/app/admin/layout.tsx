@@ -52,6 +52,7 @@ export default function AdminLayout({
     { name: 'Categories', href: '/admin/categories' },
     { name: 'Banners', href: '/admin/homepage' },
     { name: 'Feature Grid', href: '/admin/feature-grid' },
+    { name: 'Users', href: '/admin/users' },
     { name: 'Free Tests', href: '/admin/test-series/free' },
     { name: 'Paid Tests', href: '/admin/test-series/paid' },
   ];

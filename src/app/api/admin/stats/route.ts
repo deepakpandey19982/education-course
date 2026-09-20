@@ -59,6 +59,12 @@ export async function GET(req: Request) {
         storage: 'ACTIVE',
         razorpay: isRazorpayConfigured ? 'ACTIVE' : 'PENDING SETUP',
       },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     });
   } catch (error: any) {
     console.error('Admin stats error:', error);

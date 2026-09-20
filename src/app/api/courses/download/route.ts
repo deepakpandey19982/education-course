@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
+import { recordCourseDownload } from '@/lib/download-tracker';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,7 +80,21 @@ async function handleCourseDownload(req: Request, courseId: string | null) {
       return NextResponse.json({ error: 'Could not generate secure download link' }, { status: 500 });
     }
 
-    // 7. Check if client wants JSON or direct redirect
+    // 7. Track successful verified download event (Only on success!)
+    try {
+      await recordCourseDownload({
+        user_id: user.id,
+        course_id: courseId,
+        course_file_id: (fileData as any)?.id || null,
+        access_type: isFreeCourse ? 'FREE' : 'PAID',
+        file_name: fileData.file_name || course.title,
+        course_title: course.title,
+      });
+    } catch (trackErr) {
+      console.warn('Download tracking notice:', trackErr);
+    }
+
+    // 8. Check if client wants JSON or direct redirect
     const acceptHeader = req.headers.get('accept') || '';
     const url = new URL(req.url);
     const wantsJson = acceptHeader.includes('application/json') || url.searchParams.get('format') === 'json';
