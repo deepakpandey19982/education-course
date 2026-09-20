@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { TestSeries } from '@/types/supabase';
+import { getApiUrl } from '@/lib/api-config';
 
 export async function testSeriesFetch(path: string, init: RequestInit = {}) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -7,7 +8,7 @@ export async function testSeriesFetch(path: string, init: RequestInit = {}) {
   if (session?.access_token) {
     headers.set('Authorization', `Bearer ${session.access_token}`);
   }
-  return fetch(path, { ...init, headers });
+  return fetch(getApiUrl(path), { ...init, headers });
 }
 
 export type TestCard = {
@@ -51,7 +52,7 @@ export async function fetchPublishedTestSeries(type: 'free' | 'paid'): Promise<T
 
   // 1. Try Next.js API route with anti-cache directives
   try {
-    const res = await fetch(`/api/test-series?type=${type}&_t=${Date.now()}`, {
+    const res = await fetch(getApiUrl(`/api/test-series?type=${type}&_t=${Date.now()}`), {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache',
@@ -134,7 +135,7 @@ export async function fetchSeriesDetail(
 
   // 1. Try API route
   try {
-    const res = await fetch(`/api/test-series/${seriesId}?type=${type}&_t=${Date.now()}`, {
+    const res = await fetch(getApiUrl(`/api/test-series/${seriesId}?type=${type}&_t=${Date.now()}`), {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache',

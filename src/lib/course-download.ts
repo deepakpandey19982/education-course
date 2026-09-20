@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-config';
 
 export interface DownloadResult {
   success: boolean;
@@ -25,7 +26,7 @@ export async function downloadCoursePdf(courseId: string): Promise<DownloadResul
       };
     }
 
-    const response = await fetch(`/api/courses/download?courseId=${encodeURIComponent(courseId)}`, {
+    const response = await fetch(getApiUrl(`/api/courses/download?courseId=${encodeURIComponent(courseId)}`), {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,

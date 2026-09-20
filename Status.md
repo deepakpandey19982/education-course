@@ -2,48 +2,70 @@
 
 ## Current Phase
 
-Phase 15 — Mobile Visibility & Anti-Caching Fix for Free & Paid Test Series Demo Items.
+Phase 16 — Android Mobile Data-Source & API Root Cause Resolution (Admin Dashboard live metrics, Free & Paid Test Series, and API endpoint routing).
 
-- **Free & Paid Test Series Mobile Visibility Fix:**
-  - **Diagnosed Root Cause:**
-    1. `/api/test-series/route.ts` previously executed an unbatched sequential N+1 query loop (up to 25 roundtrips to Supabase per request), causing connection timeouts / HTTP 500 errors (`Could not load test series`) on mobile network requests.
-    2. Missing `Cache-Control: no-store` headers on `/api/test-series`, `/api/test-series/[seriesId]`, and `/api/test-series/tests/[testId]` caused Android WebView and mobile browsers to aggressively cache earlier empty responses (`{ series: [] }`), perpetually hiding published demo series on mobile devices.
-    3. `src/app/test-series/page.tsx` and `src/app/test-series/paid/page.tsx` lacked anti-caching fetch directives (`cache: 'no-store'`, dynamic timestamp `?_t=...`) and lacked app lifecycle listeners (`visibilitychange` / `focus`) when returning to the app on mobile.
-    4. Client pages lacked a resilient fallback to direct client-side `supabase` queries if the local Next.js API route was unreachable in Capacitor / Android WebView.
-    5. Missing dark mode classes on `PaidTestSeriesDetailPage` and the `Message` component caused low-contrast/invisible text on mobile devices with system dark mode enabled.
-  - **Fixes Applied:**
-    - Replaced the sequential 25-query loop in `/api/test-series/route.ts` with a high-performance 3-query batched lookup.
-    - Added rigorous anti-caching headers (`Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`) across all test series API routes (`/api/test-series`, `/api/test-series/[seriesId]`, `/api/test-series/tests/[testId]`).
-    - Created `src/lib/test-series-client.ts` with `fetchPublishedTestSeries('free' | 'paid')` and `fetchSeriesDetail()` featuring anti-cache query tokens, `cache: 'no-store'`, and an automatic resilient fallback to direct client-side `supabase` queries.
-    - Added `visibilitychange` and `focus` event listeners to `TestSeriesPage` and `PaidTestSeriesPage` so returning to the app on Android automatically loads the current demo items.
-    - Added a clean "Refresh" button on both Free and Paid Test Series headers.
-    - Added comprehensive Dark and Light mode contrast styling to `PaidTestSeriesDetailPage` and the shared `Message` component.
-    - Added `testSeriesFetch` authenticated fetch helper in `src/lib/test-series-client.ts` for test attempt and submission flows.
+- **Root Cause Analysis:**
+  1. **Capacitor Mobile Origin Isolation:** On Android/Capacitor, the web app runs in an Android WebView with origin `http://localhost` (or `capacitor://localhost`).
+  2. **Failed Relative Calls to Localhost:** Any relative API calls like `fetch('/api/admin/stats')`, `fetch('/api/admin/users')`, or `fetch('/api/test-series')` resolve relative to the local origin (`http://localhost/api/...`), meaning the Android device attempted to connect to port 80/3000 on its own mobile loopback interface rather than the workstation dev server.
+  3. **Silent Zeroing on Network Failure:** When the network request failed (`ERR_CONNECTION_REFUSED`), the Admin Dashboard caught the exception and retained the initial `useState` zeroes (`totalRevenue: 0`, `activeCourses: 0`, `totalStudents: 0`, `totalSales: 0`). Similarly, test series fetching failed to reach endpoints.
+  4. **Cleartext Traffic Block:** Android Pie (API 28+) blocks unencrypted HTTP traffic by default, preventing devices on the local Wi-Fi network from reaching `http://<host-ip>:3000` during development and testing unless cleartext traffic is explicitly permitted.
+
+- **Fixes Applied:**
+  1. **Centralized API Base Resolver (`src/lib/api-config.ts`):**
+     - Resolves the proper API endpoint base across environments (`NEXT_PUBLIC_API_URL`, mobile origin detection, workstation Wi-Fi IP fallback `http://10.29.110.224:3000`, and emulator fallback).
+     - Accurate `isCapacitorNative()` check ensuring desktop `localhost:3000` is never misidentified.
+  2. **Dual-Resilient Admin Stats Fetcher (`src/lib/admin-stats-client.ts`):**
+     - First queries the API route `/api/admin/stats` using `getApiUrl()`.
+     - If unreachable or fails on mobile, automatically executes direct queries against live Supabase tables (`orders`, `courses`, `profiles`) using the authenticated admin session token, returning the exact live metrics without hardcoding.
+  3. **Dual-Resilient Admin Users Management (`src/app/admin/users/page.tsx`):**
+     - Integrated `getApiUrl` and added direct Supabase table query fallback for user list and detailed user views.
+  4. **Mobile API Route Resolution Across All Features:**
+     - `src/lib/test-series-client.ts`: Updated `testSeriesFetch`, `fetchPublishedTestSeries`, and `fetchSeriesDetail` to resolve URLs via `getApiUrl`.
+     - `src/app/test-series/tests/[testId]/instructions/page.tsx`: Updated test info fetching to use `getApiUrl`.
+     - `src/lib/course-download.ts`: Updated PDF download endpoint resolution to use `getApiUrl`.
+     - `src/app/courses/[id]/CourseDetailsClient.tsx`: Updated Razorpay order creation and verification endpoints to use `getApiUrl`.
+     - `src/app/dashboard/page.tsx`: Updated payment reconciliation endpoint to use `getApiUrl`.
+     - `src/lib/supabase.ts`: Updated `/api/storage/sign` and `/api/storage/upload` endpoints to use `getApiUrl`.
+  5. **Android Configuration & Permissions:**
+     - `android/app/src/main/AndroidManifest.xml`: Added `android:usesCleartextTraffic="true"` to `<application>` to permit local HTTP development traffic.
+     - `capacitor.config.ts`: Configured `server: { androidScheme: 'https', cleartext: true }`.
+     - Synced Capacitor Android assets via `npx cap sync android`.
 
 ## Files Updated
 
-- [src/app/api/test-series/route.ts](src/app/api/test-series/route.ts)
-- [src/app/api/test-series/[seriesId]/route.ts](src/app/api/test-series/[seriesId]/route.ts)
-- [src/app/api/test-series/tests/[testId]/route.ts](src/app/api/test-series/tests/[testId]/route.ts)
+- [src/lib/api-config.ts](src/lib/api-config.ts) [NEW]
+- [src/lib/admin-stats-client.ts](src/lib/admin-stats-client.ts) [NEW]
+- [scripts/test-mobile-data-source.mjs](scripts/test-mobile-data-source.mjs) [NEW]
+- [src/app/admin/page.tsx](src/app/admin/page.tsx)
+- [src/app/admin/users/page.tsx](src/app/admin/users/page.tsx)
 - [src/lib/test-series-client.ts](src/lib/test-series-client.ts)
-- [src/app/test-series/page.tsx](src/app/test-series/page.tsx)
-- [src/app/test-series/paid/page.tsx](src/app/test-series/paid/page.tsx)
-- [src/app/test-series/[seriesId]/page.tsx](src/app/test-series/[seriesId]/page.tsx)
-- [src/app/test-series/paid/[seriesId]/page.tsx](src/app/test-series/paid/[seriesId]/page.tsx)
+- [src/lib/course-download.ts](src/lib/course-download.ts)
+- [src/lib/supabase.ts](src/lib/supabase.ts)
+- [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx)
+- [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
 - [src/app/test-series/tests/[testId]/instructions/page.tsx](src/app/test-series/tests/[testId]/instructions/page.tsx)
-- [scripts/test-test-series-mobile.mjs](scripts/test-test-series-mobile.mjs)
+- [capacitor.config.ts](capacitor.config.ts)
+- [android/app/src/main/AndroidManifest.xml](android/app/src/main/AndroidManifest.xml)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- **Automated Test Suite (`scripts/test-test-series-mobile.mjs`):**
-  - Test 1: `/api/test-series?type=free` returns anti-cache headers and Demo Free Test Series (PASS).
-  - Test 2: `/api/test-series?type=paid` returns anti-cache headers and Demo Paid Test Series (PASS).
-  - Test 3: `/api/test-series/[seriesId]` returns anti-cache headers and published subjects/tests (PASS).
-  - Test 4: Direct Supabase client fallback can retrieve both Free & Paid Demo Test Series (PASS).
-  - Test 5: `/api/test-series/tests/[testId]` returns anti-cache headers and test metadata (PASS).
-- **TypeScript check:** `npx tsc --noEmit` passed with 0 errors (exit code 0).
-- **Production build:** `npm run build` passed cleanly (exit code 0, 42/42 routes compiled).
+- **Automated Mobile Data-Source Verification (`scripts/test-mobile-data-source.mjs`):**
+  - Authenticated as Admin via mobile client configuration.
+  - Direct live database queries confirmed:
+    - Total Revenue: ₹1.00
+    - Active Courses: 7
+    - Total Students: 3
+    - Total Sales: 1
+  - Published Test Series confirmed: 12 accessible (including Demo Free Test Series & Demo Paid Test Series).
+  - All mobile queries succeeded with 100% live database values (PASS).
+- **Admin Stats & User Management Suite (`scripts/test-admin-features.mjs`):**
+  - All 5 tests passed (anti-caching headers, role enforcement 403, user list, download tracking, user details).
+- **Test Series Mobile Suite (`scripts/test-test-series-mobile.mjs`):**
+  - 5/5 tests passed (Free & Paid series APIs, detail APIs, Supabase fallback, instructions).
+- **TypeScript Verification:** `npx tsc --noEmit` exited with code 0 (no type errors).
+- **Production Build:** `npm run build` exited with code 0 (all 42 routes compiled successfully).
+- **Capacitor Sync:** `npx cap sync android` exited with code 0.
 
 ## Remaining Bugs / Blockers
 

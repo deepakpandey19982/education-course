@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Profile } from '@/types/supabase';
+import { getApiUrl } from '@/lib/api-config';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -150,7 +151,7 @@ export async function resolveStorageUrl(url: string): Promise<string> {
 
   if (url.includes('/course-pdfs/')) {
     try {
-      const res = await fetch('/api/storage/sign', {
+      const res = await fetch(getApiUrl('/api/storage/sign'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urlOrPath: url }),
@@ -178,7 +179,7 @@ export async function uploadSiteAsset(file: File, folder: string): Promise<strin
     headers['Authorization'] = `Bearer ${session.access_token}`;
   }
 
-  const res = await fetch('/api/storage/upload', {
+  const res = await fetch(getApiUrl('/api/storage/upload'), {
     method: 'POST',
     headers,
     body: formData,

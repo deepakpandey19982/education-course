@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
+import { fetchAdminDashboardStats } from '@/lib/admin-stats-client';
 
 const StatCard = ({ title, value, icon, color }: { title: string, value: string, icon: string, color: string }) => (
   <div className="bg-white dark:bg-slate-900 p-6 rounded-xl soft-shadow border border-slate-100 dark:border-slate-800">
@@ -35,23 +36,8 @@ export default function AdminDashboard() {
   const loadStats = async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-      // Cache-busting query param ensures Android WebView / Chromium never serves stale disk cache
-      const res = await fetch(`/api/admin/stats?_t=${Date.now()}`, {
-        headers,
-        cache: 'no-store',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
+      const data = await fetchAdminDashboardStats();
+      setStats(data);
     } catch (err) {
       console.error('Failed to load admin stats:', err);
     } finally {

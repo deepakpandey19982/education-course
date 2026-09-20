@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, resolveStorageUrl } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
+import { getApiUrl } from '@/lib/api-config';
 
 interface UserSummary {
   id: string;
@@ -80,7 +81,7 @@ export default function AdminUsersPage() {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      const res = await fetch(`/api/admin/users?_t=${Date.now()}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users?_t=${Date.now()}`), {
         headers,
         cache: 'no-store',
       });
@@ -98,9 +99,44 @@ export default function AdminUsersPage() {
           }
         }
         setResolvedAvatars(avatarMap);
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch admin users:', err);
+      console.warn('API fetch admin users failed, attempting Supabase fallback:', err);
+    }
+
+    // Direct Supabase Fallback for mobile/Capacitor
+    try {
+      const { data: allProfiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (allProfiles && allProfiles.length > 0) {
+        const { data: paidOrders } = await supabase
+          .from('orders')
+          .select('user_id')
+          .eq('status', 'paid');
+
+        const ordersCountMap: Record<string, number> = {};
+        (paidOrders || []).forEach((o: any) => {
+          ordersCountMap[o.user_id] = (ordersCountMap[o.user_id] || 0) + 1;
+        });
+
+        const usersList: UserSummary[] = allProfiles.map((p: any) => ({
+          id: p.id,
+          name: p.full_name || 'Anonymous User',
+          email: p.email,
+          avatar_url: p.avatar_url || null,
+          role: p.role || 'user',
+          joined_date: p.created_at,
+          total_purchased_courses: ordersCountMap[p.id] || 0,
+          total_downloads: 0,
+        }));
+        setUsers(usersList);
+      }
+    } catch (directErr) {
+      console.error('Supabase direct users fallback error:', directErr);
     } finally {
       setLoading(false);
       if (isManual) setIsRefreshing(false);
@@ -136,7 +172,7 @@ export default function AdminUsersPage() {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`), {
         headers,
         cache: 'no-store',
       });
@@ -147,9 +183,63 @@ export default function AdminUsersPage() {
           data.profile.avatar_url = await resolveStorageUrl(data.profile.avatar_url);
         }
         setUserDetail(data);
+        return;
       }
     } catch (err) {
-      console.error('Failed to load user details:', err);
+      console.warn('API openUserDetails failed, falling back to Supabase:', err);
+    }
+
+    // Direct Supabase fallback for mobile
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile) {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, course_id, amount, status, payment_id, created_at, courses(title)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        const purchasedCourses = (orders || [])
+          .filter((o: any) => o.status === 'paid')
+          .map((o: any) => ({
+            order_id: o.id,
+            course_id: o.course_id,
+            course_name: (o.courses as any)?.title || 'Course',
+            purchase_date: o.created_at,
+            amount_paid: o.amount,
+            status: o.status,
+            payment_id: o.payment_id,
+          }));
+
+        let resolvedAvatar = profile.avatar_url;
+        if (resolvedAvatar) {
+          resolvedAvatar = await resolveStorageUrl(resolvedAvatar);
+        }
+
+        setUserDetail({
+          profile: {
+            id: profile.id,
+            name: profile.full_name || 'Anonymous User',
+            email: profile.email,
+            avatar_url: resolvedAvatar || null,
+            role: profile.role || 'user',
+            joined_date: profile.created_at,
+          },
+          purchased_courses: purchasedCourses,
+          download_history: [],
+          stats: {
+            total_purchased: purchasedCourses.length,
+            total_downloads: 0,
+          },
+        });
+      }
+    } catch (directErr) {
+      console.error('Failed to load user details from Supabase fallback:', directErr);
     } finally {
       setLoadingDetail(false);
     }

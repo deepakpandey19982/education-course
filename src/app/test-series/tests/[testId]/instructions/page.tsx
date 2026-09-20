@@ -7,6 +7,7 @@ import Navbar from '@/components/shared/Navbar';
 import { Button } from '@/components/ui/Button';
 import { Loading, Message } from '../../../page';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-config';
 
 type TestInfo = { id: string; title: string; duration_minutes: number; max_marks: number; language: string; instructions: string | null; is_paid: boolean; price: number; question_count: number };
 
@@ -22,7 +23,7 @@ export default function TestInstructionsPage() {
     async function loadTest() {
       if (!testId) return;
       try {
-        const response = await fetch(`/api/test-series/tests/${testId}?_t=${Date.now()}`, {
+        const response = await fetch(getApiUrl(`/api/test-series/tests/${testId}?_t=${Date.now()}`), {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',

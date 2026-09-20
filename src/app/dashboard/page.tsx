@@ -8,6 +8,7 @@ import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
 import { downloadCoursePdf } from '@/lib/course-download';
+import { getApiUrl } from '@/lib/api-config';
 
 interface PurchasedCourse extends Course {
   order_id: string;
@@ -53,7 +54,7 @@ export default function UserDashboard() {
 
             for (const pending of pendingOrders) {
               if (pending.payment_id && pending.payment_id.startsWith('order_')) {
-                await fetch('/api/payments/verify', {
+                await fetch(getApiUrl('/api/payments/verify'), {
                   method: 'POST',
                   headers,
                   body: JSON.stringify({ orderId: pending.payment_id }),

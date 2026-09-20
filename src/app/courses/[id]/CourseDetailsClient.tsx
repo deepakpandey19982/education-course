@@ -9,6 +9,7 @@ import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
 import Script from 'next/script';
 import { downloadCoursePdf } from '@/lib/course-download';
+import { getApiUrl } from '@/lib/api-config';
 
 export default function CourseDetailsClient() {
   const params = useParams();
@@ -72,7 +73,7 @@ export default function CourseDetailsClient() {
 
     setPaymentLoading(true);
     try {
-      const response = await fetch('/api/payments/create', {
+      const response = await fetch(getApiUrl('/api/payments/create'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,7 +105,7 @@ export default function CourseDetailsClient() {
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
 
-            const verifyRes = await fetch('/api/payments/verify', {
+            const verifyRes = await fetch(getApiUrl('/api/payments/verify'), {
               method: 'POST',
               headers,
               body: JSON.stringify({
