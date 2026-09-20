@@ -6,6 +6,7 @@ import Footer from '@/components/shared/Footer';
 import Navbar from '@/components/shared/Navbar';
 import { Button } from '@/components/ui/Button';
 import { Loading, Message } from '../../../page';
+import { supabase } from '@/lib/supabase';
 
 type TestInfo = { id: string; title: string; duration_minutes: number; max_marks: number; language: string; instructions: string | null; is_paid: boolean; price: number; question_count: number };
 
@@ -18,7 +19,53 @@ export default function TestInstructionsPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`/api/test-series/tests/${testId}`).then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setTest(payload.test); }).catch((reason) => setError(reason.message || 'Could not load test instructions.')).finally(() => setLoading(false));
+    async function loadTest() {
+      if (!testId) return;
+      try {
+        const response = await fetch(`/api/test-series/tests/${testId}?_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload.test) {
+            setTest(payload.test);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Test instruction API error, trying Supabase fallback:', apiErr);
+      }
+
+      // Fallback directly to Supabase client
+      try {
+        const { data: directTest, error: tErr } = await supabase
+          .from('tests')
+          .select('id, title, duration_minutes, max_marks, language, instructions, is_paid, price, is_published')
+          .eq('id', testId)
+          .eq('is_published', true)
+          .single();
+
+        if (tErr || !directTest) throw new Error('Test not found or unavailable');
+
+        const { count } = await supabase
+          .from('questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('test_id', testId);
+
+        setTest({ ...directTest, question_count: count ?? 0 });
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || 'Could not load test instructions.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadTest();
   }, [testId]);
 
   return <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950"><Navbar /><main className="flex-grow py-10"><div className="max-w-3xl mx-auto px-4 sm:px-6">

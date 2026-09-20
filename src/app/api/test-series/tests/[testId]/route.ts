@@ -26,9 +26,25 @@ export async function GET(
       .eq('test_id', testId);
     if (countError) throw countError;
 
-    return NextResponse.json({ test: { ...test, question_count: count ?? 0 } });
+    const NO_CACHE_HEADERS = {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    };
+
+    return NextResponse.json({ test: { ...test, question_count: count ?? 0 } }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error('Test detail error:', error);
-    return NextResponse.json({ error: 'Could not load this test' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Could not load this test' },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   }
 }

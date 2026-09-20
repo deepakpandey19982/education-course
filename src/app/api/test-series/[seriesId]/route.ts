@@ -53,6 +53,12 @@ export async function GET(
       questionCounts.set(test_id, (questionCounts.get(test_id) ?? 0) + 1);
     });
 
+    const NO_CACHE_HEADERS = {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    };
+
     return NextResponse.json({
       series,
       subjects: (subjects ?? []).map((subject) => ({
@@ -61,9 +67,19 @@ export async function GET(
           .filter((test) => test.subject_id === subject.id)
           .map((test) => ({ ...test, question_count: questionCounts.get(test.id) ?? 0 })),
       })),
-    });
+    }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error('Test series detail error:', error);
-    return NextResponse.json({ error: 'Could not load this test series' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Could not load this test series' },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   }
 }

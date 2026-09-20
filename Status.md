@@ -2,62 +2,46 @@
 
 ## Current Phase
 
-Phase 14 — Admin Dashboard Android Cache Fix & Admin User Management Panel with PDF Download Tracking.
+Phase 15 — Mobile Visibility & Anti-Caching Fix for Free & Paid Test Series Demo Items.
 
-- **Feature 1: Admin Dashboard Stats on Android/Mobile (`src/app/api/admin/stats/route.ts`, `src/app/admin/page.tsx`):**
+- **Free & Paid Test Series Mobile Visibility Fix:**
   - **Diagnosed Root Cause:**
-    - Android WebView / Chromium aggressively caches GET requests when `Cache-Control` is absent or permissive.
-    - On mobile / Capacitor, backgrounding and resuming the app does not unmount React components, so the standard `useEffect` did not trigger re-fetching when returning to the dashboard.
+    1. `/api/test-series/route.ts` previously executed an unbatched sequential N+1 query loop (up to 25 roundtrips to Supabase per request), causing connection timeouts / HTTP 500 errors (`Could not load test series`) on mobile network requests.
+    2. Missing `Cache-Control: no-store` headers on `/api/test-series`, `/api/test-series/[seriesId]`, and `/api/test-series/tests/[testId]` caused Android WebView and mobile browsers to aggressively cache earlier empty responses (`{ series: [] }`), perpetually hiding published demo series on mobile devices.
+    3. `src/app/test-series/page.tsx` and `src/app/test-series/paid/page.tsx` lacked anti-caching fetch directives (`cache: 'no-store'`, dynamic timestamp `?_t=...`) and lacked app lifecycle listeners (`visibilitychange` / `focus`) when returning to the app on mobile.
+    4. Client pages lacked a resilient fallback to direct client-side `supabase` queries if the local Next.js API route was unreachable in Capacitor / Android WebView.
+    5. Missing dark mode classes on `PaidTestSeriesDetailPage` and the `Message` component caused low-contrast/invisible text on mobile devices with system dark mode enabled.
   - **Fixes Applied:**
-    - Added rigorous anti-caching HTTP response headers in `/api/admin/stats`: `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`.
-    - Added `cache: 'no-store'` and dynamic timestamp query parameter `?_t=${Date.now()}` on client fetch requests to defeat client/proxy caching.
-    - Registered `document.addEventListener('visibilitychange')` and `window.addEventListener('focus')` handlers to automatically re-fetch current stats whenever the user resumes or focuses the app on Android/mobile.
-    - Added a clean manual "Refresh Stats" button in the Admin header with an animated spinning state.
-    - Added a quick action card directly linking to `👥 Manage Users` (`/admin/users`).
-
-- **Feature 2: Admin User Management (`/admin/users`, `/api/admin/users`):**
-  - Added dedicated Users management section to Admin Panel navigation (`src/app/admin/layout.tsx`).
-  - Added `/api/admin/users` endpoint:
-    - Strictly protected by admin session authorization (`role === 'admin'`). Non-admins receive HTTP 403 Forbidden.
-    - Lists all registered users with avatar, name, email, role, joined date, total purchased courses count, and total PDF downloads count.
-    - Supports user drill-down (`?userId=...`) returning detailed purchased courses (course name, purchase date, amount paid, status) and PDF download history (PDF name, download date/time, access type FREE/PAID, linked order).
-  - Built responsive Admin Users page (`src/app/admin/users/page.tsx`):
-    - Search by name or email with live filtering.
-    - Displays user stats cards (Total Registered Users, Total Course Purchases, Total PDF Downloads).
-    - Responsive desktop table and mobile cards with role badges (Admin / Student) and avatars.
-    - Comprehensive User Details modal showing Profile, Purchased Courses list (with amount, date, status badges), and PDF Download History list (with access type tags, timestamps, and order references).
-    - Clean empty states when users have no purchases or downloads yet.
-    - Fully styled for both Dark and Light themes with high-contrast text.
-
-- **PDF Download Tracking (`supabase/migrations/20260920_course_downloads.sql`, `src/lib/download-tracker.ts`, `src/app/api/courses/download/route.ts`):**
-  - Differentiated Course Purchases from Course PDF Downloads.
-  - Created migration `20260920_course_downloads.sql` defining `public.course_downloads` table with RLS.
-  - Implemented dual-resilient download tracking in `src/lib/download-tracker.ts`:
-    - Records verified downloads into `public.course_downloads`.
-    - Synchronizes download event logs into `site_settings` fallback store (`download_log_...`), guaranteeing immediate persistence without manual SQL execution.
-  - Integrated into `/api/courses/download/route.ts` immediately upon successful verification and signed-URL creation. Unauthorized or failed attempts are never logged as successful downloads.
+    - Replaced the sequential 25-query loop in `/api/test-series/route.ts` with a high-performance 3-query batched lookup.
+    - Added rigorous anti-caching headers (`Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`) across all test series API routes (`/api/test-series`, `/api/test-series/[seriesId]`, `/api/test-series/tests/[testId]`).
+    - Created `src/lib/test-series-client.ts` with `fetchPublishedTestSeries('free' | 'paid')` and `fetchSeriesDetail()` featuring anti-cache query tokens, `cache: 'no-store'`, and an automatic resilient fallback to direct client-side `supabase` queries.
+    - Added `visibilitychange` and `focus` event listeners to `TestSeriesPage` and `PaidTestSeriesPage` so returning to the app on Android automatically loads the current demo items.
+    - Added a clean "Refresh" button on both Free and Paid Test Series headers.
+    - Added comprehensive Dark and Light mode contrast styling to `PaidTestSeriesDetailPage` and the shared `Message` component.
+    - Added `testSeriesFetch` authenticated fetch helper in `src/lib/test-series-client.ts` for test attempt and submission flows.
 
 ## Files Updated
 
-- [supabase/migrations/20260920_course_downloads.sql](supabase/migrations/20260920_course_downloads.sql)
-- [src/lib/download-tracker.ts](src/lib/download-tracker.ts)
-- [src/app/api/courses/download/route.ts](src/app/api/courses/download/route.ts)
-- [src/app/api/admin/stats/route.ts](src/app/api/admin/stats/route.ts)
-- [src/app/admin/page.tsx](src/app/admin/page.tsx)
-- [src/app/admin/layout.tsx](src/app/admin/layout.tsx)
-- [src/app/api/admin/users/route.ts](src/app/api/admin/users/route.ts)
-- [src/app/admin/users/page.tsx](src/app/admin/users/page.tsx)
-- [scripts/test-admin-features.mjs](scripts/test-admin-features.mjs)
+- [src/app/api/test-series/route.ts](src/app/api/test-series/route.ts)
+- [src/app/api/test-series/[seriesId]/route.ts](src/app/api/test-series/[seriesId]/route.ts)
+- [src/app/api/test-series/tests/[testId]/route.ts](src/app/api/test-series/tests/[testId]/route.ts)
+- [src/lib/test-series-client.ts](src/lib/test-series-client.ts)
+- [src/app/test-series/page.tsx](src/app/test-series/page.tsx)
+- [src/app/test-series/paid/page.tsx](src/app/test-series/paid/page.tsx)
+- [src/app/test-series/[seriesId]/page.tsx](src/app/test-series/[seriesId]/page.tsx)
+- [src/app/test-series/paid/[seriesId]/page.tsx](src/app/test-series/paid/[seriesId]/page.tsx)
+- [src/app/test-series/tests/[testId]/instructions/page.tsx](src/app/test-series/tests/[testId]/instructions/page.tsx)
+- [scripts/test-test-series-mobile.mjs](scripts/test-test-series-mobile.mjs)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- **Automated Test Suite (`scripts/test-admin-features.mjs`):**
-  - Test 1: Admin Stats anti-cache headers (`Cache-Control: no-store, no-cache, ...`) (PASS).
-  - Test 2: Admin Users API security check (unauthorized/non-admin blocked with HTTP 403) (PASS).
-  - Test 3: Admin Users API returns user list with purchases and downloads counts (PASS).
-  - Test 4: Course PDF download tracking records FREE & PAID downloads (PASS).
-  - Test 5: Detailed user drill-down returns profile, purchased courses, and download history (PASS).
+- **Automated Test Suite (`scripts/test-test-series-mobile.mjs`):**
+  - Test 1: `/api/test-series?type=free` returns anti-cache headers and Demo Free Test Series (PASS).
+  - Test 2: `/api/test-series?type=paid` returns anti-cache headers and Demo Paid Test Series (PASS).
+  - Test 3: `/api/test-series/[seriesId]` returns anti-cache headers and published subjects/tests (PASS).
+  - Test 4: Direct Supabase client fallback can retrieve both Free & Paid Demo Test Series (PASS).
+  - Test 5: `/api/test-series/tests/[testId]` returns anti-cache headers and test metadata (PASS).
 - **TypeScript check:** `npx tsc --noEmit` passed with 0 errors (exit code 0).
 - **Production build:** `npm run build` passed cleanly (exit code 0, 42/42 routes compiled).
 

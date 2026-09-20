@@ -1,16 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Footer from '@/components/shared/Footer';
 import Navbar from '@/components/shared/Navbar';
 import { Button } from '@/components/ui/Button';
 import { Loading, Message } from '../page';
-
-type TestCard = { id: string; title: string; date_label: string | null; duration_minutes: number; max_marks: number; language: string; is_paid: boolean; price: number; scheduled_start: string | null; scheduled_end: string | null; question_count: number };
-type Subject = { id: string; name: string; icon_url: string | null; tests: TestCard[] };
-type SeriesDetail = { id: string; title: string; description: string | null; thumbnail_url: string | null };
+import { fetchSeriesDetail, SeriesDetailData, SubjectWithTests, TestCard } from '@/lib/test-series-client';
 
 function testStatus(test: TestCard) {
   const now = Date.now();
@@ -21,17 +18,38 @@ function testStatus(test: TestCard) {
 
 export default function TestSeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
-  const [series, setSeries] = useState<SeriesDetail | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [series, setSeries] = useState<SeriesDetailData['series'] | null>(null);
+  const [subjects, setSubjects] = useState<SubjectWithTests[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch(`/api/test-series/${seriesId}?type=free`)
-      .then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setSeries(payload.series); setSubjects(payload.subjects); })
-      .catch((reason) => setError(reason.message || 'Could not load this free test series.'))
-      .finally(() => setLoading(false));
+  const loadDetail = useCallback(async () => {
+    if (!seriesId) return;
+    try {
+      const data = await fetchSeriesDetail(seriesId, 'free');
+      setSeries(data.series);
+      setSubjects(data.subjects);
+      setError('');
+    } catch (reason: any) {
+      setError(reason.message || 'Could not load this free test series.');
+    } finally {
+      setLoading(false);
+    }
   }, [seriesId]);
+
+  useEffect(() => {
+    loadDetail();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadDetail();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadDetail]);
 
   return <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950"><Navbar /><main className="flex-grow py-10">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
