@@ -8,20 +8,26 @@ export interface FeaturePreset {
   icon_url: string;
 }
 
-export const DESTINATION_PRESETS = [
-  { label: 'Free Courses (/courses?access=free)', value: '/courses?access=free' },
-  { label: 'Paid Courses (/courses?access=paid)', value: '/courses?access=paid' },
-  { label: 'All Courses (/courses)', value: '/courses' },
-  { label: 'Free Test Series (/test-series)', value: '/test-series' },
-  { label: 'Paid Test Series (/test-series/paid)', value: '/test-series/paid' },
-  { label: 'Free PDFs (/courses?access=free)', value: '/courses?access=free' },
-  { label: 'Paid PDFs (/courses?access=paid)', value: '/courses?access=paid' },
-  { label: 'E-Book & PYQs (/courses)', value: '/courses' },
-  { label: 'Timetable / My Learning (/dashboard)', value: '/dashboard' },
-  { label: 'Syllabus Roadmap (/courses)', value: '/courses' },
-  { label: 'Quiz Practice (/test-series)', value: '/test-series' },
-  { label: 'Contact Us (/#contact)', value: '/#contact' },
-  { label: 'About Us (/#about)', value: '/#about' },
+export interface DestinationPreset {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export const DESTINATION_PRESETS: DestinationPreset[] = [
+  { id: 'free-courses', label: 'Free Courses (/courses?access=free)', value: '/courses?access=free' },
+  { id: 'paid-courses', label: 'Paid Courses (/courses?access=paid)', value: '/courses?access=paid' },
+  { id: 'all-courses', label: 'All Courses (/courses)', value: '/courses' },
+  { id: 'free-test-series', label: 'Free Test Series (/test-series)', value: '/test-series' },
+  { id: 'paid-test-series', label: 'Paid Test Series (/test-series/paid)', value: '/test-series/paid' },
+  { id: 'free-pdfs', label: 'Free PDFs (/courses?access=free)', value: '/courses?access=free' },
+  { id: 'paid-pdfs', label: 'Paid PDFs (/courses?access=paid)', value: '/courses?access=paid' },
+  { id: 'ebook-pyqs', label: 'E-Book & PYQs (/courses)', value: '/courses' },
+  { id: 'timetable', label: 'Timetable / My Learning (/dashboard)', value: '/dashboard' },
+  { id: 'syllabus', label: 'Syllabus Roadmap (/courses)', value: '/courses' },
+  { id: 'quiz', label: 'Quiz Practice (/test-series)', value: '/test-series' },
+  { id: 'contact', label: 'Contact Us (/#contact)', value: '/#contact' },
+  { id: 'about', label: 'About Us (/#about)', value: '/#about' },
 ];
 
 export const createFeatureSvgIcon = (type: string): string => {

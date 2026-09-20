@@ -259,7 +259,14 @@ export default function TestAttemptPage() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div>
-            <p className="font-bold text-slate-900">{testTitle}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-slate-900">{testTitle}</p>
+              {testTitle.toLowerCase().includes('demo') && (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                  {testTitle.toLowerCase().includes('paid') ? 'Paid Demo' : 'Demo'}
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {subjectGroups.map((group, groupIndex) => (
                 <button

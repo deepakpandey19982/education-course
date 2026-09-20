@@ -75,16 +75,19 @@ export async function getAccessibleTest(
   }
 
   if (test.is_paid) {
-    const { data: order, error: orderError } = await admin
-      .from('orders')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('test_id', testId)
-      .eq('status', 'paid')
-      .maybeSingle();
+    const isDemo = test.title?.toLowerCase().includes('demo');
+    if (!isDemo) {
+      const { data: order, error: orderError } = await admin
+        .from('orders')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('test_id', testId)
+        .eq('status', 'paid')
+        .maybeSingle();
 
-    if (orderError || !order) {
-      return { test: null, error: 'Purchase is required for this test' };
+      if (orderError || !order) {
+        return { test: null, error: 'Purchase is required for this test' };
+      }
     }
   }
 

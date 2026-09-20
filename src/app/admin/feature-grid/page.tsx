@@ -249,8 +249,8 @@ export default function AdminFeatureGridPage() {
               ← Admin Dashboard
             </Link>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Manage Feature Grid</h2>
-          <p className="text-slate-500 text-sm">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Manage Feature Grid</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
             Control the dynamic compact feature icons that appear above Featured Courses on the homepage.
           </p>
         </div>
@@ -270,22 +270,22 @@ export default function AdminFeatureGridPage() {
       {/* Modal / Form */}
       {isAdding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-slate-900">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                 {editingItem ? 'Edit Feature Item' : 'Add New Feature Item'}
               </h3>
               <button
                 type="button"
                 onClick={closeForm}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold"
               >
                 ✕
               </button>
             </div>
 
             {errorMessage && (
-              <div className="p-3 mb-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+              <div className="p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-sm border border-red-200 dark:border-red-800">
                 {errorMessage}
               </div>
             )}
@@ -293,7 +293,7 @@ export default function AdminFeatureGridPage() {
             <form onSubmit={handleSave} className="space-y-5">
               {/* Title */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Title <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -302,13 +302,13 @@ export default function AdminFeatureGridPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Paid Courses, Free Test Series"
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
+                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-primary outline-none"
                 />
               </div>
 
               {/* Click Destination Presets */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Click Destination Preset
                 </label>
                 <select
@@ -316,11 +316,11 @@ export default function AdminFeatureGridPage() {
                     if (e.target.value) setLink(e.target.value);
                   }}
                   defaultValue=""
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none bg-slate-50 text-sm"
+                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none bg-slate-50 dark:bg-slate-800 text-sm"
                 >
                   <option value="">-- Choose a preset route --</option>
                   {DESTINATION_PRESETS.map((preset) => (
-                    <option key={preset.value} value={preset.value}>
+                    <option key={preset.id} value={preset.value}>
                       {preset.label}
                     </option>
                   ))}
@@ -329,7 +329,7 @@ export default function AdminFeatureGridPage() {
 
               {/* Destination URL */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Destination URL / Route
                 </label>
                 <input
@@ -337,7 +337,7 @@ export default function AdminFeatureGridPage() {
                   value={link}
                   onChange={(e) => setLink(e.target.value)}
                   placeholder="/courses, /test-series, etc."
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
+                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-primary outline-none"
                 />
                 <p className="text-xs text-slate-500">
                   Can be an internal route (e.g. <code className="bg-slate-100 px-1 py-0.5 rounded">/courses?access=free</code>) or external URL.
@@ -349,8 +349,8 @@ export default function AdminFeatureGridPage() {
                 <label className="block text-sm font-semibold text-slate-700">
                   Icon / Image
                 </label>
-                <div className="flex items-center gap-4 p-4 border border-dashed border-slate-300 rounded-xl bg-slate-50">
-                  <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs shrink-0">
+                <div className="flex items-center gap-4 p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                  <div className="w-16 h-16 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shadow-xs shrink-0">
                     {previewUrl ? (
                       <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
                     ) : (
@@ -362,7 +362,7 @@ export default function AdminFeatureGridPage() {
                       {previewUrl ? 'Change Image' : 'Upload Image'}
                       <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                     </label>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {imageFile ? imageFile.name : 'Square PNG, SVG, or WebP recommended.'}
                     </p>
                   </div>
@@ -372,19 +372,19 @@ export default function AdminFeatureGridPage() {
               {/* Order & Active Status */}
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                     Display Order
                   </label>
                   <input
                     type="number"
                     value={order}
                     onChange={(e) => setOrder(parseInt(e.target.value) || 0)}
-                    className="w-full p-2.5 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-primary outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5 flex flex-col justify-end">
-                  <label className="inline-flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 rounded-lg bg-slate-50 text-sm font-semibold text-slate-800">
+                  <label className="inline-flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     <input
                       type="checkbox"
                       checked={isEnabled}
@@ -397,7 +397,7 @@ export default function AdminFeatureGridPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <Button type="button" variant="ghost" onClick={closeForm}>
                   Cancel
                 </Button>
@@ -411,14 +411,14 @@ export default function AdminFeatureGridPage() {
       )}
 
       {/* Items Table */}
-      <div className="bg-white rounded-xl soft-shadow border border-slate-100 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl soft-shadow border border-slate-100 dark:border-slate-800 overflow-hidden">
         {isLoading ? (
-          <div className="text-center py-12 text-slate-500">Loading feature grid items...</div>
+          <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading feature grid items...</div>
         ) : items.length === 0 ? (
           <div className="text-center py-16 px-4">
             <div className="text-5xl mb-3">⚡</div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">No Feature Grid Items Yet</h3>
-            <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No Feature Grid Items Yet</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 max-w-sm mx-auto">
               Add feature items or click the button below to seed the 10 standard educational items.
             </p>
             <Button variant="primary" onClick={handleResetDefaults} className="bg-brand-primary text-white">
@@ -428,7 +428,7 @@ export default function AdminFeatureGridPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+              <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4 w-20">Order</th>
                   <th className="py-3.5 px-4 w-20">Icon</th>
@@ -438,7 +438,7 @@ export default function AdminFeatureGridPage() {
                   <th className="py-3.5 px-4 w-36 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
                 {items.map((item, index) => {
                   const iconSrc = resolvedUrls[item.id] || item.icon_url;
                   const isImage = iconSrc && (
@@ -448,9 +448,9 @@ export default function AdminFeatureGridPage() {
                   );
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={item.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
                       {/* Order + Move Buttons */}
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-600">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-600 dark:text-slate-300">
                         <div className="flex items-center gap-1.5">
                           <span className="w-6 text-center">{item.order}</span>
                           <div className="flex flex-col">
@@ -458,7 +458,7 @@ export default function AdminFeatureGridPage() {
                               type="button"
                               disabled={index === 0}
                               onClick={() => handleMoveOrder(item, 'up')}
-                              className="text-slate-400 hover:text-slate-800 disabled:opacity-20 leading-none text-xs p-0.5"
+                              className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 leading-none text-xs p-0.5"
                               title="Move Up"
                             >
                               ▲
@@ -467,7 +467,7 @@ export default function AdminFeatureGridPage() {
                               type="button"
                               disabled={index === items.length - 1}
                               onClick={() => handleMoveOrder(item, 'down')}
-                              className="text-slate-400 hover:text-slate-800 disabled:opacity-20 leading-none text-xs p-0.5"
+                              className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 leading-none text-xs p-0.5"
                               title="Move Down"
                             >
                               ▼
@@ -478,7 +478,7 @@ export default function AdminFeatureGridPage() {
 
                       {/* Icon */}
                       <td className="py-3.5 px-4">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                           {isImage ? (
                             <img src={iconSrc} alt="" className="w-full h-full object-contain" />
                           ) : (
@@ -488,18 +488,18 @@ export default function AdminFeatureGridPage() {
                       </td>
 
                       {/* Title */}
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
                         {item.title}
                       </td>
 
                       {/* Destination Link */}
                       <td className="py-3.5 px-4">
                         {item.link ? (
-                          <span className="inline-block bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-xs font-mono">
+                          <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-md text-xs font-mono">
                             {item.link}
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic text-xs">No link configured</span>
+                          <span className="text-slate-400 dark:text-slate-500 italic text-xs">No link configured</span>
                         )}
                       </td>
 
@@ -508,10 +508,10 @@ export default function AdminFeatureGridPage() {
                         <button
                           type="button"
                           onClick={() => handleToggleEnabled(item)}
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold transition-colors ${
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-colors ${
                             item.is_enabled
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:border dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900'
+                              : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700'
                           }`}
                         >
                           {item.is_enabled ? '● Active' : '○ Inactive'}
@@ -525,7 +525,7 @@ export default function AdminFeatureGridPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => openEditForm(item)}
-                            className="text-slate-700 hover:text-brand-primary"
+                            className="text-slate-700 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400"
                           >
                             Edit
                           </Button>
@@ -533,7 +533,7 @@ export default function AdminFeatureGridPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDelete(item)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
                           >
                             Delete
                           </Button>

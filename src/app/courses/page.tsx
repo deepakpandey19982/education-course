@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Course } from '@/types/supabase';
 import Navbar from '@/components/shared/Navbar';
@@ -10,6 +10,7 @@ import { CourseCard } from '@/components/shared/CourseCard';
 import { Button } from '@/components/ui/Button';
 
 function CoursesList() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
@@ -21,14 +22,40 @@ function CoursesList() {
     const categoryParam = searchParams.get('category');
     if (categoryParam) {
       setSelectedCategory(categoryParam);
+    } else {
+      setSelectedCategory('');
     }
     const accessParam = searchParams.get('access');
     if (accessParam === 'free' || accessParam === 'paid') {
       setAccessFilter(accessParam);
-    } else if (accessParam === 'all') {
+    } else {
       setAccessFilter('all');
     }
   }, [searchParams]);
+
+  const handleAccessChange = (filter: 'all' | 'free' | 'paid') => {
+    setAccessFilter(filter);
+    const params = new URLSearchParams(searchParams.toString());
+    if (filter === 'all') {
+      params.delete('access');
+    } else {
+      params.set('access', filter);
+    }
+    const query = params.toString();
+    router.push(`/courses${query ? `?${query}` : ''}`, { scroll: false });
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    const params = new URLSearchParams(searchParams.toString());
+    if (!category) {
+      params.delete('category');
+    } else {
+      params.set('category', category);
+    }
+    const query = params.toString();
+    router.push(`/courses${query ? `?${query}` : ''}`, { scroll: false });
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -79,13 +106,13 @@ function CoursesList() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Access Type Switcher */}
         <div className="flex justify-center mb-6">
-          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 shadow-inner">
             <button
               type="button"
-              onClick={() => setAccessFilter('all')}
+              onClick={() => handleAccessChange('all')}
               className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 accessFilter === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md font-bold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -93,10 +120,10 @@ function CoursesList() {
             </button>
             <button
               type="button"
-              onClick={() => setAccessFilter('free')}
+              onClick={() => handleAccessChange('free')}
               className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 accessFilter === 'free'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-emerald-600 dark:bg-emerald-500 text-white shadow-md font-bold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -104,10 +131,10 @@ function CoursesList() {
             </button>
             <button
               type="button"
-              onClick={() => setAccessFilter('paid')}
+              onClick={() => handleAccessChange('paid')}
               className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 accessFilter === 'paid'
-                  ? 'bg-brand-primary text-white shadow-md'
+                  ? 'bg-brand-primary dark:bg-blue-600 text-white shadow-md font-bold'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -118,7 +145,7 @@ function CoursesList() {
 
         <div className="flex flex-wrap gap-2 justify-center mb-12">
           <button
-            onClick={() => setSelectedCategory('')}
+            onClick={() => handleCategoryChange('')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               selectedCategory === ''
               ? 'bg-brand-primary text-white shadow-md'
@@ -130,7 +157,7 @@ function CoursesList() {
           {categories.map(cat => (
             <button
               key={cat.id}
-              onClick={() => setSelectedCategory(cat.name)}
+              onClick={() => handleCategoryChange(cat.name)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 selectedCategory === cat.name
                 ? 'bg-brand-primary text-white shadow-md'
