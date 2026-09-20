@@ -3,7 +3,19 @@ import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_FOLDERS = ['banners', 'options', 'avatars', 'site-assets'];
+const ALLOWED_FOLDERS = [
+  'courses',
+  'banners',
+  'options',
+  'avatars',
+  'site-assets',
+  'test-series',
+  'subjects',
+  'thumbnails',
+  'series',
+  'tests',
+  'pdfs',
+];
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
@@ -28,26 +40,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (!ALLOWED_FOLDERS.includes(folder)) {
-      return NextResponse.json({ error: 'Invalid storage destination' }, { status: 400 });
+    const isSafeFolder = /^[a-zA-Z0-9_-]+$/.test(folder);
+    if (!isSafeFolder || !ALLOWED_FOLDERS.includes(folder)) {
+      return NextResponse.json({
+        error: `Invalid storage destination "${folder}". Allowed destinations: ${ALLOWED_FOLDERS.join(', ')}`,
+      }, { status: 400 });
     }
 
     if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Unsupported file type. Only JPEG, PNG, and WebP are allowed.' }, { status: 400 });
+      return NextResponse.json({
+        error: `Unsupported file type "${file.type}". Allowed image types: JPEG, PNG, WebP, GIF, and SVG.`,
+      }, { status: 400 });
     }
 
     const admin = getSupabaseAdmin();
 
-    // If uploading marketing assets (banners, options), verify user is admin
+    // If uploading non-avatar assets (courses, banners, options, etc.), verify user is admin
     if (folder !== 'avatars') {
-      const { data: profile } = await admin
+      const { data: profile, error: profileError } = await admin
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (profile?.role !== 'admin') {
-        return NextResponse.json({ error: 'Admin privileges required to upload site assets' }, { status: 403 });
+      if (profileError || profile?.role !== 'admin') {
+        return NextResponse.json({ error: 'Admin privileges required to upload site and course assets' }, { status: 403 });
       }
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, uploadSiteAsset } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import type { TestSeries, TestSeriesSubject, Test, Question } from '@/types/supabase';
 
@@ -112,12 +112,7 @@ const emptyQuestionForm = (): QuestionForm => ({
 });
 
 async function uploadTestSeriesAsset(file: File, folder: string): Promise<string> {
-  const ext = file.name.split('.').pop() || 'png';
-  const fileName = `${folder}/${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from('site-assets').upload(fileName, file);
-  if (error) throw new Error('Image upload failed: ' + error.message);
-  const { data } = supabase.storage.from('site-assets').getPublicUrl(fileName);
-  return data.publicUrl;
+  return uploadSiteAsset(file, folder);
 }
 
 function ImageUploadField({

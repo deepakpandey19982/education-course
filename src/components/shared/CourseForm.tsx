@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase, uploadSiteAsset } from '@/lib/supabase';
+import { supabase, uploadSiteAsset, resolveStorageUrl } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Course } from '@/types/supabase';
 
@@ -35,6 +35,20 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(initialCourse?.thumbnail_url || null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (initialCourse?.thumbnail_url) {
+      resolveStorageUrl(initialCourse.thumbnail_url).then((resolved) => {
+        if (isMounted && resolved) {
+          setThumbnailPreview(resolved);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [initialCourse?.thumbnail_url]);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -117,7 +131,11 @@ export const CourseForm = ({ initialCourse, onSuccess }: CourseFormProps) => {
       let uploadedThumbnailUrl = formData.thumbnail_url || '';
 
       if (thumbnailFile) {
-        uploadedThumbnailUrl = await uploadSiteAsset(thumbnailFile, 'courses');
+        try {
+          uploadedThumbnailUrl = await uploadSiteAsset(thumbnailFile, 'courses');
+        } catch (uploadErr: any) {
+          throw new Error(`Course thumbnail upload failed: ${uploadErr?.message || 'Unknown upload error'}`);
+        }
       }
 
       // 1. Upload PDF if provided

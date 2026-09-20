@@ -40,6 +40,16 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
   - Implemented responsive circular image container with `onError` fallback to the user's initial letter or "D".
   - Verified dashboard updates immediately after navigation from Account Settings without requiring second upload.
 
+- **Fixed Course Thumbnail Upload / Edit ("Invalid storage destination"):**
+  - Identified the root cause of "Invalid storage destination" when saving or editing courses: `src/app/api/storage/upload/route.ts` whitelisted only `['banners', 'options', 'avatars', 'site-assets']`, rejecting `courses` folder uploads with HTTP 400.
+  - Added `'courses'`, `'test-series'`, `'subjects'`, `'thumbnails'`, `'series'`, `'tests'`, and `'pdfs'` to `ALLOWED_FOLDERS`.
+  - Added regex safety checks (`/^[a-zA-Z0-9_-]+$/`) to prevent path traversal while providing descriptive error messages for invalid destinations or unsupported file types.
+  - Preserved security rules: only authenticated admins can upload to non-avatar folders; regular users can only upload to `'avatars'`.
+  - Updated `src/components/shared/CourseForm.tsx` to resolve existing course thumbnails via `resolveStorageUrl()` in the preview and wrap thumbnail uploads with clear, informative error handling.
+  - Maintained behavior: if no new thumbnail is selected while editing an existing course, the existing thumbnail remains untouched; if removed, it updates to `null`; if changed or new, it uploads and saves the secure 10-year signed URL.
+  - Updated `src/app/admin/test-series/_components/TestSeriesAdminManager.tsx` to route test series and subject asset uploads through `uploadSiteAsset()` rather than attempting direct uploads to the nonexistent `site-assets` bucket.
+  - Course PDF upload/download and profile picture uploads remain fully functional and intact.
+
 ## Files Updated
 
 - [next.config.ts](next.config.ts)
@@ -49,6 +59,7 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
 - [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
 - [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
 - [src/app/admin/test-series/_components/TestSeriesAdminManager.tsx](src/app/admin/test-series/_components/TestSeriesAdminManager.tsx)
+- [src/components/shared/CourseForm.tsx](src/components/shared/CourseForm.tsx)
 - [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
 - [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
 - [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
@@ -61,10 +72,11 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
 
 - TypeScript check passed via `npx tsc --noEmit` (exit code 0, 0 errors)
 - Production build passed via `npm run build` (39/39 pages compiled cleanly)
+- Course thumbnail upload verified: `course-pdfs` storage bucket with `courses/...` paths successfully uploads and generates 10-year signed URLs.
 - Dashboard profile avatar verified: displays uploaded profile image with safe fallback to initial letter/"D" on load/error.
 - Banner images verified: existing banners updated with signed URLs, returning HTTP 200 image/png.
 - Test series questions verified: `POST /api/tests/85c59437-7003-44e0-8df5-714da6b29b19/attempt` returns HTTP 200 with 5 questions and test metadata.
-- Storage upload verified: `/api/storage/upload` handles avatars and banners with 10-year signed URLs, verified HTTP 200 fetch.
+- Storage upload verified: `/api/storage/upload` handles avatars, courses, and banners with 10-year signed URLs.
 - Profile crop and save flow verified: modal closes, Account Settings stays open, avatar updates and persists on reload.
 - Button text contrast verified: white text on all blue buttons in both light and dark themes.
 
