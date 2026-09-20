@@ -48,12 +48,20 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
   - Updated `src/components/shared/CourseForm.tsx` to resolve existing course thumbnails via `resolveStorageUrl()` in the preview and wrap thumbnail uploads with clear, informative error handling.
   - Maintained behavior: if no new thumbnail is selected while editing an existing course, the existing thumbnail remains untouched; if removed, it updates to `null`; if changed or new, it uploads and saves the secure 10-year signed URL.
   - Updated `src/app/admin/test-series/_components/TestSeriesAdminManager.tsx` to route test series and subject asset uploads through `uploadSiteAsset()` rather than attempting direct uploads to the nonexistent `site-assets` bucket.
-  - Course PDF upload/download and profile picture uploads remain fully functional and intact.
+- **Improved Homepage Vertical Spacing and Margins:**
+  - Resolved excessive whitespace above and below the homepage banner slider and across homepage sections.
+  - Reduced top padding between sticky navbar and banner from `pt-24` (96px) to compact responsive `pt-4 sm:pt-6` (16px–24px).
+  - Encapsulated `HomeQuickOptions` so it returns `null` cleanly when no options exist, eliminating the empty `py-12` (96px) gap before Featured Courses.
+  - Standardized all section padding across Featured Courses, Explore by Category, Why Choose Us, About Us, Contact Us, and CTA to `py-10 sm:py-12 lg:py-14` (40px–56px, reduced from `py-20` / 80px).
+  - Reduced section header bottom margins from `mb-16` (64px) to `mb-8 sm:mb-10` (32px–40px) with tighter title-to-subtitle margins (`mb-3`).
+  - Preserved banner image dimensions, aspect ratio, slider controls, cards, dark/light theme, and mobile responsiveness.
 
 ## Files Updated
 
 - [next.config.ts](next.config.ts)
 - [src/lib/supabase.ts](src/lib/supabase.ts)
+- [src/app/page.tsx](src/app/page.tsx)
+- [src/components/shared/HomeQuickOptions.tsx](src/components/shared/HomeQuickOptions.tsx)
 - [src/app/api/storage/upload/route.ts](src/app/api/storage/upload/route.ts)
 - [src/app/api/storage/sign/route.ts](src/app/api/storage/sign/route.ts)
 - [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
@@ -71,7 +79,8 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
 ## Validation Results
 
 - TypeScript check passed via `npx tsc --noEmit` (exit code 0, 0 errors)
-- Production build passed via `npm run build` (39/39 pages compiled cleanly)
+- Production build passed via `npm run build` (41/41 pages compiled cleanly)
+- Homepage vertical layout verified: top banner gap reduced, empty quick-options gap removed, section vertical rhythm standardized to `py-10 sm:py-12 lg:py-14`.
 - Course thumbnail upload verified: `course-pdfs` storage bucket with `courses/...` paths successfully uploads and generates 10-year signed URLs.
 - Dashboard profile avatar verified: displays uploaded profile image with safe fallback to initial letter/"D" on load/error.
 - Banner images verified: existing banners updated with signed URLs, returning HTTP 200 image/png.
