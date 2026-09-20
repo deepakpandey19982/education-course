@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSupabaseAdmin, getEnvironmentVar } from '@/lib/test-series-server';
 
 export async function POST(req: Request) {
   try {
@@ -17,8 +12,14 @@ export async function POST(req: Request) {
     }
 
     // 1. Verify Webhook Signature
+    const webhookSecret = getEnvironmentVar(['RAZORPAY_WEBHOOK_SECRET', 'WEBHOOK_SECRET']);
+    if (!webhookSecret) {
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    }
+
+    // 1. Verify Webhook Signature
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET!)
+      .createHmac('sha256', webhookSecret)
       .update(body)
       .digest('hex');
 
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
       const orderId = event.payload?.payment?.entity?.order_id || event.payload?.order?.entity?.id;
 
       if (orderId) {
+        const supabaseAdmin = getSupabaseAdmin();
         const { error } = await supabaseAdmin
           .from('orders')
           .update({

@@ -148,8 +148,12 @@ export async function POST(
       questions: mappedQuestions,
       answers: answers ?? [],
     });
-  } catch (error) {
-    console.error('Test attempt start error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (error: any) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('Test attempt start error:', errorMsg);
+    return NextResponse.json(
+      { error: `Unable to start test: ${errorMsg}` },
+      { status: 500 }
+    );
   }
 }

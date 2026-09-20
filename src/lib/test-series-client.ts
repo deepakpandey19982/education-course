@@ -8,7 +8,11 @@ export async function testSeriesFetch(path: string, init: RequestInit = {}) {
   if (session?.access_token) {
     headers.set('Authorization', `Bearer ${session.access_token}`);
   }
-  return fetch(getApiUrl(path), { ...init, headers });
+  return fetch(getApiUrl(path), {
+    credentials: 'include',
+    ...init,
+    headers,
+  });
 }
 
 export type TestCard = {

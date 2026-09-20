@@ -22,13 +22,21 @@ export function isCapacitorNative(): boolean {
 
 export function getApiBaseUrl(): string {
   // 1. Explicit environment variable takes top precedence
-  const envApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_APP_URL;
+  const envApiUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.NEXT_PUBLIC_VERCEL_URL
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+      : undefined);
   if (envApiUrl && envApiUrl.trim() !== '') {
     return envApiUrl.replace(/\/+$/, '');
   }
 
   // 2. Server-side rendering in Node.js / Next.js
   if (typeof window === 'undefined') {
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
     return 'http://localhost:3000';
   }
 

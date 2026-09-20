@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin, getSupabaseAnon } from '@/lib/test-series-server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +12,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name, email, and message are required' }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin
+    const supabase = getSupabaseAnon();
+    const { error } = await supabase
       .from('contact_messages')
       .insert({
         name,

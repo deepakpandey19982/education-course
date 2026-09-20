@@ -1,27 +1,43 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
-import { createClient } from '@supabase/supabase-js';
+import {
+  getEnvironmentVar,
+  getSupabaseAdmin,
+} from '@/lib/test-series-server';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+export const dynamic = 'force-dynamic';
 
-// Internal helper for server-side Supabase access
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getRazorpayInstance(): { razorpay: Razorpay; keyId: string } {
+  const keyId = getEnvironmentVar(['RAZORPAY_KEY_ID', 'NEXT_PUBLIC_RAZORPAY_KEY_ID']);
+  const keySecret = getEnvironmentVar(['RAZORPAY_KEY_SECRET', 'RAZORPAY_SECRET']);
+
+  if (!keyId || !keySecret) {
+    throw new Error(
+      'Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are not configured in Vercel environment variables.'
+    );
+  }
+
+  return {
+    razorpay: new Razorpay({ key_id: keyId, key_secret: keySecret }),
+    keyId,
+  };
+}
 
 export async function POST(req: Request) {
   try {
     const { courseId, userId } = await req.json();
 
     if (!courseId || !userId) {
-      return NextResponse.json({ error: 'Course ID and User ID are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Course ID and User ID are required' },
+        { status: 400 }
+      );
     }
 
-    // 1. Fetch course price and discount from database to prevent price manipulation
+    // 1. Initialize Supabase Admin with service role to bypass RLS for internal order creation
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // 2. Fetch course price and discount from database to prevent price manipulation
     const { data: course, error: courseError } = await supabaseAdmin
       .from('courses')
       .select('price, discount, title')
@@ -35,14 +51,15 @@ export async function POST(req: Request) {
     const finalPrice = course.price * (1 - (course.discount || 0) / 100);
     const amount = Math.round(finalPrice * 100); // Razorpay expects amount in paise
 
-    // 2. Create Razorpay Order
+    // 3. Initialize Razorpay and create order
+    const { razorpay, keyId } = getRazorpayInstance();
     const razorpayOrder = await razorpay.orders.create({
       amount: amount,
       currency: 'INR',
       receipt: `rcpt_${Date.now()}`,
     });
 
-    // 3. Create pending order in our database
+    // 4. Create pending order in database using Supabase Admin service-role privileges
     const { error: orderError } = await supabaseAdmin
       .from('orders')
       .insert({
@@ -54,18 +71,29 @@ export async function POST(req: Request) {
       });
 
     if (orderError) {
-      return NextResponse.json({ error: 'Failed to create internal order' }, { status: 500 });
+      console.error('Failed to create internal order in Supabase:', orderError);
+      return NextResponse.json(
+        {
+          error: `Failed to create internal order: ${
+            orderError.message || orderError.code || 'database RLS error'
+          }. (Verify that SUPABASE_SERVICE_ROLE_KEY is added to Vercel Project Settings)`,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       orderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      key: process.env.RAZORPAY_KEY_ID,
+      key: keyId,
     });
-
   } catch (error: any) {
-    console.error('Payment Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Payment create order error:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      { error: message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

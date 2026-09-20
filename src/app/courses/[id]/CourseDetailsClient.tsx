@@ -73,9 +73,16 @@ export default function CourseDetailsClient() {
 
     setPaymentLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch(getApiUrl('/api/payments/create'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        credentials: 'include',
         body: JSON.stringify({
           courseId: course?.id,
           userId: userProfile.id,
@@ -108,6 +115,7 @@ export default function CourseDetailsClient() {
             const verifyRes = await fetch(getApiUrl('/api/payments/verify'), {
               method: 'POST',
               headers,
+              credentials: 'include',
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,

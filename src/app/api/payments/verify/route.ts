@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
-import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
+import { getRequestUser, getSupabaseAdmin, getEnvironmentVar } from '@/lib/test-series-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +25,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = getEnvironmentVar(['RAZORPAY_KEY_SECRET', 'RAZORPAY_SECRET']);
+    const keyId = getEnvironmentVar(['RAZORPAY_KEY_ID', 'NEXT_PUBLIC_RAZORPAY_KEY_ID']);
 
     if (!keySecret || !keyId) {
-      return NextResponse.json({ error: 'Razorpay credentials not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are not configured in Vercel environment variables.' },
+        { status: 500 }
+      );
     }
 
     let isVerified = false;

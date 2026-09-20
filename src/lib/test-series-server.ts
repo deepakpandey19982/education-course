@@ -9,20 +9,70 @@ type TestAccess = {
   is_paid: boolean;
 };
 
-function requiredEnvironment(name: string) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is not configured`);
+/**
+ * Searches process.env for the first defined and non-empty key among provided names.
+ */
+export function getEnvironmentVar(names: string[]): string | undefined {
+  for (const name of names) {
+    const val = process.env[name];
+    if (val && val.trim() !== '') {
+      return val.trim();
+    }
   }
-  return value;
+  return undefined;
 }
 
+/**
+ * Resolves a required environment variable or throws an actionable, descriptive error.
+ */
+export function getRequiredEnvironmentVar(names: string[]): string {
+  const val = getEnvironmentVar(names);
+  if (!val) {
+    throw new Error(
+      `Missing required environment variable: ${names.join(' or ')}. Please configure this variable in your Vercel project settings (Environment Variables).`
+    );
+  }
+  return val;
+}
+
+export function getSupabaseUrl(): string {
+  return getRequiredEnvironmentVar(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL']);
+}
+
+export function getSupabaseAnonKey(): string {
+  return getRequiredEnvironmentVar([
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'SUPABASE_ANON_KEY',
+    'SUPABASE_KEY',
+  ]);
+}
+
+export function getSupabaseServiceRoleKey(): string {
+  return getRequiredEnvironmentVar([
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_KEY',
+    'SUPABASE_SERVICE_ROLE',
+    'SERVICE_ROLE_KEY',
+  ]);
+}
+
+/**
+ * Server-authoritative Supabase Admin client with service-role privileges.
+ * Bypasses RLS to manage test attempts, questions, orders, and protected assets.
+ */
 export function getSupabaseAdmin(): SupabaseClient {
-  return createClient(
-    requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-    requiredEnvironment('SUPABASE_SERVICE_ROLE_KEY'),
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  return createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+/**
+ * Supabase client initialized with anon key for token verification.
+ */
+export function getSupabaseAnon(): SupabaseClient {
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 export async function getRequestUser(request?: Request): Promise<User | null> {
@@ -44,14 +94,14 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
 
   // 3. If token found from header or query param, verify with Supabase
   if (token) {
-    const supabaseAuth = createClient(
-      requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-      requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-    if (!error && data?.user) {
-      return data.user;
+    try {
+      const supabaseAuth = getSupabaseAnon();
+      const { data, error } = await supabaseAuth.auth.getUser(token);
+      if (!error && data?.user) {
+        return data.user;
+      }
+    } catch (tokenErr) {
+      console.warn('Bearer token verification failed:', tokenErr);
     }
   }
 
@@ -62,32 +112,28 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
     // Check direct sb-access-token cookie
     const directToken = cookieStore.get('sb-access-token')?.value;
     if (directToken) {
-      const supabaseAuth = createClient(
-        requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-        requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-        { auth: { autoRefreshToken: false, persistSession: false } }
-      );
-      const { data, error } = await supabaseAuth.auth.getUser(directToken);
-      if (!error && data?.user) {
-        return data.user;
+      try {
+        const supabaseAuth = getSupabaseAnon();
+        const { data, error } = await supabaseAuth.auth.getUser(directToken);
+        if (!error && data?.user) {
+          return data.user;
+        }
+      } catch (cookieErr) {
+        console.warn('Direct cookie verification failed:', cookieErr);
       }
     }
 
     // Check @supabase/ssr structured cookies
-    const supabaseAuth = createServerClient(
-      requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-      requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: (cookiesToSet) => {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          },
+    const supabaseAuth = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
         },
-      }
-    );
+      },
+    });
 
     const { data, error } = await supabaseAuth.auth.getUser();
     return error ? null : data.user;
@@ -136,8 +182,9 @@ export function isAttemptExpired(attempt: {
   started_at: string;
   duration_minutes_snapshot: number;
 }) {
-  const expiry = new Date(attempt.started_at).getTime()
-    + attempt.duration_minutes_snapshot * 60 * 1000;
+  const expiry =
+    new Date(attempt.started_at).getTime() +
+    attempt.duration_minutes_snapshot * 60 * 1000;
   return Date.now() >= expiry;
 }
 
