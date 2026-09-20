@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { getUserProfile } from '@/lib/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
@@ -12,6 +13,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -44,20 +46,47 @@ export default function AdminLayout({
 
   if (!isAdmin) return null;
 
+  const adminNav = [
+    { name: 'Dashboard', href: '/admin' },
+    { name: 'Courses', href: '/admin/courses' },
+    { name: 'Categories', href: '/admin/categories' },
+    { name: 'Banners', href: '/admin/homepage' },
+    { name: 'Feature Grid', href: '/admin/feature-grid' },
+    { name: 'Free Tests', href: '/admin/test-series/free' },
+    { name: 'Paid Tests', href: '/admin/test-series/paid' },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
       <div className="flex-grow">
-        {/* Admin Sidebar Header */}
-        <header className="bg-white border-b border-slate-200 py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <span className="bg-brand-primary text-white text-xs px-2 py-1 rounded">ADMIN</span>
-              Control Panel
-            </h1>
-            <div className="text-sm text-slate-500">
-              Welcome, Administrator
+        {/* Admin Navigation Header */}
+        <header className="bg-white border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <Link href="/admin" className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span className="bg-brand-primary text-white text-xs font-bold px-2 py-0.5 rounded">ADMIN</span>
+                Control Panel
+              </Link>
             </div>
+            <nav className="flex items-center gap-1 sm:gap-2 flex-wrap text-xs sm:text-sm font-medium">
+              {adminNav.map((link) => {
+                const isActive = link.href === '/admin' ? pathname === '/admin' : pathname.startsWith(link.href);
+                return (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    className={`px-2.5 py-1 rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-brand-primary text-white font-semibold shadow-xs'
+                        : 'text-slate-600 hover:text-brand-primary hover:bg-slate-100'
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
         </header>
 

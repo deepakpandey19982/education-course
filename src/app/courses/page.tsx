@@ -14,12 +14,19 @@ function CoursesList() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [accessFilter, setAccessFilter] = useState<'all' | 'free' | 'paid'>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const categoryParam = searchParams.get('category');
     if (categoryParam) {
       setSelectedCategory(categoryParam);
+    }
+    const accessParam = searchParams.get('access');
+    if (accessParam === 'free' || accessParam === 'paid') {
+      setAccessFilter(accessParam);
+    } else if (accessParam === 'all') {
+      setAccessFilter('all');
     }
   }, [searchParams]);
 
@@ -45,12 +52,19 @@ function CoursesList() {
     fetchData();
   }, []);
 
-  const filteredCourses = selectedCategory === ''
-    ? courses
-    : courses.filter(c => {
-      const cat = categories.find(cat => cat.id === c.category_id);
-      return cat?.name === selectedCategory;
-    });
+  const filteredCourses = courses.filter((c) => {
+    if (selectedCategory !== '') {
+      const cat = categories.find((item) => item.id === c.category_id);
+      if (cat?.name !== selectedCategory) return false;
+    }
+    if (accessFilter === 'free') {
+      return Number(c.price || 0) === 0;
+    }
+    if (accessFilter === 'paid') {
+      return Number(c.price || 0) > 0;
+    }
+    return true;
+  });
 
   if (isLoading) {
     return (
@@ -63,6 +77,45 @@ function CoursesList() {
   return (
     <section className="py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Access Type Switcher */}
+        <div className="flex justify-center mb-6">
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setAccessFilter('all')}
+              className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                accessFilter === 'all'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              All Courses
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccessFilter('free')}
+              className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                accessFilter === 'free'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Free Courses
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccessFilter('paid')}
+              className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                accessFilter === 'paid'
+                  ? 'bg-brand-primary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Paid Courses
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-2 justify-center mb-12">
           <button
             onClick={() => setSelectedCategory('')}
@@ -72,7 +125,7 @@ function CoursesList() {
               : 'bg-white text-slate-900 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            All Courses
+            All Categories
           </button>
           {categories.map(cat => (
             <button

@@ -7,7 +7,7 @@ import Footer from '@/components/shared/Footer';
 import { CourseCard } from '@/components/shared/CourseCard';
 import { Button } from '@/components/ui/Button';
 import { HomeBannerSlider } from '@/components/shared/HomeBannerSlider';
-import { HomeQuickOptions } from '@/components/shared/HomeQuickOptions';
+import { HomeFeatureGrid } from '@/components/shared/HomeFeatureGrid';
 import { supabase } from '@/lib/supabase';
 import { Course, Category } from '@/types/supabase';
 
@@ -104,8 +104,8 @@ export default function HomePage() {
           <HomeBannerSlider />
         </section>
 
-        {/* Quick-Link Options Grid */}
-        <HomeQuickOptions />
+        {/* Dynamic Feature Grid */}
+        <HomeFeatureGrid />
 
         {/* Featured Courses Section */}
         <section className="py-10 sm:py-12 lg:py-14 bg-slate-50 dark:bg-slate-900/50">

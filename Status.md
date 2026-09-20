@@ -54,38 +54,42 @@ Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop
   - Encapsulated `HomeQuickOptions` so it returns `null` cleanly when no options exist, eliminating the empty `py-12` (96px) gap before Featured Courses.
   - Standardized all section padding across Featured Courses, Explore by Category, Why Choose Us, About Us, Contact Us, and CTA to `py-10 sm:py-12 lg:py-14` (40px–56px, reduced from `py-20` / 80px).
   - Reduced section header bottom margins from `mb-16` (64px) to `mb-8 sm:mb-10` (32px–40px) with tighter title-to-subtitle margins (`mb-3`).
-  - Preserved banner image dimensions, aspect ratio, slider controls, cards, dark/light theme, and mobile responsiveness.
+- **Implemented Dynamic Homepage Feature Grid (Task 10):**
+  - Added compact, modern Feature Grid section placed directly above "Featured Courses" matching the reference design.
+  - Implemented 3-column layout on mobile (`grid-cols-3`) and responsive multi-column layout on tablet/desktop (`sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5`).
+  - Rendered ONLY image/icon and centered title per card without extraneous text, price, or buttons.
+  - Built dedicated Admin management panel at `/admin/feature-grid` allowing administrators to view, add, edit, reorder, enable/disable, upload images, preview, and delete feature grid items.
+  - Added "Feature Grid" navigation shortcuts in Admin Dashboard Quick Actions and the Admin Header navigation bar.
+  - Reused existing `home_options` Supabase table and storage bucket (`course-pdfs` with `features/` folder) with idempotent migration `20260920_feature_grid_setup.sql`.
+  - Seeded 10 default educational feature items (Paid Courses, Free Courses, Free Test Series, Paid Test Series, Paid PDFs, Free PDFs, E-Book & PYQs, Timetable, Syllabus, Quiz) with high-resolution vector SVG icons.
+  - Enhanced `/courses` page with `access=free` and `access=paid` filtering, enabling direct navigation from Feature Grid items to filtered course lists.
 
 ## Files Updated
 
-- [next.config.ts](next.config.ts)
-- [src/lib/supabase.ts](src/lib/supabase.ts)
+- [src/components/shared/HomeFeatureGrid.tsx](src/components/shared/HomeFeatureGrid.tsx)
+- [src/lib/feature-grid-presets.ts](src/lib/feature-grid-presets.ts)
+- [src/app/admin/feature-grid/page.tsx](src/app/admin/feature-grid/page.tsx)
+- [src/app/admin/layout.tsx](src/app/admin/layout.tsx)
+- [src/app/admin/page.tsx](src/app/admin/page.tsx)
 - [src/app/page.tsx](src/app/page.tsx)
-- [src/components/shared/HomeQuickOptions.tsx](src/components/shared/HomeQuickOptions.tsx)
+- [src/app/courses/page.tsx](src/app/courses/page.tsx)
 - [src/app/api/storage/upload/route.ts](src/app/api/storage/upload/route.ts)
-- [src/app/api/storage/sign/route.ts](src/app/api/storage/sign/route.ts)
-- [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
-- [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
-- [src/app/admin/test-series/_components/TestSeriesAdminManager.tsx](src/app/admin/test-series/_components/TestSeriesAdminManager.tsx)
-- [src/components/shared/CourseForm.tsx](src/components/shared/CourseForm.tsx)
-- [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
-- [src/app/dashboard/page.tsx](src/app/dashboard/page.tsx)
-- [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
-- [src/app/globals.css](src/app/globals.css)
-- [.gitignore](.gitignore)
-- [supabase/migrations/20260920_phase9_schema_fixes.sql](supabase/migrations/20260920_phase9_schema_fixes.sql)
+- [supabase/migrations/20260920_feature_grid_setup.sql](supabase/migrations/20260920_feature_grid_setup.sql)
 - [Status.md](Status.md)
 
 ## Validation Results
 
 - TypeScript check passed via `npx tsc --noEmit` (exit code 0, 0 errors)
-- Production build passed via `npm run build` (41/41 pages compiled cleanly)
+- Production build passed via `npm run build` (42/42 pages compiled cleanly)
+- Feature Grid verified: rendered directly above Featured Courses with 3-column mobile layout and 10 dynamic items.
+- Admin Feature Grid management verified: CRUD, reordering, status toggling, destination routing presets, and storage upload tested.
+- Course access filtering verified: `/courses?access=free` and `/courses?access=paid` filter correctly.
 - Homepage vertical layout verified: top banner gap reduced, empty quick-options gap removed, section vertical rhythm standardized to `py-10 sm:py-12 lg:py-14`.
 - Course thumbnail upload verified: `course-pdfs` storage bucket with `courses/...` paths successfully uploads and generates 10-year signed URLs.
 - Dashboard profile avatar verified: displays uploaded profile image with safe fallback to initial letter/"D" on load/error.
 - Banner images verified: existing banners updated with signed URLs, returning HTTP 200 image/png.
 - Test series questions verified: `POST /api/tests/85c59437-7003-44e0-8df5-714da6b29b19/attempt` returns HTTP 200 with 5 questions and test metadata.
-- Storage upload verified: `/api/storage/upload` handles avatars, courses, and banners with 10-year signed URLs.
+- Storage upload verified: `/api/storage/upload` handles avatars, courses, features, and banners with 10-year signed URLs.
 - Profile crop and save flow verified: modal closes, Account Settings stays open, avatar updates and persists on reload.
 - Button text contrast verified: white text on all blue buttons in both light and dark themes.
 

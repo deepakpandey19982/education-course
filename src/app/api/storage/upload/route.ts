@@ -7,6 +7,8 @@ const ALLOWED_FOLDERS = [
   'courses',
   'banners',
   'options',
+  'features',
+  'feature-grid',
   'avatars',
   'site-assets',
   'test-series',

@@ -57,6 +57,11 @@ export default function AdminDashboard() {
                 <span>🖼️</span> Homepage Banners
               </Button>
             </Link>
+            <Link href="/admin/feature-grid">
+              <Button variant="outline" fullWidth className="justify-start gap-2">
+                <span>⚡</span> Feature Grid
+              </Button>
+            </Link>
             <Link href="/admin/test-series/free">
               <Button variant="outline" fullWidth className="justify-start gap-2">
                 <span>🧪</span> Free Test Series
