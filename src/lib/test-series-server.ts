@@ -26,36 +26,74 @@ export function getSupabaseAdmin(): SupabaseClient {
 }
 
 export async function getRequestUser(request?: Request): Promise<User | null> {
+  // 1. Check Authorization header: Bearer <token>
   const authorization = request?.headers.get('authorization');
-  if (authorization?.startsWith('Bearer ')) {
-    const token = authorization.slice('Bearer '.length);
+  let token = authorization?.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length).trim()
+    : null;
+
+  // 2. Check query params: ?token=... or ?access_token=...
+  if (!token && request) {
+    try {
+      const url = new URL(request.url);
+      token = url.searchParams.get('token') || url.searchParams.get('access_token');
+    } catch {
+      // Ignore invalid URL
+    }
+  }
+
+  // 3. If token found from header or query param, verify with Supabase
+  if (token) {
     const supabaseAuth = createClient(
       requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
       requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
     const { data, error } = await supabaseAuth.auth.getUser(token);
-    return error ? null : data.user;
+    if (!error && data?.user) {
+      return data.user;
+    }
   }
 
-  const cookieStore = await cookies();
-  const supabaseAuth = createServerClient(
-    requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-    requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
+  // 4. Check cookies via Next.js cookieStore
+  try {
+    const cookieStore = await cookies();
 
-  const { data, error } = await supabaseAuth.auth.getUser();
-  return error ? null : data.user;
+    // Check direct sb-access-token cookie
+    const directToken = cookieStore.get('sb-access-token')?.value;
+    if (directToken) {
+      const supabaseAuth = createClient(
+        requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
+        requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+      const { data, error } = await supabaseAuth.auth.getUser(directToken);
+      if (!error && data?.user) {
+        return data.user;
+      }
+    }
+
+    // Check @supabase/ssr structured cookies
+    const supabaseAuth = createServerClient(
+      requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
+      requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookiesToSet) => {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
+    const { data, error } = await supabaseAuth.auth.getUser();
+    return error ? null : data.user;
+  } catch {
+    return null;
+  }
 }
 
 export async function getAccessibleTest(

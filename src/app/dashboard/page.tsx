@@ -7,6 +7,7 @@ import { Profile, Order, Course } from '@/types/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
+import { downloadCoursePdf } from '@/lib/course-download';
 
 interface PurchasedCourse extends Course {
   order_id: string;
@@ -19,6 +20,7 @@ export default function UserDashboard() {
   const [myCourses, setMyCourses] = useState<PurchasedCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -71,7 +73,17 @@ export default function UserDashboard() {
       alert('You must be logged in to download.');
       return;
     }
-    window.location.href = `/api/courses/download?courseId=${courseId}`;
+    setDownloadingId(courseId);
+    try {
+      const result = await downloadCoursePdf(courseId);
+      if (!result.success) {
+        alert(result.error || 'Could not download course PDF.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Download failed');
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -169,8 +181,13 @@ export default function UserDashboard() {
                         <div className="flex-grow">
                           <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{course.title}</h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Purchased on {new Date(course.created_at).toLocaleDateString()}</p>
-                          <Button variant="secondary" size="sm" onClick={() => handleDownload(course.id)}>
-                            Download PDF
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleDownload(course.id)}
+                            disabled={downloadingId === course.id}
+                          >
+                            {downloadingId === course.id ? 'Preparing...' : 'Download PDF'}
                           </Button>
                         </div>
                       </div>

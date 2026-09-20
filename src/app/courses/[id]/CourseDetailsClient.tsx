@@ -8,6 +8,7 @@ import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
 import Script from 'next/script';
+import { downloadCoursePdf } from '@/lib/course-download';
 
 export default function CourseDetailsClient() {
   const params = useParams();
@@ -17,6 +18,7 @@ export default function CourseDetailsClient() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [hasPurchased, setHasPurchased] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -115,8 +117,24 @@ export default function CourseDetailsClient() {
     }
   };
 
-  const handleDownload = () => {
-    window.location.href = `/api/courses/download?courseId=${course?.id}`;
+  const handleDownload = async () => {
+    if (!userProfile) {
+      alert('Please log in to access this course PDF.');
+      router.push('/login');
+      return;
+    }
+    if (!course?.id) return;
+    setDownloading(true);
+    try {
+      const result = await downloadCoursePdf(course.id);
+      if (!result.success) {
+        alert(result.error || 'Could not download course PDF.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (isLoading) {
@@ -231,8 +249,9 @@ export default function CourseDetailsClient() {
                         fullWidth
                         className="text-lg py-4 bg-green-600 hover:bg-green-700"
                         onClick={handleDownload}
+                        disabled={downloading}
                       >
-                        {isFreeCourse ? 'Open Course PDF' : 'Download PDF Now'}
+                        {downloading ? 'Preparing PDF...' : (isFreeCourse ? 'Open Course PDF' : 'Download PDF Now')}
                       </Button>
                     ) : (
                       <Button

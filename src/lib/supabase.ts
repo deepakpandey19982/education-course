@@ -15,6 +15,24 @@ export function getSupabase() {
     _supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
 
+  // Keep browser cookie in sync for server-side auth recognition
+  if (typeof window !== 'undefined' && _supabase) {
+    _supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.access_token) {
+        document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+      } else if (event === 'SIGNED_OUT') {
+        document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
+      }
+    });
+
+    // Also initialize cookie if active session already exists in localStorage
+    _supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+    }).catch(() => {});
+  }
+
   return _supabase;
 }
 
