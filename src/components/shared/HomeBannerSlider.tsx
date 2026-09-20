@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { supabase, resolveStorageUrl } from '@/lib/supabase';
 import { HomeBanner } from '@/types/supabase';
 import { Button } from '@/components/ui/Button';
 
@@ -89,7 +89,15 @@ export function HomeBannerSlider() {
         .eq('is_enabled', true)
         .order('order');
 
-      const list = (data && data.length > 0) ? data : dummyBanners;
+      let list = dummyBanners;
+      if (data && data.length > 0) {
+        list = await Promise.all(
+          data.map(async (banner) => ({
+            ...banner,
+            image_url: await resolveStorageUrl(banner.image_url),
+          }))
+        );
+      }
       setBanners(list);
       setCurrentIndex(0);
       setIsLoading(false);

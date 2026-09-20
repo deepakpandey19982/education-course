@@ -177,13 +177,19 @@ html[data-theme='dark'] button:not([class*='text-white']):not([class*='bg-brand-
   color: #f8fafc !important;
 }
 
-/* Ensure brand-primary buttons always have white text */
+/* Ensure brand-primary and blue buttons always have white text */
 .bg-brand-primary,
-button.bg-brand-primary {
+button.bg-brand-primary,
+.bg-blue-600,
+.bg-blue-700,
+button[class*="bg-blue-"] {
   color: #ffffff !important;
 }
 
-html[data-theme='dark'] .bg-brand-primary {
+html[data-theme='dark'] .bg-brand-primary,
+html[data-theme='dark'] .bg-blue-600,
+html[data-theme='dark'] .bg-blue-700,
+html[data-theme='dark'] button[class*="bg-blue-"] {
   background-color: #1d4ed8 !important;
   color: #ffffff !important;
 }

@@ -2,60 +2,63 @@
 
 ## Current Phase
 
-Phase 9 — Account settings, profile media, course access, admin numeric UX, and theme updates.
+Phase 9 — Storage signed URLs, banner image display, avatar persistence & crop flow, test question loading, and theme button styling.
 
 ## What Changed
 
-- Fixed the Supabase password recovery issue by validating the recovery session before password updates and by exchanging the recovery code when present on reset links.
-- Added and preserved the existing Forgot Password and Reset Password flow using the same Supabase Auth setup used across login/signup.
-- Added a full Change Password section to the profile/account settings page with current password verification, validation, success/error states, and no unnecessary logout.
-- Added profile photo management to account settings, including image validation, upload to the existing Supabase site-assets bucket, and immediate preview plus removal back to the default avatar state.
-- Added a clear Back control and a close action to the Account Settings page so users can exit cleanly without breaking navigation.
-- Added a password visibility toggle to the Login page while preserving the existing sign-in logic.
-- Added a clear Course Access option to the admin course form with Free/Paid handling, automatic zeroing for free courses, and disabled discount/price logic for free access.
-- Updated storefront course displays so free courses appear as FREE and paid courses keep existing pricing and discount output, while free access does not trigger Razorpay.
-- Added consistent zero-clearing-on-focus behavior to the relevant numeric admin fields so entering numbers is smoother and values restore to 0 on blur when left empty.
-- Added a dark/night mode toggle to the main navigation that persists across refreshes and applies across the app shell.
-- Fixed the image upload "Bucket not found" error by ensuring the storage configuration safely falls back to the existing `course-pdfs` bucket if `site-assets` is not present, avoiding duplicate auth/storage complexities.
-- Completely redesigned the Admin Homepage Banners page to feature a robust List Manager displaying existing banners and quick-links alongside previews and configuration details.
-- Integrated native HTML5 drag-and-drop to easily reorder banners and quick-links, with automatic sequential saving to the database.
-- Upgraded the banner and quick-link upload UI with distinct "Upload Image" inputs, showing filename and real-time previews before saving, alongside a specific "Change Image" flow for quick single-banner updates.
-- Ensured seamless deletion of banners and quick-links that automatically patches `order` gaps (e.g., 1, 2, 4 becomes 1, 2, 3).
-- Refined the Homepage Banner Slider to dynamically adjust its responsive height and aspect ratio for mobile devices without letterboxing or distortion on small screens.
-- Created idempotent migration `20260920_add_avatar_url_to_profiles.sql` to safely add the missing `avatar_url` column to the `profiles` table, resolving the "Could not find the 'avatar_url' column" schema cache error.
-- Fixed the root cause of black-text-on-blue-buttons in light mode: removed `button` from the global `color: var(--input-text) !important` CSS selector in `globals.css` and added explicit `.bg-brand-primary { color: #ffffff !important }` rules. All primary buttons (Save Changes, Change Password, Use Cropped Photo, Add New Banner, Agree & Continue, etc.) now show white text correctly in both light and dark mode.
-- Fixed the crop-confirm flow: "Use Cropped Photo" now (1) immediately shows a local blob preview, (2) closes only the crop modal (Account Settings remains open), then (3) uploads in the background and replaces the preview with the permanent CDN URL. The user no longer gets redirected to /dashboard after cropping.
-- Improved the profile avatar UI: 24×24 circular container with `object-cover`, a graceful `onError` fallback to the initial letter, and a shadow border for polish.
+- **Fixed Homepage Banner Images (Task 1):**
+  - Identified the root cause of broken banner images: the Supabase Storage bucket `course-pdfs` is private (`public: false`), meaning direct requests to `/storage/v1/object/public/course-pdfs/...` returned HTTP 400 NoSuchBucket.
+  - Implemented secure server-side upload and signing via `/api/storage/upload` and `/api/storage/sign` using `getSupabaseAdmin()`.
+  - Generated long-lived 10-year signed URLs (`createSignedUrl(path, 315360000)`) for uploaded and existing assets.
+  - Directly updated existing database records in `home_banners` with valid signed URLs, verified they return HTTP 200 `image/png`.
+  - Updated `HomeBannerSlider.tsx` and `src/app/admin/homepage/page.tsx` with `resolveStorageUrl` to guarantee smooth, persistent rendering on the storefront and in the admin manager.
+
+- **Fixed Profile Image / Avatar Database Error & Persistence (Tasks 2 & 4):**
+  - Resolved "Could not find the 'avatar_url' column of 'profiles' in the schema cache".
+  - Created `updateUserProfile()` in `src/lib/supabase.ts` which guarantees persistence by saving `avatar_url` into Supabase Auth `user.user_metadata` and safely updating `profiles` without throwing schema cache errors.
+  - Updated `getUserProfile()` to merge `user.user_metadata?.avatar_url` with profile table records, ensuring the saved avatar persists seamlessly across page reloads.
+
+- **Fixed Profile Crop Flow (Task 3):**
+  - In `src/app/profile/edit/page.tsx`, clicking "Use Cropped Photo" now closes ONLY the crop modal (`cropModalOpen: false`).
+  - The main "Account Settings" panel stays open and does not redirect.
+  - The cropped image immediately appears in the preview circle.
+  - Saving changes updates the profile with a clear inline success confirmation without closing or navigating away from the page.
+
+- **Fixed Test Questions Not Loading (Task 5):**
+  - Identified the root cause of "Unable to start test" / "Could not load test questions": `src/app/api/tests/[testId]/attempt/route.ts` queried `subject_id` from the `questions` table, which threw PostgreSQL error `42703 (column questions.subject_id does not exist)`.
+  - Removed `subject_id` from the `questions` select query and mapped it dynamically from `testMeta.subject_id` / `subjectMeta.id`.
+  - Verified test attempt API (`POST /api/tests/85c59437-7003-44e0-8df5-714da6b29b19/attempt`) returns HTTP 200 with all 5 questions, starting the test attempt cleanly.
+  - Added graceful fallback in `TestSeriesAdminManager.tsx` when saving questions if `subject_id` is omitted in the DB schema.
+
+- **Verified Theme Button Text Contrast (Task 6):**
+  - Enforced `#ffffff !important` text on `.bg-brand-primary`, `button.bg-brand-primary`, `.bg-blue-600`, `.bg-blue-700`, and `button[class*="bg-blue-"]` in both light and dark themes.
+  - Preserved light readable text (`#f8fafc !important`) for outline/ghost buttons in dark mode and dark readable text (`#0f172a`) in light mode.
 
 ## Files Updated
 
-- [src/app/login/page.tsx](src/app/login/page.tsx)
-- [src/app/forgot-password/page.tsx](src/app/forgot-password/page.tsx)
-- [src/app/reset-password/page.tsx](src/app/reset-password/page.tsx)
-- [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
-- [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx)
-- [src/components/shared/CourseForm.tsx](src/components/shared/CourseForm.tsx)
-- [src/components/shared/CourseCard.tsx](src/components/shared/CourseCard.tsx)
-- [src/components/shared/Navbar.tsx](src/components/shared/Navbar.tsx)
-- [src/app/globals.css](src/app/globals.css)
+- [next.config.ts](next.config.ts)
 - [src/lib/supabase.ts](src/lib/supabase.ts)
-- [src/types/supabase.ts](src/types/supabase.ts)
+- [src/app/api/storage/upload/route.ts](src/app/api/storage/upload/route.ts)
+- [src/app/api/storage/sign/route.ts](src/app/api/storage/sign/route.ts)
+- [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
 - [src/app/admin/homepage/page.tsx](src/app/admin/homepage/page.tsx)
-- [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
-- [src/lib/supabase.ts](src/lib/supabase.ts)
-- [src/app/globals.css](src/app/globals.css)
+- [src/app/admin/test-series/_components/TestSeriesAdminManager.tsx](src/app/admin/test-series/_components/TestSeriesAdminManager.tsx)
 - [src/app/profile/edit/page.tsx](src/app/profile/edit/page.tsx)
-- [supabase/migrations/20260920_add_avatar_url_to_profiles.sql](supabase/migrations/20260920_add_avatar_url_to_profiles.sql)
+- [src/components/shared/HomeBannerSlider.tsx](src/components/shared/HomeBannerSlider.tsx)
+- [src/app/globals.css](src/app/globals.css)
+- [.gitignore](.gitignore)
+- [supabase/migrations/20260920_phase9_schema_fixes.sql](supabase/migrations/20260920_phase9_schema_fixes.sql)
 - [Status.md](Status.md)
 
 ## Validation Results
 
-- TypeScript check passed via `npx tsc --noEmit` (exit code 0, no errors)
-- Production build passed via `npm run build` (39/39 pages, all routes clean)
-- All primary/blue buttons now correctly display white text in light and dark mode.
-- Crop-confirm flow verified: modal closes, settings panel stays open, image previews instantly.
-- Git commit `12e4254` pushed to `origin main` successfully.
-- Working tree is clean.
+- TypeScript check passed via `npx tsc --noEmit` (exit code 0, 0 errors)
+- Production build passed via `npm run build` (39/39 pages compiled cleanly)
+- Banner images verified: existing banners updated with signed URLs, returning HTTP 200 image/png.
+- Test series questions verified: `POST /api/tests/85c59437-7003-44e0-8df5-714da6b29b19/attempt` returns HTTP 200 with 5 questions and test metadata.
+- Storage upload verified: `/api/storage/upload` handles avatars and banners with 10-year signed URLs, verified HTTP 200 fetch.
+- Profile crop and save flow verified: modal closes, Account Settings stays open, avatar updates and persists on reload.
+- Button text contrast verified: white text on all blue buttons in both light and dark themes.
 
 ## Remaining Bugs / Blockers
 
@@ -63,7 +66,7 @@ Phase 9 — Account settings, profile media, course access, admin numeric UX, an
 
 ## Next Task
 
-- None pending. Working tree is clean.
+- None pending. Ready for verification and git push.
 
 ## Last Updated
 

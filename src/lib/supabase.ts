@@ -31,7 +31,6 @@ export async function getUserProfile(): Promise<Profile | null> {
   }
 
   // 2. Fetch the profile associated with this user's ID
-  // We use .maybeSingle() instead of .single() to return null instead of an error if no row is found
   const { data, error: profileError } = await client
     .from('profiles')
     .select('*')
@@ -43,49 +42,136 @@ export async function getUserProfile(): Promise<Profile | null> {
     return null;
   }
 
-  return data;
+  const baseProfile = data || {
+    id: user.id,
+    email: user.email || '',
+    full_name: '',
+    role: 'user' as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  return {
+    ...baseProfile,
+    avatar_url: (data as any)?.avatar_url || (user.user_metadata?.avatar_url as string) || null,
+    full_name: (data as any)?.full_name || (user.user_metadata?.full_name as string) || '',
+  };
 }
 
-const SITE_ASSET_BUCKET_CANDIDATES = ['site-assets', 'site_assets'];
-
-export async function getSiteAssetBucketName(): Promise<string> {
+export async function updateUserProfile(updates: {
+  full_name?: string;
+  avatar_url?: string | null;
+}): Promise<void> {
   const client = getSupabase();
-
-  try {
-    const { data, error } = await client.storage.listBuckets();
-
-    if (!error && Array.isArray(data)) {
-      let match = data.find((bucket) => SITE_ASSET_BUCKET_CANDIDATES.includes(bucket.name));
-      if (match) return match.name;
-      
-      // Fallback to course-pdfs if site-assets isn't found, as course-pdfs is known to exist
-      match = data.find((bucket) => bucket.name === 'course-pdfs' || bucket.name === 'course_pdfs');
-      if (match) return match.name;
-    }
-  } catch {
-    // Fall through to the project’s configured bucket name.
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user) {
+    throw new Error('User not authenticated');
   }
 
-  // Default to the known existing bucket
-  return 'course-pdfs';
+  // 1. Always persist to Supabase Auth user_metadata so avatar and name survive even if profiles table lacks the column
+  const metaUpdates: Record<string, any> = {};
+  if (updates.full_name !== undefined) metaUpdates.full_name = updates.full_name;
+  if (updates.avatar_url !== undefined) metaUpdates.avatar_url = updates.avatar_url;
+
+  if (Object.keys(metaUpdates).length > 0) {
+    const { error: metaError } = await client.auth.updateUser({ data: metaUpdates });
+    if (metaError) {
+      console.warn('Could not update user metadata:', metaError.message);
+    }
+  }
+
+  // 2. Persist to profiles table:
+  // First try updating all requested fields (including avatar_url if the column exists in DB)
+  const profileUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (updates.full_name !== undefined) profileUpdates.full_name = updates.full_name;
+  if (updates.avatar_url !== undefined) profileUpdates.avatar_url = updates.avatar_url;
+
+  const { error: profileError } = await client
+    .from('profiles')
+    .update(profileUpdates)
+    .eq('id', user.id);
+
+  if (profileError) {
+    // If the error was because avatar_url column is missing in schema cache,
+    // safely update just full_name so the save succeeds cleanly!
+    if (profileError.message?.includes('avatar_url') || profileError.message?.includes('column')) {
+      const { avatar_url, ...fallbackUpdates } = profileUpdates;
+      if (Object.keys(fallbackUpdates).length > 0) {
+        const { error: fallbackError } = await client
+          .from('profiles')
+          .update(fallbackUpdates)
+          .eq('id', user.id);
+        if (fallbackError) {
+          throw new Error(fallbackError.message);
+        }
+      }
+    } else {
+      throw new Error(profileError.message);
+    }
+  }
+}
+
+// Bucket resolution helper
+let _resolvedBucket: { name: string; isPublic: boolean } | null = null;
+
+export async function getSiteAssetBucket(): Promise<{ name: string; isPublic: boolean }> {
+  if (_resolvedBucket) return _resolvedBucket;
+  _resolvedBucket = { name: 'course-pdfs', isPublic: false };
+  return _resolvedBucket;
+}
+
+export async function getSiteAssetBucketName(): Promise<string> {
+  const bucket = await getSiteAssetBucket();
+  return bucket.name;
+}
+
+export async function resolveStorageUrl(url: string): Promise<string> {
+  if (!url || url.includes('token=') || url.startsWith('data:')) {
+    return url;
+  }
+
+  if (url.includes('/course-pdfs/')) {
+    try {
+      const res = await fetch('/api/storage/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urlOrPath: url }),
+      });
+      const data = await res.json();
+      if (data.url) return data.url;
+    } catch {
+      // Return original on network error
+    }
+  }
+
+  return url;
 }
 
 export async function uploadSiteAsset(file: File, folder: string): Promise<string> {
-  const ext = file.name.split('.').pop() || 'png';
-  const fileName = `${folder}/${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`;
-  const bucket = await getSiteAssetBucketName();
+  const client = getSupabase();
+  const { data: { session } } = await client.auth.getSession();
 
-  const { error } = await supabase.storage.from(bucket).upload(fileName, file, {
-    cacheControl: '3600',
-    upsert: false,
-  });
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
 
-  if (error) {
-    throw new Error('Image upload failed: ' + error.message);
+  const headers: Record<string, string> = {};
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
   }
 
-  const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-  return data.publicUrl;
+  const res = await fetch('/api/storage/upload', {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const json = await res.json();
+  if (!res.ok || !json.url) {
+    throw new Error(json.error || 'Failed to upload image');
+  }
+
+  return json.url;
 }
 
 export async function isAdmin(): Promise<boolean> {

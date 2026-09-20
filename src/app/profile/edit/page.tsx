@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Cropper, { Area } from 'react-easy-crop';
 import { useRouter } from 'next/navigation';
-import { supabase, getUserProfile, uploadSiteAsset } from '@/lib/supabase';
+import { supabase, getUserProfile, updateUserProfile, uploadSiteAsset } from '@/lib/supabase';
 import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import { Button } from '@/components/ui/Button';
@@ -60,6 +60,7 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -103,20 +104,11 @@ export default function EditProfilePage() {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setSaveSuccess(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName, avatar_url: avatarUrl })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      alert('Profile updated successfully!');
-      router.push('/dashboard');
+      await updateUserProfile({ full_name: fullName, avatar_url: avatarUrl });
+      setSaveSuccess('Profile updated successfully!');
     } catch (err: any) {
       setError(err.message || 'Failed to update profile');
     } finally {
@@ -142,6 +134,7 @@ export default function EditProfilePage() {
     setZoom(1);
     setCropModalOpen(true);
     setError(null);
+    setSaveSuccess(null);
     event.target.value = '';
   };
 
@@ -161,7 +154,7 @@ export default function EditProfilePage() {
       const localPreviewUrl = URL.createObjectURL(croppedBlob);
       setAvatarUrl(localPreviewUrl);
 
-      // Close the crop modal first — Account Settings panel stays open
+      // Close ONLY the crop modal — Account Settings panel stays open
       setCropModalOpen(false);
       setPendingFile(null);
       setCropSource(null);
@@ -169,23 +162,8 @@ export default function EditProfilePage() {
       setError(null);
 
       // Now upload to storage and persist the permanent URL
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('You must be logged in to update your profile photo.');
-      }
-
       const url = await uploadSiteAsset(croppedFile, 'avatars');
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: url })
-        .eq('id', user.id);
-
-      if (updateError) {
-        throw new Error(updateError.message || 'Unable to save the cropped profile photo.');
-      }
-
-      // Replace the blob URL with the permanent CDN URL
+      await updateUserProfile({ avatar_url: url });
       setAvatarUrl(url);
     } catch (err: any) {
       setError(err.message || 'Profile photo upload failed.');
@@ -195,17 +173,7 @@ export default function EditProfilePage() {
   const handleRemoveAvatar = async () => {
     setAvatarUrl(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: null })
-          .eq('id', user.id);
-
-        if (updateError) {
-          throw new Error(updateError.message || 'Unable to remove the profile photo.');
-        }
-      }
+      await updateUserProfile({ avatar_url: null });
     } catch (err: any) {
       setError(err.message || 'Unable to remove the profile photo.');
     }
@@ -348,6 +316,13 @@ export default function EditProfilePage() {
             {error && (
               <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
                 {error}
+              </div>
+            )}
+
+            {saveSuccess && (
+              <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                <span>{saveSuccess}</span>
               </div>
             )}
 

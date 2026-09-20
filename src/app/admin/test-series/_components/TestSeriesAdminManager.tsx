@@ -701,21 +701,31 @@ export function TestSeriesAdminManager({ mode }: { mode: Mode }) {
         order: questionForm.order,
       };
 
-      if (editingQuestionId) {
-        const { error } = await supabase
-          .from('questions')
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingQuestionId);
+      let { error } = editingQuestionId
+        ? await supabase
+            .from('questions')
+            .update({
+              ...payload,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingQuestionId)
+        : await supabase.from('questions').insert(payload);
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('questions').insert(payload);
-
-        if (error) throw error;
+      if (error && error.message?.includes('subject_id')) {
+        const { subject_id: _s, ...payloadWithoutSubject } = payload;
+        const retry = editingQuestionId
+          ? await supabase
+              .from('questions')
+              .update({
+                ...payloadWithoutSubject,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', editingQuestionId)
+          : await supabase.from('questions').insert(payloadWithoutSubject);
+        error = retry.error;
       }
+
+      if (error) throw error;
 
       const nextQuestionForm = {
         ...emptyQuestionForm(),

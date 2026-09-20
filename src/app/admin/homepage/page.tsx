@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase, uploadSiteAsset } from '@/lib/supabase';
+import { supabase, uploadSiteAsset, resolveStorageUrl } from '@/lib/supabase';
 import { HomeBanner, HomeOption } from '@/types/supabase';
 import { Button } from '@/components/ui/Button';
 
@@ -327,7 +327,16 @@ export default function HomepageManager() {
       
       await Promise.all([...bannerUpdates, ...optionUpdates]);
       
-      if (bannerData) setBanners(bannerData);
+      let resolvedBanners = bannerData || [];
+      if (resolvedBanners.length > 0) {
+        resolvedBanners = await Promise.all(
+          resolvedBanners.map(async (b) => ({
+            ...b,
+            image_url: await resolveStorageUrl(b.image_url),
+          }))
+        );
+      }
+      setBanners(resolvedBanners);
       if (optionData) setOptions(optionData);
     } catch (error) {
       console.error('Error fetching homepage data:', error);
