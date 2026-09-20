@@ -149,7 +149,7 @@ function CoursesList() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               selectedCategory === ''
               ? 'bg-brand-primary text-white shadow-md'
-              : 'bg-white text-slate-900 hover:bg-slate-100 border border-slate-200'
+              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             All Categories
@@ -161,7 +161,7 @@ function CoursesList() {
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 selectedCategory === cat.name
                 ? 'bg-brand-primary text-white shadow-md'
-                : 'bg-white text-slate-900 hover:bg-slate-100 border border-slate-200'
+                : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
               }`}
             >
               {cat.name}
@@ -172,8 +172,8 @@ function CoursesList() {
         {filteredCourses.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">📦</div>
-            <h3 className="text-xl font-bold text-slate-900">No courses found</h3>
-            <p className="text-slate-500">Try selecting a different category or check back later.</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">No courses found</h3>
+            <p className="text-slate-500 dark:text-slate-400">Try selecting a different category or check back later.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">

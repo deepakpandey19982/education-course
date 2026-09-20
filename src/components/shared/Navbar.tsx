@@ -73,12 +73,12 @@ const Navbar = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="relative inline-flex h-10 w-16 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
+              className="relative inline-flex h-10 w-16 items-center rounded-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               <span
-                className={`absolute flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-8' : 'translate-x-1'}`}
+                className={`absolute flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-lg shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-8' : 'translate-x-1'}`}
               >
                 {theme === 'dark' ? '☀️' : '🌙'}
               </span>
@@ -90,8 +90,8 @@ const Navbar = () => {
                 href={link.href}
                 className={`font-medium transition-colors ${
                   isActive(link.href)
-                    ? 'text-brand-primary'
-                    : 'text-brand-muted hover:text-brand-primary'
+                    ? 'text-brand-primary dark:text-blue-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400'
                 }`}
               >
                 {link.name}
@@ -140,12 +140,12 @@ const Navbar = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="relative mr-2 inline-flex h-8 w-14 items-center rounded-full border border-slate-200 bg-slate-200 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
+              className="relative mr-2 inline-flex h-8 w-14 items-center rounded-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 shadow-inner transition-all duration-300 ease-in-out focus:outline-none"
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               <span
-                className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-7' : 'translate-x-1'}`}
+                className={`absolute flex h-6 w-6 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-sm shadow-md transition-transform duration-300 ease-in-out ${theme === 'dark' ? 'translate-x-7' : 'translate-x-1'}`}
               >
                 {theme === 'dark' ? '☀️' : '🌙'}
               </span>
@@ -153,7 +153,7 @@ const Navbar = () => {
             </button>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-brand-muted hover:text-brand-primary hover:bg-slate-100 focus:outline-none"
+              className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
             >
               <span className="sr-only">Open main menu</span>
               {isOpen ? (
@@ -172,7 +172,7 @@ const Navbar = () => {
 
       {/* Mobile Nav */}
       {isOpen && (
-        <div className="md:hidden glass-panel border-b border-slate-200 animate-in slide-in-from-top duration-300">
+        <div className="md:hidden glass-panel border-b border-slate-200 dark:border-slate-800 animate-in slide-in-from-top duration-300">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             {navLinks.map((link) => (
               <Link
@@ -180,8 +180,8 @@ const Navbar = () => {
                 href={link.href}
                 className={`block px-3 py-2 rounded-md text-base font-medium ${
                   isActive(link.href)
-                    ? 'text-brand-primary bg-slate-50'
-                    : 'text-brand-muted hover:text-brand-primary hover:bg-slate-50'
+                    ? 'text-brand-primary dark:text-blue-400 bg-slate-100 dark:bg-slate-800 font-bold'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
                 onClick={() => setIsOpen(false)}
               >
@@ -193,8 +193,8 @@ const Navbar = () => {
                 href="/dashboard"
                 className={`block px-3 py-2 rounded-md text-base font-medium ${
                   pathname === '/dashboard'
-                    ? 'text-brand-primary bg-slate-50'
-                    : 'text-brand-muted hover:text-brand-primary hover:bg-slate-50'
+                    ? 'text-brand-primary dark:text-blue-400 bg-slate-100 dark:bg-slate-800 font-bold'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
                 onClick={() => setIsOpen(false)}
               >

@@ -245,21 +245,21 @@ export default function EditProfilePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Navbar />
       <main className="flex-grow flex items-center justify-center px-4 py-12">
-        <div className="bg-white w-full max-w-lg rounded-2xl soft-shadow border border-slate-100 p-8">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Account Settings</h1>
-              <p className="text-slate-500">Manage your profile and password</p>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Account Settings</h1>
+              <p className="text-slate-500 dark:text-slate-400">Manage your profile and password</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 aria-label="Close account settings"
                 onClick={() => router.push('/dashboard')}
-                className="h-9 w-9 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+                className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
               >
                 ×
               </button>
@@ -269,11 +269,11 @@ export default function EditProfilePage() {
           <form onSubmit={handleSave} className="space-y-6">
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-bold text-slate-700">Profile Picture</label>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Profile Picture</label>
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="h-24 w-24 shrink-0 rounded-full overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-sm">
+                <div className="h-24 w-24 shrink-0 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
@@ -291,37 +291,37 @@ export default function EditProfilePage() {
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-brand-primary-foreground hover:bg-blue-900">
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">
                     Change Photo
                     <input type="file" accept="image/*" hidden onChange={handleAvatarUpload} />
                   </label>
                   <Button variant="outline" type="button" onClick={handleRemoveAvatar}>Remove Photo</Button>
                 </div>
               </div>
-              <p className="text-xs text-slate-500">Recommended: square 1:1 image, ideally 400×400 px or larger.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Recommended: square 1:1 image, ideally 400×400 px or larger.</p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Full Name</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</label>
               <input
                 required
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 placeholder-slate-400"
+                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 dark:text-white bg-white dark:bg-slate-800 placeholder-slate-400"
                 placeholder="Enter your full name"
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+              <div className="p-3 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-300 text-sm rounded-lg border border-red-100 dark:border-red-800">
                 {error}
               </div>
             )}
 
             {saveSuccess && (
-              <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+              <div className="p-3 bg-green-50 dark:bg-emerald-950/50 text-green-700 dark:text-emerald-300 text-sm rounded-lg border border-green-200 dark:border-emerald-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 <span>{saveSuccess}</span>
               </div>
             )}
@@ -345,27 +345,27 @@ export default function EditProfilePage() {
             </div>
           </form>
 
-          <form onSubmit={handleChangePassword} className="space-y-6 mt-10 pt-6 border-t border-slate-200">
+          <form onSubmit={handleChangePassword} className="space-y-6 mt-10 pt-6 border-t border-slate-200 dark:border-slate-800">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Change Password</h2>
-              <p className="text-sm text-slate-500">Use your current password to update your account password.</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Change Password</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Use your current password to update your account password.</p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Current Password</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Current Password</label>
               <div className="relative">
                 <input
                   required
                   type={showCurrentPassword ? 'text' : 'password'}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full p-3 pr-12 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 placeholder-slate-400"
+                  className="w-full p-3 pr-12 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 dark:text-white bg-white dark:bg-slate-800 placeholder-slate-400"
                   placeholder="Enter current password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-brand-primary"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-brand-primary dark:text-blue-400"
                 >
                   {showCurrentPassword ? 'Hide' : 'Show'}
                 </button>

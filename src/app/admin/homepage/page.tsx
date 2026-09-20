@@ -433,16 +433,16 @@ export default function HomepageManager() {
   return (
     <div className="space-y-8 max-w-5xl">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">Homepage Content Manager</h2>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Homepage Content Manager</h2>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200">
+      <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800">
         {(['banners', 'options'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 font-medium capitalize transition-colors ${
-              activeTab === tab ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-slate-500 hover:text-slate-700'
+              activeTab === tab ? 'text-brand-primary dark:text-blue-400 border-b-2 border-brand-primary dark:border-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             {tab}
@@ -453,7 +453,7 @@ export default function HomepageManager() {
       {activeTab === 'banners' && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Manage Banners</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Manage Banners</h3>
             {editingBanner === null && <Button size="sm" onClick={() => setEditingBanner('new')} className="bg-brand-primary text-white hover:bg-blue-700">Add New Banner</Button>}
           </div>
 
@@ -469,21 +469,21 @@ export default function HomepageManager() {
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e) => handleDragOver(e, idx, 'banners')}
                 onDragEnd={(e) => handleDragEnd(e, 'banners')}
-                className={`bg-white rounded-xl border ${draggedItemIdx === idx ? 'border-brand-primary border-dashed shadow-md' : 'border-slate-200 shadow-sm'} overflow-hidden transition-all`}
+                className={`bg-white dark:bg-slate-900 rounded-xl border ${draggedItemIdx === idx ? 'border-brand-primary border-dashed shadow-md' : 'border-slate-200 dark:border-slate-800 shadow-sm'} overflow-hidden transition-all`}
               >
                 {editingBanner !== 'new' && editingBanner?.id === banner.id ? (
                   <div className="p-4">
                     <BannerForm banner={banner} onDone={() => { setEditingBanner(null); fetchData(); }} />
                   </div>
                 ) : changingImageBannerId === banner.id ? (
-                  <div className="p-4 bg-slate-50 border-b border-slate-200">
-                    <p className="font-semibold text-slate-700 mb-4">Change Image for: {banner.title || `Banner ${idx + 1}`}</p>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                    <p className="font-semibold text-slate-700 dark:text-slate-200 mb-4">Change Image for: {banner.title || `Banner ${idx + 1}`}</p>
                     <ChangeImageForm id={banner.id} type="banner" currentUrl={banner.image_url} onDone={() => { setChangingImageBannerId(null); fetchData(); }} />
                   </div>
                 ) : (
                   <div className="flex flex-col sm:flex-row">
                     {/* Drag Handle & Number */}
-                    <div className="flex items-center justify-center p-4 bg-slate-50 border-r border-slate-100 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 transition-colors">
+                    <div className="flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-800/60 border-r border-slate-100 dark:border-slate-800 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                       <div className="flex flex-col items-center gap-1">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
                         <span className="text-xs font-bold">{idx + 1}</span>
@@ -491,25 +491,25 @@ export default function HomepageManager() {
                     </div>
                     
                     {/* Image Preview */}
-                    <div className="w-full sm:w-64 h-32 sm:h-auto bg-slate-100 shrink-0 border-r border-slate-100 relative group">
+                    <div className="w-full sm:w-64 h-32 sm:h-auto bg-slate-100 dark:bg-slate-800 shrink-0 border-r border-slate-100 dark:border-slate-800 relative group">
                       <img src={banner.image_url} alt={banner.title || ''} className="w-full h-full object-cover" />
                     </div>
                     
                     {/* Info & Actions */}
                     <div className="p-4 flex-grow flex flex-col justify-between gap-4">
                       <div className="space-y-1">
-                        <p className="font-bold text-slate-800 text-lg">{banner.title || <span className="italic text-slate-400">No title</span>}</p>
-                        <p className="text-sm text-slate-600">{banner.subtitle || 'No subtitle'}</p>
-                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500">
-                          <span className="bg-slate-100 px-2 py-1 rounded">Interval: {banner.interval_seconds}s</span>
-                          {banner.link && <span className="bg-slate-100 px-2 py-1 rounded truncate max-w-[200px]">Link: {banner.link}</span>}
-                          <span className={`px-2 py-1 rounded font-bold ${banner.is_enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <p className="font-bold text-slate-800 dark:text-white text-lg">{banner.title || <span className="italic text-slate-400 dark:text-slate-500">No title</span>}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{banner.subtitle || 'No subtitle'}</p>
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">Interval: {banner.interval_seconds}s</span>
+                          {banner.link && <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded truncate max-w-[200px]">Link: {banner.link}</span>}
+                          <span className={`px-2 py-1 rounded font-bold ${banner.is_enabled ? 'bg-green-100 text-green-700 dark:bg-emerald-950/80 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
                             {banner.is_enabled ? 'Visible' : 'Hidden'}
                           </span>
                         </div>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <Button variant="outline" size="sm" onClick={() => setChangingImageBannerId(banner.id)}>Change Image</Button>
                         <Button variant="outline" size="sm" onClick={() => setEditingBanner(banner)}>Edit Details</Button>
                         <Button variant="outline" size="sm" onClick={() => {
@@ -517,7 +517,7 @@ export default function HomepageManager() {
                         }}>
                           {banner.is_enabled ? 'Hide' : 'Show'}
                         </Button>
-                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300" onClick={() => handleDeleteBanner(banner.id)}>Delete</Button>
+                        <Button variant="outline" size="sm" className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40" onClick={() => handleDeleteBanner(banner.id)}>Delete</Button>
                       </div>
                     </div>
                   </div>
@@ -526,8 +526,8 @@ export default function HomepageManager() {
             ))}
             
             {banners.length === 0 && editingBanner !== 'new' && (
-              <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl">
-                <p className="text-slate-500 mb-4">No banners found. Add a banner to display it on the homepage.</p>
+              <div className="p-12 text-center bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                <p className="text-slate-500 dark:text-slate-400 mb-4">No banners found. Add a banner to display it on the homepage.</p>
                 <Button onClick={() => setEditingBanner('new')} className="bg-brand-primary text-white hover:bg-blue-700">Add First Banner</Button>
               </div>
             )}

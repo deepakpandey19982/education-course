@@ -19,9 +19,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               const theme = saved === 'light' || saved === 'dark' ? saved : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
               document.documentElement.dataset.theme = theme;
               document.documentElement.style.colorScheme = theme;
+              if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
             } catch (error) {
               document.documentElement.dataset.theme = 'light';
               document.documentElement.style.colorScheme = 'light';
+              document.documentElement.classList.remove('dark');
             }
           `}
         </Script>

@@ -278,8 +278,8 @@ export default function TestAttemptPage() {
                   }}
                   className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                     groupIndex === selectedSubjectIndex
-                      ? 'border-brand-primary bg-blue-50 text-brand-primary'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      ? 'border-brand-primary bg-blue-50 dark:bg-blue-950/70 text-brand-primary dark:text-blue-300 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {group.name}
@@ -288,23 +288,23 @@ export default function TestAttemptPage() {
             </div>
           </div>
 
-          <div className={`font-mono text-lg font-bold px-4 py-2 rounded-lg ${remaining !== null && remaining < 300 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-brand-primary'}`}>
+          <div className={`font-mono text-lg font-bold px-4 py-2 rounded-lg ${remaining !== null && remaining < 300 ? 'bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300' : 'bg-blue-100 text-brand-primary dark:bg-blue-950/70 dark:text-blue-300'}`}>
             ⏱ {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-4 pb-20 lg:p-6 lg:pb-24 grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6">
-        <section className="bg-white rounded-2xl soft-shadow border border-slate-100 p-5 md:p-8 flex flex-col min-h-[620px]">
+        <section className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-5 md:p-8 flex flex-col min-h-[620px]">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold text-brand-primary">Question {index + 1}</p>
-            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-brand-primary">+{marksPerCorrect} marks</span>
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 font-medium text-rose-700">-{negativeMarks} negative</span>
+            <p className="text-sm font-bold text-brand-primary dark:text-blue-400">Question {index + 1}</p>
+            <div className="flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
+              <span className="rounded-full bg-blue-50 dark:bg-blue-950/70 px-2.5 py-1 font-medium text-brand-primary dark:text-blue-300">+{marksPerCorrect} marks</span>
+              <span className="rounded-full bg-rose-50 dark:bg-rose-950/70 px-2.5 py-1 font-medium text-rose-700 dark:text-rose-300">-{negativeMarks} negative</span>
             </div>
           </div>
 
-          <h1 className="mt-4 text-lg md:text-xl font-semibold text-slate-900 leading-relaxed whitespace-pre-wrap">
+          <h1 className="mt-4 text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">
             {currentQuestion.question_text}
           </h1>
 
@@ -326,7 +326,9 @@ export default function TestAttemptPage() {
                     }))
                   }
                   className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${
-                    isSelected ? 'border-brand-primary bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-blue-300 bg-white'
+                    isSelected
+                      ? 'border-brand-primary bg-blue-50 dark:bg-blue-950/70 dark:border-blue-500 shadow-sm text-slate-900 dark:text-slate-100 font-medium'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100'
                   }`}
                 >
                   <span className="font-bold mr-3">{option}.</span>
@@ -336,9 +338,9 @@ export default function TestAttemptPage() {
             })}
           </div>
 
-          {error && <p className="mt-5 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-5 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 sticky bottom-0 bg-white">
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 sticky bottom-0 bg-white dark:bg-slate-900">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button variant="ghost" disabled={index === 0 || saving} onClick={() => setIndex(index - 1)}>
                 Previous
@@ -363,17 +365,17 @@ export default function TestAttemptPage() {
           </div>
         </section>
 
-        <aside className="bg-white rounded-2xl soft-shadow border border-slate-100 p-5 h-fit lg:sticky lg:top-24 flex flex-col min-h-[620px]">
-          <div className="border-b border-slate-100 pb-3">
-            <button type="button" onClick={() => setPaletteOpen((value) => !value)} className="flex w-full items-center justify-between gap-2 font-bold text-slate-900">
+        <aside className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-5 h-fit lg:sticky lg:top-24 flex flex-col min-h-[620px]">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <button type="button" onClick={() => setPaletteOpen((value) => !value)} className="flex w-full items-center justify-between gap-2 font-bold text-slate-900 dark:text-slate-100">
               <span>Question palette</span>
-              <span className="text-xs text-slate-500">{paletteOpen ? 'Hide' : 'Show'}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{paletteOpen ? 'Hide' : 'Show'}</span>
             </button>
           </div>
 
           {paletteOpen && (
             <>
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mt-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
                 {subjectGroups.map((group, groupIndex) => (
                   <div key={group.id} className="mb-3 last:mb-0">
                     <button
@@ -385,10 +387,10 @@ export default function TestAttemptPage() {
                           setIndex(group.questions[0]);
                         }
                       }}
-                      className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700"
+                      className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-700 dark:text-slate-200"
                     >
                       <span>{group.name}</span>
-                      <span className="text-xs text-slate-500">{group.questions.length} Q</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{group.questions.length} Q</span>
                     </button>
 
                     {subjectOpen && groupIndex === selectedSubjectIndex && (
@@ -399,26 +401,26 @@ export default function TestAttemptPage() {
                           const status = getPaletteState(item.id);
                           const paletteStyles =
                             status === 'attempted'
-                              ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
                               : status === 'marked_for_review'
-                                ? 'bg-amber-100 text-amber-700 border-amber-300'
+                                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-700'
                                 : status === 'answered_marked'
-                                  ? 'bg-violet-100 text-violet-700 border-violet-300 ring-2 ring-amber-300'
+                                  ? 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-300 border-violet-300 dark:border-violet-700 ring-2 ring-amber-300 dark:ring-amber-500'
                                   : status === 'unattempted'
-                                    ? 'bg-red-100 text-red-700 border-red-300'
-                                    : 'bg-slate-200 text-slate-700 border-slate-300';
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300 dark:border-red-700'
+                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700';
 
                           return (
                             <button
                               key={item.id}
                               type="button"
                               onClick={() => setIndex(questionIndex)}
-                              className={`relative h-10 rounded-lg border text-sm font-bold ${index === questionIndex ? 'ring-2 ring-brand-primary ring-offset-1' : ''} ${paletteStyles}`}
+                              className={`relative h-10 rounded-lg border text-sm font-bold ${index === questionIndex ? 'ring-2 ring-brand-primary dark:ring-blue-400 ring-offset-1' : ''} ${paletteStyles}`}
                               aria-label={`Question ${questionIndex + 1} ${status}`}
                             >
                               {questionIndex + 1}
                               {(status === 'marked_for_review' || status === 'answered_marked') && (
-                                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 border border-white" />
+                                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 border border-white dark:border-slate-900" />
                               )}
                             </button>
                           );

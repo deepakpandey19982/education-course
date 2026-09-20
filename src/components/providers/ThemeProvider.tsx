@@ -38,6 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     window.localStorage.setItem('education-course-theme', theme);
   }, [mounted, theme]);
 

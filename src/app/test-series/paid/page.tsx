@@ -25,7 +25,7 @@ export default function PaidTestSeriesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Navbar />
       <main className="flex-grow">
         <section className="bg-amber-600 text-white py-16">
@@ -42,13 +42,13 @@ export default function PaidTestSeriesPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {series.map((item) => (
-                  <article key={item.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 soft-shadow flex flex-col">
-                    <div className="h-48 bg-amber-50">
+                  <article key={item.id} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 soft-shadow flex flex-col">
+                    <div className="h-48 bg-amber-50 dark:bg-slate-800">
                       {item.thumbnail_url ? <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center text-5xl">📝</div>}
                     </div>
                     <div className="p-6 flex flex-col flex-grow">
-                      <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
-                      <p className="text-slate-600 mt-3 leading-relaxed flex-grow whitespace-pre-wrap">{item.description || 'Advance your preparation with premium, timed practice tests.'}</p>
+                      <h2 className="text-xl font-bold text-slate-900 dark:text-white">{item.title}</h2>
+                      <p className="text-slate-600 dark:text-slate-300 mt-3 leading-relaxed flex-grow whitespace-pre-wrap">{item.description || 'Advance your preparation with premium, timed practice tests.'}</p>
                       <Link href={`/test-series/paid/${item.id}`} className="mt-6"><Button variant="outline" fullWidth>View Paid Series</Button></Link>
                     </div>
                   </article>

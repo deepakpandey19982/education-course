@@ -39,32 +39,32 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Navbar />
       <main className="flex-grow flex items-center justify-center px-4 py-12">
-        <div className="bg-white w-full max-w-md rounded-2xl soft-shadow border border-slate-100 p-8">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
-            <p className="text-slate-500">Enter your details to access your account</p>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Welcome Back</h1>
+            <p className="text-slate-500 dark:text-slate-400">Enter your details to access your account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Email Address</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
               <input
                 required
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 placeholder-slate-400"
+                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 dark:text-white bg-white dark:bg-slate-800 placeholder-slate-400"
                 placeholder="name@example.com"
               />
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between">
-                <label className="text-sm font-bold text-slate-700">Password</label>
-                <Link href="/forgot-password" className="text-xs text-brand-primary hover:underline">Forgot password?</Link>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
+                <Link href="/forgot-password" className="text-xs text-brand-primary dark:text-blue-400 hover:underline">Forgot password?</Link>
               </div>
               <div className="relative">
                 <input
@@ -72,13 +72,13 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 pr-12 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 placeholder-slate-400"
+                  className="w-full p-3 pr-12 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-primary outline-none transition-all text-slate-900 dark:text-white bg-white dark:bg-slate-800 placeholder-slate-400"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-brand-primary"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-brand-primary dark:text-blue-400"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -86,7 +86,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+              <div className="p-3 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-300 text-sm rounded-lg border border-red-100 dark:border-red-800">
                 {error}
               </div>
             )}
@@ -96,8 +96,8 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-8 text-center text-sm text-slate-500">
-            Don't have an account? <Link href="/signup" className="text-brand-primary font-bold hover:underline">Sign up now</Link>
+          <div className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
+            Don't have an account? <Link href="/signup" className="text-brand-primary dark:text-blue-400 font-bold hover:underline">Sign up now</Link>
           </div>
         </div>
       </main>

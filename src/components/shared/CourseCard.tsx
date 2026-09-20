@@ -21,8 +21,8 @@ export const CourseCard = ({ title, instructor, price, discount, rating, categor
   const fallbackImage = '/placeholder-course.svg';
 
   return (
-    <div className="bg-white rounded-xl overflow-hidden soft-shadow border border-slate-100 group hover:border-brand-primary transition-all hover:-translate-y-1">
-      <div className="relative h-48 overflow-hidden bg-slate-100">
+    <div className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden soft-shadow border border-slate-100 dark:border-slate-800 group hover:border-brand-primary dark:hover:border-blue-500 transition-all hover:-translate-y-1">
+      <div className="relative h-48 overflow-hidden bg-slate-100 dark:bg-slate-800">
         <img
           src={image || fallbackImage}
           alt={title}
@@ -38,25 +38,25 @@ export const CourseCard = ({ title, instructor, price, discount, rating, categor
         </div>
       </div>
       <div className="p-5">
-        <h3 className="text-lg font-bold text-brand-text mb-1 line-clamp-2 group-hover:text-brand-primary transition-colors">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 line-clamp-2 group-hover:text-brand-primary dark:group-hover:text-blue-400 transition-colors">
           {title}
         </h3>
-        <p className="text-brand-muted text-sm mb-4">by {instructor}</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">by {instructor}</p>
         <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-1 text-amber-500 font-bold">
+          <div className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
             <span>⭐</span>
             <span>{rating}</span>
           </div>
           <div className="text-right">
             {isFree ? (
-              <span className="text-xl font-bold text-green-600">FREE</span>
+              <span className="text-xl font-bold text-green-600 dark:text-emerald-400">FREE</span>
             ) : discount > 0 ? (
               <div className="flex flex-col items-end">
-                <span className="text-xs text-slate-400 line-through">₹{price}</span>
-                <span className="text-xl font-bold text-brand-primary">₹{finalPrice.toFixed(2)}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 line-through">₹{price}</span>
+                <span className="text-xl font-bold text-brand-primary dark:text-blue-400">₹{finalPrice.toFixed(2)}</span>
               </div>
             ) : (
-              <span className="text-xl font-bold text-brand-primary">₹{price}</span>
+              <span className="text-xl font-bold text-brand-primary dark:text-blue-400">₹{price}</span>
             )}
           </div>
         </div>

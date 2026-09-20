@@ -101,25 +101,25 @@ export default function UserDashboard() {
       <Navbar />
 
       <main className="flex-grow">
-        <div className="bg-slate-50 py-12">
+        <div className="bg-slate-50 dark:bg-slate-950 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
               <div>
-                <h1 className="text-3xl font-extrabold text-slate-900">My Learning Dashboard</h1>
-                <p className="text-slate-500">Welcome back, {profile?.full_name || 'Student'}!</p>
+                <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">My Learning Dashboard</h1>
+                <p className="text-slate-500 dark:text-slate-400">Welcome back, {profile?.full_name || 'Student'}!</p>
               </div>
-              <div className="flex items-center gap-3 bg-white p-2 rounded-lg soft-shadow border border-slate-100">
-                <span className="text-sm font-medium text-slate-600 px-2">Account:</span>
-                <span className="text-xs font-bold uppercase px-2 py-1 bg-blue-100 text-blue-600 rounded">{profile?.role}</span>
+              <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-2 rounded-lg soft-shadow border border-slate-100 dark:border-slate-800">
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-300 px-2">Account:</span>
+                <span className="text-xs font-bold uppercase px-2 py-1 bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-300 rounded">{profile?.role}</span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Profile Section */}
               <div className="lg:col-span-1 space-y-6">
-                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-6">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-6">
                   <div className="text-center mb-6">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center mx-auto mb-4 shadow-sm relative">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4 shadow-sm relative">
                       {profile?.avatar_url && !imageError ? (
                         <img
                           src={profile.avatar_url}
@@ -133,42 +133,42 @@ export default function UserDashboard() {
                         </div>
                       )}
                     </div>
-                    <h3 className="text-2xl font-extrabold text-slate-900">{profile?.full_name || 'Student'}</h3>
-                    <p className="text-sm font-medium text-slate-500 mb-1">Student</p>
-                    <p className="text-sm text-slate-400">{profile?.email}</p>
+                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">{profile?.full_name || 'Student'}</h3>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Student</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500">{profile?.email}</p>
                   </div>
-                  <div className="space-y-3 pt-6 border-t border-slate-100">
+                  <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                     <Button variant="outline" fullWidth size="sm" onClick={handleEditProfile}>Edit Profile</Button>
-                    <Button variant="ghost" fullWidth size="sm" className="text-red-500" onClick={handleLogout}>Logout</Button>
+                    <Button variant="ghost" fullWidth size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40" onClick={handleLogout}>Logout</Button>
                   </div>
                 </div>
               </div>
 
               {/* My Courses Section */}
               <div className="lg:col-span-2">
-                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                   <span>📚</span> My Purchased Courses
                 </h2>
 
                 {myCourses.length === 0 ? (
-                  <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-12 text-center">
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-12 text-center">
                     <div className="text-6xl mb-4">🛒</div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-2">No courses purchased yet</h3>
-                    <p className="text-slate-500 mb-8">Start your professional journey by purchasing your first PDF course.</p>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No courses purchased yet</h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8">Start your professional journey by purchasing your first PDF course.</p>
                     <Button variant="primary" onClick={() => window.location.href = '/courses'}>Browse All Courses</Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {myCourses.map((course, idx) => (
-                      <div key={idx} className="bg-white rounded-xl soft-shadow border border-slate-100 p-5 flex items-center gap-4 group hover:border-brand-primary transition-all">
+                      <div key={idx} className="bg-white dark:bg-slate-900 rounded-xl soft-shadow border border-slate-100 dark:border-slate-800 p-5 flex items-center gap-4 group hover:border-brand-primary dark:hover:border-blue-500 transition-all">
                         <img
                           src={course.thumbnail_url || '/placeholder-course.svg'}
                           alt=""
                           className="w-20 h-20 rounded-lg object-cover"
                         />
                         <div className="flex-grow">
-                          <h4 className="font-bold text-slate-900 line-clamp-1">{course.title}</h4>
-                          <p className="text-xs text-slate-500 mb-3">Purchased on {new Date(course.created_at).toLocaleDateString()}</p>
+                          <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{course.title}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Purchased on {new Date(course.created_at).toLocaleDateString()}</p>
                           <Button variant="secondary" size="sm" onClick={() => handleDownload(course.id)}>
                             Download PDF
                           </Button>

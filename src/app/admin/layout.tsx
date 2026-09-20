@@ -57,14 +57,14 @@ export default function AdminLayout({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
       <Navbar />
       <div className="flex-grow">
         {/* Admin Navigation Header */}
-        <header className="bg-white border-b border-slate-200">
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
-              <Link href="/admin" className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Link href="/admin" className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <span className="bg-brand-primary text-white text-xs font-bold px-2 py-0.5 rounded">ADMIN</span>
                 Control Panel
               </Link>
@@ -79,7 +79,7 @@ export default function AdminLayout({
                     className={`px-2.5 py-1 rounded-lg transition-colors ${
                       isActive
                         ? 'bg-brand-primary text-white font-semibold shadow-xs'
-                        : 'text-slate-600 hover:text-brand-primary hover:bg-slate-100'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-brand-primary dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     {link.name}

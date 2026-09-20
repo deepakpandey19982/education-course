@@ -148,12 +148,12 @@ export default function CourseDetailsClient() {
       <Navbar />
 
       <main className="flex-grow">
-        <div className="bg-slate-50 py-12">
+        <div className="bg-slate-50 dark:bg-slate-950 py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               {/* Left: Course Content */}
               <div className="lg:col-span-2 space-y-8">
-                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <img
                     src={course.thumbnail_url || '/placeholder-course.svg'}
                     alt={course.title}
@@ -164,63 +164,63 @@ export default function CourseDetailsClient() {
                   />
                   <div className="p-8">
                     <div className="flex justify-between items-start mb-4">
-                      <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900">
+                      <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white">
                         {course.title}
                       </h1>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
-                      <span className="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                      <span className="bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
                         Professional Certification
                       </span>
-                      <span className="bg-amber-100 text-amber-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                      <span className="bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
                         Digital PDF
                       </span>
                     </div>
                     <div className="prose prose-slate max-w-none">
-                      <h3 className="text-xl font-bold text-slate-900 mb-3">About this course</h3>
-                      <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">About this course</h3>
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                         {course.description || 'No description provided for this course.'}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-8">
-                  <h3 className="text-xl font-bold text-slate-900 mb-4">What you will learn</h3>
+                <div className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-8">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">What you will learn</h3>
                   {course.learning_points && course.learning_points.length > 0 ? (
                     <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {course.learning_points.map((point, idx) => (
-                        <li key={idx} className="flex items-start gap-3 text-slate-600">
-                          <span className="text-green-500">✓</span>
+                        <li key={idx} className="flex items-start gap-3 text-slate-600 dark:text-slate-300">
+                          <span className="text-green-500 font-bold">✓</span>
                           <span className="leading-relaxed">{point}</span>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-slate-500 italic">No specific learning outcomes listed for this course.</p>
+                    <p className="text-slate-500 dark:text-slate-400 italic">No specific learning outcomes listed for this course.</p>
                   )}
                 </div>
               </div>
 
               {/* Right: Purchase Card */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-2xl soft-shadow border border-slate-100 p-8 sticky top-24">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-8 sticky top-24">
                   <div className="text-center mb-8">
                     {isFreeCourse ? (
                       <div className="flex flex-col items-center">
-                        <span className="text-4xl font-extrabold text-green-600">FREE</span>
-                        <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded mt-2 uppercase">No payment required</span>
+                        <span className="text-4xl font-extrabold text-green-600 dark:text-emerald-400">FREE</span>
+                        <span className="text-xs font-bold text-green-700 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded mt-2 uppercase">No payment required</span>
                       </div>
                     ) : course.discount > 0 ? (
                       <div className="flex flex-col items-center">
-                        <span className="text-lg text-slate-400 line-through">₹{course.price}</span>
-                        <span className="text-4xl font-extrabold text-brand-primary">₹{(course.price * (1 - course.discount / 100)).toFixed(2)}</span>
-                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded mt-2 uppercase">{course.discount}% OFF</span>
+                        <span className="text-lg text-slate-400 dark:text-slate-500 line-through">₹{course.price}</span>
+                        <span className="text-4xl font-extrabold text-brand-primary dark:text-blue-400">₹{(course.price * (1 - course.discount / 100)).toFixed(2)}</span>
+                        <span className="text-xs font-bold text-green-600 dark:text-emerald-300 bg-green-100 dark:bg-emerald-950/80 px-2 py-1 rounded mt-2 uppercase">{course.discount}% OFF</span>
                       </div>
                     ) : (
-                      <span className="text-4xl font-extrabold text-brand-primary">₹{course.price}</span>
+                      <span className="text-4xl font-extrabold text-brand-primary dark:text-blue-400">₹{course.price}</span>
                     )}
-                    <p className="text-slate-500 text-sm mt-2">{isFreeCourse ? 'Free lifetime access' : 'One-time payment for lifetime access'}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">{isFreeCourse ? 'Free lifetime access' : 'One-time payment for lifetime access'}</p>
                   </div>
 
                   <div className="space-y-4">
@@ -246,7 +246,7 @@ export default function CourseDetailsClient() {
                         {paymentLoading ? 'Processing...' : 'Buy Now & Download'}
                       </Button>
                     )}
-                    <p className="text-center text-xs text-slate-400">
+                    <p className="text-center text-xs text-slate-400 dark:text-slate-500">
                       Secure payment powered by Razorpay. <br />
                       Instant PDF delivery to your dashboard.
                     </p>
