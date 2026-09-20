@@ -75,6 +75,29 @@ export function getSupabaseAnon(): SupabaseClient {
   });
 }
 
+/**
+ * Supabase client for reading public data (test_series, test_series_subjects, tests).
+ * Uses service role if available, but safely falls back to anon key so public catalog
+ * browsing never fails even if the service role key is not configured.
+ */
+export function getSupabaseClient(preferAdmin = false): SupabaseClient {
+  if (preferAdmin) {
+    return getSupabaseAdmin();
+  }
+  const serviceKey = getEnvironmentVar([
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_KEY',
+    'SUPABASE_SERVICE_ROLE',
+    'SERVICE_ROLE_KEY',
+  ]);
+  if (serviceKey) {
+    return createClient(getSupabaseUrl(), serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return getSupabaseAnon();
+}
+
 export async function getRequestUser(request?: Request): Promise<User | null> {
   // 1. Check Authorization header: Bearer <token>
   const authorization = request?.headers.get('authorization');

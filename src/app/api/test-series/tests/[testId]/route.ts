@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/test-series-server';
+import { getSupabaseClient } from '@/lib/test-series-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { testId } = await context.params;
-    const admin = getSupabaseAdmin();
+    const admin = getSupabaseClient();
     const { data: test, error: testError } = await admin
       .from('tests')
       .select('id, subject_id, title, date_label, thumbnail_url, duration_minutes, max_marks, language, instructions, is_paid, price, is_published, scheduled_start, scheduled_end, order')

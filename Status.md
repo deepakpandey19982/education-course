@@ -2,83 +2,67 @@
 
 ## Current Phase
 
-Phase 17 — Vercel Deployed Environment Robustness & API Configuration (Test Attempt start error and Course Purchase order creation on deployed site).
+Phase 18 — Live Vercel Production Deployment Probing & Environment Key Resolution
 
-- **Diagnosed Root Causes:**
-  1. **Problem 1 (Test Series Questions "Unable to start test / Internal server error"):**
-     - In Supabase, Row-Level Security (RLS) restricts access to the `questions` table to `Admins only` (`CREATE POLICY "Admins can manage questions" ON questions FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))`). Regular students and anonymous visitors are completely forbidden from reading questions directly.
-     - Therefore, `/api/tests/[testId]/attempt` must use a service-role Supabase client (`getSupabaseAdmin()`) to fetch test questions and safely strip answers before returning them to the student.
-     - In `src/lib/test-series-server.ts`, `requiredEnvironment('SUPABASE_SERVICE_ROLE_KEY')` threw an uncaught error if `SUPABASE_SERVICE_ROLE_KEY` was missing from Vercel's Environment Variables (or named under an alias like `SERVICE_ROLE_KEY` or `SUPABASE_SERVICE_KEY`).
-     - The catch block in `src/app/api/tests/[testId]/attempt/route.ts` swallowed the specific configuration error and returned generic `500 Internal server error`, rendering "Unable to start test / Internal server error" in the UI.
-  2. **Problem 2 (Course Purchase "Failed to create internal order"):**
-     - In `src/app/api/payments/create/route.ts`, `supabaseAdmin` was initialized with `process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!`.
-     - When `SUPABASE_SERVICE_ROLE_KEY` was missing on Vercel, it fell back to the anon client.
-     - In Supabase, the `orders` table has RLS enabled with only `SELECT` policies for users and `ALL` for admins. There is **no INSERT policy for anonymous users or non-admin students**.
-     - As verified with Node.js testing, inserting an order with the anon key fails with Supabase RLS error `code: 42501` (`new row violates row-level security policy for table "orders"`).
-     - The route swallowed this exact error message and returned the generic string `{ error: 'Failed to create internal order' }`.
+- **Live Production Investigation on `https://education-course-nine.vercel.app`:**
+  1. **Direct Probe of `/api/payments/create` on Live Vercel Production:**
+     - Result: `HTTP 500 {"error": "Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE or SERVICE_ROLE_KEY. Please configure this variable in your Vercel project settings (Environment Variables)."}`
+     - **Confirmed Root Cause:** `SUPABASE_SERVICE_ROLE_KEY` is completely missing from Vercel's Environment Variables dashboard. Without it, the server cannot execute privileged database operations (such as inserting records into the `orders` table which has RLS enabled with no user INSERT policy).
+  2. **Direct Probe of `/api/test-series?type=free` on Live Vercel Production:**
+     - Result: `HTTP 500 {"error": "Could not load test series"}`
+     - **Confirmed Root Cause:** The test series list endpoint called `getSupabaseAdmin()` which threw an unhandled exception when `SUPABASE_SERVICE_ROLE_KEY` was missing, even though `test_series`, `test_series_subjects`, and `tests` all have public read permissions via Row-Level Security.
+  3. **Direct Probe of `/api/tests/[testId]/attempt` (Test Start & Questions Loading):**
+     - **Confirmed Root Cause:** In Supabase, the `questions` table has Row-Level Security restricting access exclusively to `Admins` (`CREATE POLICY "Admins can manage questions" ON questions FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))`). Regular students and anonymous visitors are rejected by RLS (returning `[]`).
+     - To deliver questions securely (without leaking answers/explanations), the server must use `getSupabaseAdmin()` with `SUPABASE_SERVICE_ROLE_KEY`. When this variable is missing on Vercel, the endpoint crashed with `Unable to start test / Internal server error`.
+  4. **Android API Base URL Resolution (`src/lib/api-config.ts`):**
+     - Previously, `getApiBaseUrl()` had a hardcoded fallback to `http://10.29.110.224:3000` for Capacitor. If an Android device visited the deployed site or ran without Wi-Fi access to the developer's laptop, requests would fail.
+     - Fixed `src/lib/api-config.ts` so any client running on a remote web domain uses `window.location.origin`, and Capacitor native apps default to `https://education-course-nine.vercel.app`.
 
-- **Fixes Applied:**
-  1. **Environment Alias Resolution (`src/lib/test-series-server.ts`):**
-     - Added robust multi-alias search:
-       - Service Role: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SERVICE_ROLE`, `SERVICE_ROLE_KEY`.
-       - Supabase URL: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_URL`.
-       - Supabase Anon Key: `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_KEY`.
-       - Razorpay Key ID: `RAZORPAY_KEY_ID`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`.
-       - Razorpay Key Secret: `RAZORPAY_KEY_SECRET`, `RAZORPAY_SECRET`.
-     - Replaced hard-crash exceptions with descriptive, actionable configuration errors.
-  2. **Payment Order Creation (`src/app/api/payments/create/route.ts`):**
-     - Replaced static top-level initialization with dynamic Razorpay and Supabase Admin resolution.
-     - If service role or Razorpay credentials are missing, returns explicit configuration diagnostics instead of generic failures.
-     - Surfaced real database error details (`orderError.message`) instead of hiding them behind "Failed to create internal order".
-  3. **Payment Verification & Webhook (`src/app/api/payments/verify/route.ts`, `webhook/route.ts`):**
-     - Updated Razorpay credentials and Supabase client to use alias-aware helpers.
-  4. **Test Attempt Route (`src/app/api/tests/[testId]/attempt/route.ts`):**
-     - Surfaced actual error messages (`Unable to start test: ${error.message}`) in catch handler.
-  5. **Client Fetch Credentials & Vercel URLs:**
-     - Added `credentials: 'include'` to `testSeriesFetch` in `src/lib/test-series-client.ts` and payment requests in `CourseDetailsClient.tsx` to ensure auth cookies are preserved across all HTTPS requests on deployed Vercel domains.
-     - Added `process.env.VERCEL_URL` and `process.env.NEXT_PUBLIC_VERCEL_URL` support to `src/lib/api-config.ts`.
+- **Fixes Implemented:**
+  1. **Public Catalog Graceful Fallback (`src/lib/test-series-server.ts`, `/api/test-series/route.ts`, `/api/test-series/[seriesId]/route.ts`, `/api/test-series/tests/[testId]/route.ts`):**
+     - Test series catalog routes now use `getSupabaseClient()` which safely uses the anonymous public key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) when `SUPABASE_SERVICE_ROLE_KEY` is not present, ensuring catalog browsing never returns HTTP 500.
+  2. **Safe Diagnostic Health Route (`src/app/api/health/route.ts`):**
+     - Added an endpoint returning boolean flags for all required environment variables without ever exposing secret values.
+  3. **Descriptive Error Messaging (`/api/tests/[testId]/attempt/route.ts`, `/api/payments/create/route.ts`):**
+     - Replaced generic 500 error messages with explicit guidance pointing to the exact missing variable name: `SUPABASE_SERVICE_ROLE_KEY`.
+  4. **UI Guidance on Attempt Page (`src/app/test-series/tests/[testId]/attempt/page.tsx`):**
+     - Added "Sign In to Continue" button when authentication is required and improved error presentation.
+  5. **Android Production API Resolution (`src/lib/api-config.ts`):**
+     - Remote HTTPS origins always take precedence, and native Capacitor apps default to `https://education-course-nine.vercel.app`.
 
 ## Files Updated
 
+- [src/app/api/health/route.ts](src/app/api/health/route.ts) [NEW]
 - [src/lib/test-series-server.ts](src/lib/test-series-server.ts)
-- [src/app/api/payments/create/route.ts](src/app/api/payments/create/route.ts)
-- [src/app/api/payments/verify/route.ts](src/app/api/payments/verify/route.ts)
-- [src/app/api/payments/webhook/route.ts](src/app/api/payments/webhook/route.ts)
+- [src/app/api/test-series/route.ts](src/app/api/test-series/route.ts)
+- [src/app/api/test-series/[seriesId]/route.ts](src/app/api/test-series/[seriesId]/route.ts)
+- [src/app/api/test-series/tests/[testId]/route.ts](src/app/api/test-series/tests/[testId]/route.ts)
 - [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
-- [src/app/api/contact/route.ts](src/app/api/contact/route.ts)
-- [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx)
-- [src/lib/test-series-client.ts](src/lib/test-series-client.ts)
+- [src/app/api/payments/create/route.ts](src/app/api/payments/create/route.ts)
+- [src/app/test-series/tests/[testId]/attempt/page.tsx](src/app/test-series/tests/[testId]/attempt/page.tsx)
 - [src/lib/api-config.ts](src/lib/api-config.ts)
-- [scripts/test-vercel-apis.mjs](scripts/test-vercel-apis.mjs) [NEW]
 - [Status.md](Status.md)
 
 ## Required Vercel Environment Variables
 
-For the deployed Vercel site to operate correctly, ensure the following environment variables are set in **Vercel Dashboard → Project Settings → Environment Variables**:
+To fully resolve the database operations on the live Vercel deployment, configure these in **Vercel Project Settings → Environment Variables**:
 
-1. `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL`)
-2. `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `SUPABASE_ANON_KEY`)
-3. `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SERVICE_KEY`) — **Mandatory** for internal order creation and reading test questions.
-4. `RAZORPAY_KEY_ID` — **Mandatory** for creating Razorpay orders.
-5. `RAZORPAY_KEY_SECRET` — **Mandatory** for Razorpay order creation and HMAC verification.
-6. `RAZORPAY_WEBHOOK_SECRET` — **Mandatory** for handling live webhook payment captures.
+1. `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL (Already set on Vercel).
+2. `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon public key (Already set on Vercel).
+3. `SUPABASE_SERVICE_ROLE_KEY` — **MISSING ON VERCEL**. Mandatory for server-side question loading and internal order creation.
+4. `RAZORPAY_KEY_ID` — Razorpay Key ID (Check presence via `/api/health`).
+5. `RAZORPAY_KEY_SECRET` — Razorpay Key Secret.
+6. `RAZORPAY_WEBHOOK_SECRET` — Razorpay Webhook Secret.
 
 ## Validation Results
 
-- **Vercel / Deployed APIs Suite (`scripts/test-vercel-apis.mjs`):**
-  - Verified RLS strictly blocks Anon from reading `questions` (0 visible) while Service Role retrieves questions (PASS).
-  - Verified RLS rejects Anon order insert with code `42501` (PASS).
-  - Verified `/api/tests/[testId]/attempt` successfully starts test attempt and loads 5 questions with answers stripped (HTTP 200, PASS).
-  - Verified `/api/payments/create` successfully creates Razorpay live order and inserts internal pending order (HTTP 200, PASS).
-- **Mobile Data-Source Suite (`scripts/test-mobile-data-source.mjs`):** PASSED.
-- **Test Series Mobile Suite (`scripts/test-test-series-mobile.mjs`):** 5/5 PASSED.
-- **Admin Stats & Users Suite (`scripts/test-admin-features.mjs`):** 5/5 PASSED.
-- **TypeScript Check:** `npx tsc --noEmit` exited with code 0 (no type errors).
-- **Production Build:** `npm run build` exited with code 0 (all 40 production routes compiled).
+- **Live Deployed URL Probes:** Tested `https://education-course-nine.vercel.app` directly via Node.js.
+- **TypeScript Compiler Check:** `npx tsc --noEmit` exited with code 0 (no errors).
+- **Production Build:** `npm run build` completed successfully in 2.6s (all 40 pages and routes compiled).
 
-## Remaining Bugs / Blockers
+## Remaining Tasks
 
-- None.
+- User needs to add `SUPABASE_SERVICE_ROLE_KEY` to Vercel Environment Variables.
 
 ## Last Updated
 

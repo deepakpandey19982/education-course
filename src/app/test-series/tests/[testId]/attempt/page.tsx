@@ -233,12 +233,32 @@ export default function TestAttemptPage() {
   }
 
   if (error && !attempt) {
+    const isAuthError =
+      error.toLowerCase().includes('authentication') ||
+      error.toLowerCase().includes('sign in') ||
+      error.toLowerCase().includes('log in');
+
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white max-w-md text-center rounded-2xl soft-shadow p-8">
+          <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-4 text-xl">
+            ⚠️
+          </div>
           <h1 className="text-xl font-bold text-slate-900">Unable to start test</h1>
-          <p className="text-slate-600 mt-3">{error}</p>
-          <Button className="mt-6" onClick={() => router.push(`/test-series/tests/${testId}/instructions`)}>Back to Instructions</Button>
+          <p className="text-slate-600 mt-3 text-sm leading-relaxed">{error}</p>
+          <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+            {isAuthError && (
+              <Button onClick={() => router.push(`/login?redirect=/test-series/tests/${testId}/attempt`)}>
+                Sign In to Continue
+              </Button>
+            )}
+            <Button
+              variant={isAuthError ? 'outline' : 'primary'}
+              onClick={() => router.push(`/test-series/tests/${testId}/instructions`)}
+            >
+              Back to Instructions
+            </Button>
+          </div>
         </div>
       </div>
     );

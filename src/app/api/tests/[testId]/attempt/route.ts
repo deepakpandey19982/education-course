@@ -19,10 +19,23 @@ export async function POST(
     }
 
     const { testId } = await context.params;
-    const admin = getSupabaseAdmin();
+    let admin;
+    try {
+      admin = getSupabaseAdmin();
+    } catch (envErr: any) {
+      console.error('Test attempt Supabase admin initialization error:', envErr);
+      return NextResponse.json(
+        {
+          error:
+            'SUPABASE_SERVICE_ROLE_KEY is not configured in Vercel Environment Variables. Please add SUPABASE_SERVICE_ROLE_KEY in your Vercel project settings to enable server-side question loading.',
+        },
+        { status: 500 }
+      );
+    }
+
     const { test, error: accessError } = await getAccessibleTest(admin, user.id, testId);
     if (!test) {
-      return NextResponse.json({ error: accessError }, { status: 403 });
+      return NextResponse.json({ error: accessError || 'Access denied' }, { status: 403 });
     }
 
     const { data: existingAttempt, error: attemptLookupError } = await admin

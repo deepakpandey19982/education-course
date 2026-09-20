@@ -34,10 +34,39 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Initialize Supabase Admin with service role to bypass RLS for internal order creation
-    const supabaseAdmin = getSupabaseAdmin();
+    // 1. Verify Razorpay credentials
+    let razorpay: Razorpay;
+    let keyId: string;
+    try {
+      const rzp = getRazorpayInstance();
+      razorpay = rzp.razorpay;
+      keyId = rzp.keyId;
+    } catch (rzpErr: any) {
+      return NextResponse.json(
+        {
+          error:
+            rzpErr.message ||
+            'Razorpay environment variables (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are missing on Vercel.',
+        },
+        { status: 500 }
+      );
+    }
 
-    // 2. Fetch course price and discount from database to prevent price manipulation
+    // 2. Initialize Supabase Admin with service role to bypass RLS for internal order creation
+    let supabaseAdmin;
+    try {
+      supabaseAdmin = getSupabaseAdmin();
+    } catch (adminErr: any) {
+      return NextResponse.json(
+        {
+          error:
+            'SUPABASE_SERVICE_ROLE_KEY is not configured in Vercel Environment Variables. Please add SUPABASE_SERVICE_ROLE_KEY in your Vercel project settings to enable order creation.',
+        },
+        { status: 500 }
+      );
+    }
+
+    // 3. Fetch course price and discount from database to prevent price manipulation
     const { data: course, error: courseError } = await supabaseAdmin
       .from('courses')
       .select('price, discount, title')
@@ -51,8 +80,7 @@ export async function POST(req: Request) {
     const finalPrice = course.price * (1 - (course.discount || 0) / 100);
     const amount = Math.round(finalPrice * 100); // Razorpay expects amount in paise
 
-    // 3. Initialize Razorpay and create order
-    const { razorpay, keyId } = getRazorpayInstance();
+    // 4. Create Razorpay order
     const razorpayOrder = await razorpay.orders.create({
       amount: amount,
       currency: 'INR',

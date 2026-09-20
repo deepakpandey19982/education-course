@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/test-series-server';
+import { getSupabaseClient } from '@/lib/test-series-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const type = new URL(request.url).searchParams.get('type') === 'paid' ? 'paid' : 'free';
     const isPaid = type === 'paid';
-    const admin = getSupabaseAdmin();
+    const admin = getSupabaseClient();
 
     // 1. Fetch all published series ordered by display order
     const { data: allSeries, error: seriesError } = await admin

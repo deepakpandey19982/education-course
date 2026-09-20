@@ -40,10 +40,19 @@ export function getApiBaseUrl(): string {
     return 'http://localhost:3000';
   }
 
-  // 3. Client-side browser execution
+  // 3. Client-side browser execution: if already running on a remote web domain (e.g. Vercel),
+  // always use current origin so all API requests route to the deployed backend!
   const origin = window.location.origin;
+  if (
+    origin &&
+    (origin.startsWith('https://') || origin.startsWith('http://')) &&
+    !origin.includes('localhost') &&
+    !origin.includes('127.0.0.1')
+  ) {
+    return origin;
+  }
 
-  // If running inside Capacitor / Android WebView where localhost points to the phone:
+  // 4. If running inside Capacitor / Android WebView where origin is localhost or capacitor://
   if (isCapacitorNative()) {
     // Check if user or dev configured an override in localStorage
     try {
@@ -55,13 +64,11 @@ export function getApiBaseUrl(): string {
       // Ignore storage error
     }
 
-    // Default development host IP fallback for local Android testing
-    // 10.29.110.224 is the current development workstation IP on the Wi-Fi network
-    // 10.0.2.2 is the Android emulator loopback to the host machine
-    return 'http://10.29.110.224:3000';
+    // Default to production Vercel backend so Android devices work seamlessly anywhere
+    return 'https://education-course-nine.vercel.app';
   }
 
-  // Normal browser (e.g. desktop localhost:3000 or production domain): use current origin
+  // Normal browser (e.g. desktop localhost:3000)
   return origin;
 }
 
