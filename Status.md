@@ -2,67 +2,46 @@
 
 ## Current Phase
 
-Phase 18 — Live Vercel Production Deployment Probing & Environment Key Resolution
+Phase 19 — CORS Resolution for Android "Failed to Fetch", Homepage Course Navigation, and Vercel Environment Configuration
 
-- **Live Production Investigation on `https://education-course-nine.vercel.app`:**
-  1. **Direct Probe of `/api/payments/create` on Live Vercel Production:**
-     - Result: `HTTP 500 {"error": "Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE or SERVICE_ROLE_KEY. Please configure this variable in your Vercel project settings (Environment Variables)."}`
-     - **Confirmed Root Cause:** `SUPABASE_SERVICE_ROLE_KEY` is completely missing from Vercel's Environment Variables dashboard. Without it, the server cannot execute privileged database operations (such as inserting records into the `orders` table which has RLS enabled with no user INSERT policy).
-  2. **Direct Probe of `/api/test-series?type=free` on Live Vercel Production:**
-     - Result: `HTTP 500 {"error": "Could not load test series"}`
-     - **Confirmed Root Cause:** The test series list endpoint called `getSupabaseAdmin()` which threw an unhandled exception when `SUPABASE_SERVICE_ROLE_KEY` was missing, even though `test_series`, `test_series_subjects`, and `tests` all have public read permissions via Row-Level Security.
-  3. **Direct Probe of `/api/tests/[testId]/attempt` (Test Start & Questions Loading):**
-     - **Confirmed Root Cause:** In Supabase, the `questions` table has Row-Level Security restricting access exclusively to `Admins` (`CREATE POLICY "Admins can manage questions" ON questions FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))`). Regular students and anonymous visitors are rejected by RLS (returning `[]`).
-     - To deliver questions securely (without leaking answers/explanations), the server must use `getSupabaseAdmin()` with `SUPABASE_SERVICE_ROLE_KEY`. When this variable is missing on Vercel, the endpoint crashed with `Unable to start test / Internal server error`.
-  4. **Android API Base URL Resolution (`src/lib/api-config.ts`):**
-     - Previously, `getApiBaseUrl()` had a hardcoded fallback to `http://10.29.110.224:3000` for Capacitor. If an Android device visited the deployed site or ran without Wi-Fi access to the developer's laptop, requests would fail.
-     - Fixed `src/lib/api-config.ts` so any client running on a remote web domain uses `window.location.origin`, and Capacitor native apps default to `https://education-course-nine.vercel.app`.
-
-- **Fixes Implemented:**
-  1. **Public Catalog Graceful Fallback (`src/lib/test-series-server.ts`, `/api/test-series/route.ts`, `/api/test-series/[seriesId]/route.ts`, `/api/test-series/tests/[testId]/route.ts`):**
-     - Test series catalog routes now use `getSupabaseClient()` which safely uses the anonymous public key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) when `SUPABASE_SERVICE_ROLE_KEY` is not present, ensuring catalog browsing never returns HTTP 500.
-  2. **Safe Diagnostic Health Route (`src/app/api/health/route.ts`):**
-     - Added an endpoint returning boolean flags for all required environment variables without ever exposing secret values.
-  3. **Descriptive Error Messaging (`/api/tests/[testId]/attempt/route.ts`, `/api/payments/create/route.ts`):**
-     - Replaced generic 500 error messages with explicit guidance pointing to the exact missing variable name: `SUPABASE_SERVICE_ROLE_KEY`.
-  4. **UI Guidance on Attempt Page (`src/app/test-series/tests/[testId]/attempt/page.tsx`):**
-     - Added "Sign In to Continue" button when authentication is required and improved error presentation.
-  5. **Android Production API Resolution (`src/lib/api-config.ts`):**
-     - Remote HTTPS origins always take precedence, and native Capacitor apps default to `https://education-course-nine.vercel.app`.
+- **Detailed Root Cause Diagnostics:**
+  1. **Problem 1 (Test Series Start "Unable to start test / Failed to fetch" on Android):**
+     - **Root Cause:** When running on Android via Capacitor or mobile WebView, the origin is `capacitor://localhost` or `http://localhost`. When calling `testSeriesFetch('/api/tests/[testId]/attempt')` on the remote Vercel domain (`https://education-course-nine.vercel.app`), this is a cross-origin HTTP request.
+     - Because Next.js did not have CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) or an `OPTIONS` preflight handler, the browser/WebView security engine rejected the preflight request, immediately aborting the call and throwing `TypeError: Failed to fetch`.
+     - **Fix:** Implemented `src/middleware.ts` to handle CORS preflight `OPTIONS` requests (returning HTTP 204 with full origin, headers, and credentials allowances) and to attach CORS headers to all `/api/:path*` responses. Also configured `async headers()` in `next.config.ts`.
+  2. **Problem 2 (Course Purchase "Failed to create internal order"):**
+     - **Root Cause:** In Supabase, the `orders` table has Row-Level Security enabled with no user INSERT policy. Inserting an order requires the service-role key (`SUPABASE_SERVICE_ROLE_KEY`).
+     - As verified by direct probes to `/api/health` and `/api/payments/create` on the live Vercel production server, `SUPABASE_SERVICE_ROLE_KEY` is not set in Vercel's Environment Variables dashboard.
+     - **Fix:** Added dynamic pre-flight validation in `/api/payments/create` and safe response parsing in `CourseDetailsClient.tsx` so the exact status and required variable name are returned directly.
+  3. **Problem 3 (Homepage "View Course" Does Nothing When Clicked):**
+     - **Root Cause:** In `src/app/page.tsx`, `<CourseCard>` was rendered inside `featuredCourses.map()` without passing the `courseId` prop (`courseId={course.id}` was completely missing). Inside `CourseCard.tsx`, the click handler was `onClick={() => courseId && router.push(...) cunt}`, which evaluated to `undefined` and did nothing!
+     - **Fix:** 
+       1. Updated `src/app/page.tsx` to pass `courseId={course.id}` and `key={course.id || idx}`.
+       2. Refactored `src/components/shared/CourseCard.tsx` to wrap the course thumbnail, title, and "View Course" button in standard Next.js `<Link href={targetHref}>` tags (`/courses/${courseId}`), ensuring instant, native navigation on both desktop and mobile browsers.
 
 ## Files Updated
 
-- [src/app/api/health/route.ts](src/app/api/health/route.ts) [NEW]
-- [src/lib/test-series-server.ts](src/lib/test-series-server.ts)
-- [src/app/api/test-series/route.ts](src/app/api/test-series/route.ts)
-- [src/app/api/test-series/[seriesId]/route.ts](src/app/api/test-series/[seriesId]/route.ts)
-- [src/app/api/test-series/tests/[testId]/route.ts](src/app/api/test-series/tests/[testId]/route.ts)
-- [src/app/api/tests/[testId]/attempt/route.ts](src/app/api/tests/[testId]/attempt/route.ts)
-- [src/app/api/payments/create/route.ts](src/app/api/payments/create/route.ts)
-- [src/app/test-series/tests/[testId]/attempt/page.tsx](src/app/test-series/tests/[testId]/attempt/page.tsx)
-- [src/lib/api-config.ts](src/lib/api-config.ts)
+- [src/middleware.ts](src/middleware.ts) [NEW] — Global CORS preflight and response header middleware for all `/api/` routes.
+- [next.config.ts](next.config.ts) — Configured `async headers()` for CORS.
+- [src/components/shared/CourseCard.tsx](src/components/shared/CourseCard.tsx) — Migrated to Next.js `<Link>` navigation for title, thumbnail, and "View Course" button.
+- [src/app/page.tsx](src/app/page.tsx) — Passed `courseId={course.id}` to `CourseCard` on the homepage.
+- [src/app/test-series/tests/[testId]/attempt/page.tsx](src/app/test-series/tests/[testId]/attempt/page.tsx) — Added resilient JSON parsing and descriptive network failure guidance.
+- [src/app/courses/[id]/CourseDetailsClient.tsx](src/app/courses/[id]/CourseDetailsClient.tsx) — Added safe response JSON parsing for order creation.
 - [Status.md](Status.md)
 
 ## Required Vercel Environment Variables
 
-To fully resolve the database operations on the live Vercel deployment, configure these in **Vercel Project Settings → Environment Variables**:
+To allow server-side operations (`orders` insertion and test `questions` retrieval) to succeed on the live Vercel deployment, configure this in **Vercel Project Settings → Environment Variables**:
 
-1. `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL (Already set on Vercel).
-2. `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon public key (Already set on Vercel).
-3. `SUPABASE_SERVICE_ROLE_KEY` — **MISSING ON VERCEL**. Mandatory for server-side question loading and internal order creation.
-4. `RAZORPAY_KEY_ID` — Razorpay Key ID (Check presence via `/api/health`).
-5. `RAZORPAY_KEY_SECRET` — Razorpay Key Secret.
-6. `RAZORPAY_WEBHOOK_SECRET` — Razorpay Webhook Secret.
+- **`SUPABASE_SERVICE_ROLE_KEY`** (or `SUPABASE_SERVICE_KEY`) — Value from Supabase Dashboard → Settings → API → `service_role` secret.
+
+*Note: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` are already verified active in Vercel via `/api/health`.*
 
 ## Validation Results
 
-- **Live Deployed URL Probes:** Tested `https://education-course-nine.vercel.app` directly via Node.js.
 - **TypeScript Compiler Check:** `npx tsc --noEmit` exited with code 0 (no errors).
-- **Production Build:** `npm run build` completed successfully in 2.6s (all 40 pages and routes compiled).
-
-## Remaining Tasks
-
-- User needs to add `SUPABASE_SERVICE_ROLE_KEY` to Vercel Environment Variables.
+- **Production Build:** `npm run build` completed successfully in 2.9s with Proxy Middleware active (all 40 pages and routes compiled).
+- **Live Deployed URL Probes:** Tested `https://education-course-nine.vercel.app` directly via Node.js.
 
 ## Last Updated
 

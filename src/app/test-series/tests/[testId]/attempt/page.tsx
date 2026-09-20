@@ -125,8 +125,15 @@ export default function TestAttemptPage() {
   useEffect(() => {
     testSeriesFetch(`/api/tests/${testId}/attempt`, { method: 'POST' })
       .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error);
+        let payload: any = {};
+        try {
+          payload = await response.json();
+        } catch {
+          // Response body is not valid JSON
+        }
+        if (!response.ok) {
+          throw new Error(payload.error || `Unable to start test (Server returned ${response.status})`);
+        }
         if (payload.attempt.status !== 'in_progress') {
           router.replace(`/test-series/tests/${testId}/results?attempt=${payload.attempt.id}`);
           return;
@@ -143,7 +150,14 @@ export default function TestAttemptPage() {
         setQuestions(payload.questions ?? []);
         setAnswers(Object.fromEntries((payload.answers as Answer[] | undefined ?? []).map((answer) => [answer.question_id, answer])));
       })
-      .catch((reason) => setError(reason.message || 'Could not start this test.'))
+      .catch((reason) => {
+        const msg = reason?.message || 'Could not start this test.';
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+          setError('Network request failed. Please check internet connection and CORS / server configuration.');
+        } else {
+          setError(msg);
+        }
+      })
       .finally(() => setLoading(false));
   }, [router, testId]);
 

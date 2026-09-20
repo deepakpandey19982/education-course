@@ -129,7 +129,9 @@ export default function HomePage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
                 {featuredCourses.map((course, idx) => (
-                  <CourseCard key={idx}
+                  <CourseCard
+                    key={course.id || idx}
+                    courseId={course.id}
                     title={course.title}
                     instructor="Professional Instructor"
                     price={course.price}

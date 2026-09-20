@@ -89,10 +89,15 @@ export default function CourseDetailsClient() {
         }),
       });
 
-      const orderData = await response.json();
+      let orderData: any = {};
+      try {
+        orderData = await response.json();
+      } catch {
+        // Non-JSON response
+      }
 
       if (!response.ok) {
-        throw new Error(orderData.error || 'Failed to create order');
+        throw new Error(orderData.error || `Failed to create internal order (Status ${response.status})`);
       }
 
       const options = {
