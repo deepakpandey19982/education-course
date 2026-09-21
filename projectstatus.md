@@ -47,6 +47,7 @@ Education-Course/
      - Step 3: Instructions & Agree & Continue screen.
      - Step 4: Subject-wise question attempt panel with real-time timer, palette, and orientation lock.
   6. **Safe Additive Migration (`supabase/migrations/20260921_test_series_hierarchy.sql`):** Preserves existing data, demo tests, and backwards compatibility.
+  7. **Responsive "Create New Test" Modal:** Constrained modal to `max-h-[90vh]` with fixed header and sticky footer (`shrink-0`), internal body scrolling (`overflow-y-auto min-h-0`), and fixed viewport overlay (`overflow-hidden`). Guaranteed full accessibility and visibility of all 4 form sections and action buttons at 100% desktop zoom.
 - **Verification:**
   - `npx tsc --noEmit`: Code 0 (clean).
   - `npm run build`: Code 0 (clean, 40 routes).

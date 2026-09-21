@@ -1636,299 +1636,309 @@ export default function DedicatedSeriesManagementPage() {
       {/* MODAL: CREATE / EDIT TEST (4 CLEAN SECTIONS) */}
       {/* =================================================================== */}
       {isTestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-2xl p-6 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
               <div>
                 <span className="text-xs font-bold uppercase text-brand-primary dark:text-blue-400">
                   {series.title}
                 </span>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
                   {testForm.id ? 'Edit Test' : 'Create New Test'}
                 </h2>
               </div>
-              <button type="button" onClick={() => setIsTestModalOpen(false)} className="text-slate-400 p-1">
+              <button
+                type="button"
+                onClick={() => setIsTestModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveTest} className="mt-4 space-y-6">
-              {/* SECTION 1 — BASIC INFORMATION */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Section 1 — Basic Information
-                </h3>
+            {/* Modal Form: Scrollable Content + Fixed Footer */}
+            <form onSubmit={handleSaveTest} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6">
+                {/* SECTION 1 — BASIC INFORMATION */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Section 1 — Basic Information
+                  </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Test Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. UPP Computer Operator 20 SEP 2026, Full Mock Test 1"
-                      value={testForm.title}
-                      onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Date Label
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 20 SEP 2026"
-                      value={testForm.date_label}
-                      onChange={(e) => setTestForm({ ...testForm, date_label: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Duration (Minutes) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={testForm.duration_minutes}
-                      onChange={(e) => setTestForm({ ...testForm, duration_minutes: Number(e.target.value) || 60 })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Total Maximum Marks *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      value={testForm.max_marks}
-                      onChange={(e) => setTestForm({ ...testForm, max_marks: Number(e.target.value) || 100 })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Marks Per Correct Question
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min={0.1}
-                      value={testForm.marks_per_correct}
-                      onChange={(e) => setTestForm({ ...testForm, marks_per_correct: Number(e.target.value) || 1 })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Negative Marking
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min={0}
-                      value={testForm.negative_marks}
-                      onChange={(e) => setTestForm({ ...testForm, negative_marks: Number(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Language
-                    </label>
-                    <select
-                      value={testForm.language}
-                      onChange={(e) => setTestForm({ ...testForm, language: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    >
-                      <option value="English">English</option>
-                      <option value="Hindi">Hindi</option>
-                      <option value="Bilingual (Hindi & English)">Bilingual (Hindi & English)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 2 — AVAILABILITY */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Section 2 — Availability & Access
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Start Date & Time (Optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={testForm.scheduled_start}
-                      onChange={(e) => setTestForm({ ...testForm, scheduled_start: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      End Date & Time (Optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={testForm.scheduled_end}
-                      onChange={(e) => setTestForm({ ...testForm, scheduled_end: e.target.value })}
-                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Test Pricing
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <label
-                        className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
-                          !testForm.is_paid ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'border-slate-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="testPriceRadio"
-                          checked={!testForm.is_paid}
-                          onChange={() => setTestForm({ ...testForm, is_paid: false, price: 0 })}
-                          className="accent-emerald-600"
-                        />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">FREE Test</span>
-                      </label>
-
-                      <label
-                        className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
-                          testForm.is_paid ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40' : 'border-slate-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="testPriceRadio"
-                          checked={testForm.is_paid}
-                          onChange={() => setTestForm({ ...testForm, is_paid: true })}
-                          className="accent-amber-600"
-                        />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">PAID Test</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {testForm.is_paid && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Price (₹)
+                        Test Name *
                       </label>
                       <input
-                        type="number"
-                        min={1}
-                        value={testForm.price}
-                        onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) || 0 })}
+                        type="text"
+                        required
+                        placeholder="e.g. UPP Computer Operator 20 SEP 2026, Full Mock Test 1"
+                        value={testForm.title}
+                        onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
                         className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                       />
                     </div>
-                  )}
 
-                  <div className="sm:col-span-2">
-                    <label className="flex items-center gap-2.5 cursor-pointer">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Date Label
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={testForm.is_published}
-                        onChange={(e) => setTestForm({ ...testForm, is_published: e.target.checked })}
-                        className="h-4 w-4 accent-emerald-600 rounded"
+                        type="text"
+                        placeholder="e.g. 20 SEP 2026"
+                        value={testForm.date_label}
+                        onChange={(e) => setTestForm({ ...testForm, date_label: e.target.value })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                       />
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        Published (visible to students under configured subjects)
-                      </span>
-                    </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Duration (Minutes) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        value={testForm.duration_minutes}
+                        onChange={(e) => setTestForm({ ...testForm, duration_minutes: Number(e.target.value) || 60 })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Total Maximum Marks *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        value={testForm.max_marks}
+                        onChange={(e) => setTestForm({ ...testForm, max_marks: Number(e.target.value) || 100 })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Marks Per Correct Question
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min={0.1}
+                        value={testForm.marks_per_correct}
+                        onChange={(e) => setTestForm({ ...testForm, marks_per_correct: Number(e.target.value) || 1 })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Negative Marking
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min={0}
+                        value={testForm.negative_marks}
+                        onChange={(e) => setTestForm({ ...testForm, negative_marks: Number(e.target.value) || 0 })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Language
+                      </label>
+                      <select
+                        value={testForm.language}
+                        onChange={(e) => setTestForm({ ...testForm, language: e.target.value })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      >
+                        <option value="English">English</option>
+                        <option value="Hindi">Hindi</option>
+                        <option value="Bilingual (Hindi & English)">Bilingual (Hindi & English)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 2 — AVAILABILITY */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Section 2 — Availability & Access
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Start Date & Time (Optional)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={testForm.scheduled_start}
+                        onChange={(e) => setTestForm({ ...testForm, scheduled_start: e.target.value })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        End Date & Time (Optional)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={testForm.scheduled_end}
+                        onChange={(e) => setTestForm({ ...testForm, scheduled_end: e.target.value })}
+                        className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Test Pricing
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label
+                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
+                            !testForm.is_paid ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="testPriceRadio"
+                            checked={!testForm.is_paid}
+                            onChange={() => setTestForm({ ...testForm, is_paid: false, price: 0 })}
+                            className="accent-emerald-600"
+                          />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">FREE Test</span>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
+                            testForm.is_paid ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40' : 'border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="testPriceRadio"
+                            checked={testForm.is_paid}
+                            onChange={() => setTestForm({ ...testForm, is_paid: true })}
+                            className="accent-amber-600"
+                          />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">PAID Test</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {testForm.is_paid && (
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Price (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={testForm.price}
+                          onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) || 0 })}
+                          className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    )}
+
+                    <div className="sm:col-span-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={testForm.is_published}
+                          onChange={(e) => setTestForm({ ...testForm, is_published: e.target.checked })}
+                          className="h-4 w-4 accent-emerald-600 rounded"
+                        />
+                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          Published (visible to students under configured subjects)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 3 — INSTRUCTIONS */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Section 3 — Test Instructions
+                  </h3>
+                  <textarea
+                    rows={3}
+                    placeholder="Instructions shown to students before starting the test..."
+                    value={testForm.instructions}
+                    onChange={(e) => setTestForm({ ...testForm, instructions: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                {/* SECTION 4 — SUBJECTS IN THIS TEST */}
+                <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 space-y-3">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+                      Section 4 — Subjects Included in This Test
+                    </h3>
+                    <p className="text-xs text-blue-800/80 dark:text-blue-300/80 mt-0.5">
+                      Select which subjects belong to this test. A test can combine questions from multiple subjects.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    {subjects.map((sub) => {
+                      const isChecked = testForm.selected_subject_ids.includes(sub.id);
+                      const qCount = testForm.id
+                        ? questions.filter((q) => q.test_id === testForm.id && resolveQuestionSubjectId(q, null) === sub.id).length
+                        : 0;
+
+                      return (
+                        <label
+                          key={sub.id}
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-white dark:bg-slate-900 border-blue-500 shadow-xs'
+                              : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTestForm({
+                                    ...testForm,
+                                    selected_subject_ids: [...testForm.selected_subject_ids, sub.id],
+                                  });
+                                } else {
+                                  setTestForm({
+                                    ...testForm,
+                                    selected_subject_ids: testForm.selected_subject_ids.filter((id) => id !== sub.id),
+                                  });
+                                }
+                              }}
+                              className="h-4 w-4 accent-brand-primary rounded"
+                            />
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">{sub.name}</span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium">Questions: {qCount}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 3 — INSTRUCTIONS */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Section 3 — Test Instructions
-                </h3>
-                <textarea
-                  rows={3}
-                  placeholder="Instructions shown to students before starting the test..."
-                  value={testForm.instructions}
-                  onChange={(e) => setTestForm({ ...testForm, instructions: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              {/* SECTION 4 — SUBJECTS IN THIS TEST */}
-              <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 space-y-3">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
-                    Section 4 — Subjects Included in This Test
-                  </h3>
-                  <p className="text-xs text-blue-800/80 dark:text-blue-300/80 mt-0.5">
-                    Select which subjects belong to this test. A test can combine questions from multiple subjects.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {subjects.map((sub) => {
-                    const isChecked = testForm.selected_subject_ids.includes(sub.id);
-                    const qCount = testForm.id
-                      ? questions.filter((q) => q.test_id === testForm.id && resolveQuestionSubjectId(q, null) === sub.id).length
-                      : 0;
-
-                    return (
-                      <label
-                        key={sub.id}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-white dark:bg-slate-900 border-blue-500 shadow-xs'
-                            : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-80'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setTestForm({
-                                  ...testForm,
-                                  selected_subject_ids: [...testForm.selected_subject_ids, sub.id],
-                                });
-                              } else {
-                                setTestForm({
-                                  ...testForm,
-                                  selected_subject_ids: testForm.selected_subject_ids.filter((id) => id !== sub.id),
-                                });
-                              }
-                            }}
-                            className="h-4 w-4 accent-brand-primary rounded"
-                          />
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">{sub.name}</span>
-                        </div>
-                        <span className="text-xs text-slate-500 font-medium">Questions: {qCount}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              {/* Fixed Modal Footer with Action Buttons */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs">
                 <Button type="button" variant="ghost" onClick={() => setIsTestModalOpen(false)}>
                   Cancel
                 </Button>

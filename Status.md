@@ -21,17 +21,15 @@ Phase 22 — Test Series Admin Management Hierarchy Redesign & Multi-Subject Tes
      - **Step 1 (Series List):** Both Free (`/test-series`) and Paid (`/test-series/paid`) dynamically display all published series without requiring pre-existing tests.
      - **Step 2 (Series Detail):** Displays series banner, all series subjects, and tests mapped to each subject with FREE/PAID badge, LIVE status, marks, duration, and question count.
      - **Step 3 (Instructions):** Agree & Continue page with test guidelines, question count, and agreement checkbox.
-     - **Step 4 (Attempt Panel):** Full exam interface with subject tabs, real-time timer, question palette, landscape orientation lock on Android, and server-authoritative grading.
-  4. **Preservation & Safety:**
-     - Zero data deletion or table drops.
-     - Demo Free Practice Test and Demo Paid Practice Test completely intact.
-     - Payment, Course downloads, and Auth workflows completely untouched.
+  5. **Create New Test Modal Responsive Sizing (100% Zoom):**
+     - **Issue:** At 100% browser zoom on standard laptop/desktop displays, the "Create New Test" modal exceeded viewport height with no internal scrolling, causing bottom action buttons (Cancel / Create Test) to be cut off unless zoomed out to 67%.
+     - **Fix:** Refactored modal container into a flex column with `max-h-[90vh]`, fixed top header, scrollable body (`overflow-y-auto min-h-0`) containing all 4 form sections, and a fixed sticky footer (`shrink-0`) keeping Cancel and Create Test buttons permanently accessible.
 
 ## Validation Results
 
 - **TypeScript Typecheck:** `npx tsc --noEmit` exited with code 0 (clean).
 - **Production Build:** `npm run build` completed successfully (40 routes compiled).
-- **Live Endpoint Verification:** Verified `/api/test-series?type=free` and `?type=paid` returning all active series with 0 errors.
+- **Modal Responsiveness:** Verified modal conforms to 90vh maximum height with internal scrolling at 100% browser zoom.
 
 ## Last Updated
 
