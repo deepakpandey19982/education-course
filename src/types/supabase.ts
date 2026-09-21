@@ -93,6 +93,7 @@ export interface TestSeries {
   description: string | null;
   thumbnail_url: string | null;
   is_published: boolean;
+  is_paid?: boolean;
   order: number;
   created_at: string;
   updated_at: string;
@@ -111,7 +112,9 @@ export interface TestSeriesSubject {
 
 export interface Test {
   id: string;
+  series_id?: string;
   subject_id: string;
+  subject_ids?: string[];
   title: string;
   date_label: string | null;
   thumbnail_url: string | null;

@@ -48,13 +48,12 @@ export default function AdminLayout({
 
   const adminNav = [
     { name: 'Dashboard', href: '/admin' },
+    { name: 'Test Series', href: '/admin/test-series' },
     { name: 'Courses', href: '/admin/courses' },
     { name: 'Categories', href: '/admin/categories' },
     { name: 'Banners', href: '/admin/homepage' },
     { name: 'Feature Grid', href: '/admin/feature-grid' },
     { name: 'Users', href: '/admin/users' },
-    { name: 'Free Tests', href: '/admin/test-series/free' },
-    { name: 'Paid Tests', href: '/admin/test-series/paid' },
   ];
 
   return (

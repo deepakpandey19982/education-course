@@ -1,5 +1,5 @@
-import { TestSeriesAdminManager } from '../_components/TestSeriesAdminManager';
+import { redirect } from 'next/navigation';
 
 export default function FreeTestSeriesAdminPage() {
-  return <TestSeriesAdminManager mode="free" />;
+  redirect('/admin/test-series?filter=free');
 }

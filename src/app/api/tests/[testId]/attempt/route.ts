@@ -84,7 +84,7 @@ export async function POST(
     const [{ data: questions, error: questionsError }, { data: answers, error: answersError }] = await Promise.all([
       admin
         .from('questions')
-        .select('id, test_id, question_text, option_a, option_b, option_c, option_d, marks, negative_marks, language, order, created_at, updated_at')
+        .select('*')
         .eq('test_id', testId)
         .order('order', { ascending: true }),
       admin
@@ -134,19 +134,26 @@ export async function POST(
 
     const resolvedSubjectId = subjectMeta?.id || testMeta.subject_id || null;
     const uniqueSubjectIds = new Set<string>();
-    (questions ?? []).forEach((question: any) => {
-      const sId = question.subject_id || resolvedSubjectId;
-      if (sId) uniqueSubjectIds.add(sId);
+
+    const mappedQuestions = (questions ?? []).map((q: any) => {
+      let subjId = q.subject_id;
+      if (!subjId && typeof q.explanation === 'string') {
+        const match = q.explanation.match(/<!--subj:([a-f0-9-]+)-->/i);
+        if (match) subjId = match[1];
+      }
+      subjId = subjId || resolvedSubjectId;
+      if (subjId) uniqueSubjectIds.add(subjId);
+
+      return {
+        ...stripQuestionAnswers(q),
+        subject_id: subjId,
+      };
     });
+
     if (resolvedSubjectId) uniqueSubjectIds.add(resolvedSubjectId);
 
     const subjectList = (seriesSubjects ?? []).filter((subject) => uniqueSubjectIds.has(subject.id));
     const fallbackSubjects = subjectList.length > 0 ? subjectList : (seriesSubjects ?? []).filter((subject) => subject.id === subjectMeta?.id || subject.id === testMeta.subject_id);
-
-    const mappedQuestions = (questions ?? []).map((q: any) => ({
-      ...stripQuestionAnswers(q),
-      subject_id: q.subject_id || resolvedSubjectId,
-    }));
 
     return NextResponse.json({
       attempt,

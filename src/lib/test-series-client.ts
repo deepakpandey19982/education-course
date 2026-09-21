@@ -104,24 +104,39 @@ export async function fetchPublishedTestSeries(type: 'free' | 'paid'): Promise<T
       subjectToSeriesMap.set(sub.id, sub.series_id);
     }
 
-    const { data: tests, error: tErr } = await client
-      .from('tests')
-      .select('id, subject_id')
-      .in('subject_id', subjectIds)
-      .eq('is_published', true)
-      .eq('is_paid', isPaid);
+    const { data: tests } = subjectIds.length
+      ? await client
+          .from('tests')
+          .select('id, subject_id, is_paid')
+          .in('subject_id', subjectIds)
+          .eq('is_published', true)
+      : { data: [] };
 
-    if (tErr) {
-      return [];
-    }
-
-    const activeSeriesIds = new Set<string>();
+    const seriesWithPaidTests = new Set<string>();
+    const seriesWithFreeTests = new Set<string>();
     for (const test of tests ?? []) {
       const sId = subjectToSeriesMap.get(test.subject_id);
-      if (sId) activeSeriesIds.add(sId);
+      if (sId) {
+        if (test.is_paid) {
+          seriesWithPaidTests.add(sId);
+        } else {
+          seriesWithFreeTests.add(sId);
+        }
+      }
     }
 
-    return (allSeries as TestSeries[]).filter((s) => activeSeriesIds.has(s.id));
+    return (allSeries as TestSeries[]).filter((s: any) => {
+      const explicitlyPaid = s.is_paid === true || s.title?.toLowerCase().includes('paid') || s.title?.toLowerCase().includes('premium');
+      const hasPaidTests = seriesWithPaidTests.has(s.id);
+      const hasFreeTests = seriesWithFreeTests.has(s.id);
+
+      if (isPaid) {
+        return explicitlyPaid || hasPaidTests;
+      } else {
+        if (explicitlyPaid && !hasFreeTests) return false;
+        return true;
+      }
+    });
   } catch (directErr) {
     console.error('[test-series-client] Supabase fallback error:', directErr);
     return [];
@@ -202,27 +217,33 @@ export async function fetchSeriesDetail(
     questionCounts.set(test_id, (questionCounts.get(test_id) ?? 0) + 1);
   });
 
-  return {
-    series,
-    subjects: subjectList.map((sub) => ({
-      id: sub.id,
-      name: sub.name,
-      icon_url: sub.icon_url,
-      tests: testList
-        .filter((t) => t.subject_id === sub.id)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          date_label: t.date_label,
-          duration_minutes: t.duration_minutes,
-          max_marks: t.max_marks,
-          language: t.language,
-          is_paid: t.is_paid,
-          price: t.price,
-          scheduled_start: t.scheduled_start,
-          scheduled_end: t.scheduled_end,
-          question_count: questionCounts.get(t.id) ?? 0,
-        })),
-    })),
-  };
+    return {
+      series,
+      subjects: subjectList.map((sub) => {
+        const matchingTests = testList.filter((t: any) => {
+          if (t.subject_id === sub.id) return true;
+          if (Array.isArray(t.subject_ids) && t.subject_ids.includes(sub.id)) return true;
+          return false;
+        });
+
+        return {
+          id: sub.id,
+          name: sub.name,
+          icon_url: sub.icon_url,
+          tests: matchingTests.map((t) => ({
+            id: t.id,
+            title: t.title,
+            date_label: t.date_label,
+            duration_minutes: t.duration_minutes,
+            max_marks: t.max_marks,
+            language: t.language,
+            is_paid: t.is_paid,
+            price: t.price,
+            scheduled_start: t.scheduled_start,
+            scheduled_end: t.scheduled_end,
+            question_count: questionCounts.get(t.id) ?? 0,
+          })),
+        };
+      }),
+    };
 }

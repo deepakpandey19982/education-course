@@ -1,5 +1,5 @@
-import { TestSeriesAdminManager } from '../_components/TestSeriesAdminManager';
+import { redirect } from 'next/navigation';
 
 export default function PaidTestSeriesAdminPage() {
-  return <TestSeriesAdminManager mode="paid" />;
+  redirect('/admin/test-series?filter=paid');
 }
