@@ -130,15 +130,23 @@ export async function GET(req: Request) {
 
     const ordersCountMap: Record<string, number> = {};
     (paidOrders || []).forEach(o => {
-      ordersCountMap[o.user_id] = (ordersCountMap[o.user_id] || 0) + 1;
+      if (o.user_id) {
+        ordersCountMap[o.user_id] = (ordersCountMap[o.user_id] || 0) + 1;
+      }
     });
 
-    // Fetch all downloads to compute counts per user
-    const allDownloads = await getAllDownloads();
+    // Fetch all downloads to compute counts per user (non-blocking fallback)
     const downloadsCountMap: Record<string, number> = {};
-    allDownloads.forEach(d => {
-      downloadsCountMap[d.user_id] = (downloadsCountMap[d.user_id] || 0) + 1;
-    });
+    try {
+      const allDownloads = await getAllDownloads();
+      allDownloads.forEach(d => {
+        if (d.user_id) {
+          downloadsCountMap[d.user_id] = (downloadsCountMap[d.user_id] || 0) + 1;
+        }
+      });
+    } catch (dlErr) {
+      console.warn('Could not fetch download counts, continuing with zero counts:', dlErr);
+    }
 
     const usersList = (allProfiles || []).map(p => ({
       id: p.id,
@@ -163,6 +171,9 @@ export async function GET(req: Request) {
 
   } catch (error: any) {
     console.error('Admin users API error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

@@ -48,10 +48,12 @@ Education-Course/
      - Step 4: Subject-wise question attempt panel with real-time timer, palette, and orientation lock.
   6. **Safe Additive Migration (`supabase/migrations/20260921_test_series_hierarchy.sql`):** Preserves existing data, demo tests, and backwards compatibility.
   7. **Responsive "Create New Test" Modal:** Constrained modal to `max-h-[90vh]` with fixed header and sticky footer (`shrink-0`), internal body scrolling (`overflow-y-auto min-h-0`), and fixed viewport overlay (`overflow-hidden`). Guaranteed full accessibility and visibility of all 4 form sections and action buttons at 100% desktop zoom.
+  8. **Admin Users Infinite Loading Fixed:** Resolved bug where `fetchUsers()` returned early before calling `setLoading(false)`, causing perpetual spinner display. Wrapped in unconditional `try...finally` dismissal, added 12s request timeout, clear error state with retry button, and single-user detail modal resilience.
 - **Verification:**
   - `npx tsc --noEmit`: Code 0 (clean).
   - `npm run build`: Code 0 (clean, 40 routes).
   - Live Endpoint Probe: Free and Paid endpoints tested and verified.
+  - Admin Users API Probe: End-to-end admin token verification passed; returns registered users and activity metrics with 200 OK.
 
 ## Last Updated
 

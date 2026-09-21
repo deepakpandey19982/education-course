@@ -60,86 +60,135 @@ interface UserDetailResponse {
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userDetail, setUserDetail] = useState<UserDetailResponse | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Avatar URLs mapped by user ID with storage resolved URLs
   const [resolvedAvatars, setResolvedAvatars] = useState<Record<string, string>>({});
 
   const fetchUsers = async (isManual = false) => {
-    if (isManual) setIsRefreshing(true);
+    if (isManual) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // 1. Obtain current user session token
+      let token: string | null = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token || null;
+      } catch (sessionErr) {
+        console.warn('Could not get session:', sessionErr);
+      }
+
       const headers: Record<string, string> = {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
       };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch(getApiUrl(`/api/admin/users?_t=${Date.now()}`), {
-        headers,
-        cache: 'no-store',
-      });
+      // 2. Fetch from API route with 12s timeout protection
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      if (res.ok) {
-        const data = await res.json();
-        const usersList: UserSummary[] = data.users || [];
-        setUsers(usersList);
+      let apiSuccess = false;
+      try {
+        const res = await fetch(getApiUrl(`/api/admin/users?_t=${Date.now()}`), {
+          headers,
+          cache: 'no-store',
+          signal: controller.signal,
+          credentials: 'include',
+        });
+        clearTimeout(timeoutId);
 
-        // Resolve avatars asynchronously
-        const avatarMap: Record<string, string> = {};
-        for (const u of usersList) {
-          if (u.avatar_url) {
-            avatarMap[u.id] = await resolveStorageUrl(u.avatar_url);
+        if (res.ok) {
+          const data = await res.json();
+          const usersList: UserSummary[] = data.users || [];
+          setUsers(usersList);
+          apiSuccess = true;
+
+          // Resolve avatars asynchronously in background
+          for (const u of usersList) {
+            if (u.avatar_url) {
+              resolveStorageUrl(u.avatar_url)
+                .then((resolved) => {
+                  setResolvedAvatars((prev) => ({ ...prev, [u.id]: resolved }));
+                })
+                .catch(() => {});
+            }
+          }
+        } else {
+          const errData = await res.json().catch(() => null);
+          const msg = errData?.error || `Request failed with status ${res.status}`;
+          console.warn('API fetch admin users returned error:', msg);
+          if (res.status === 401 || res.status === 403) {
+            setError(msg);
           }
         }
-        setResolvedAvatars(avatarMap);
-        return;
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        console.warn('API fetch admin users failed:', fetchErr);
       }
-    } catch (err) {
-      console.warn('API fetch admin users failed, attempting Supabase fallback:', err);
-    }
 
-    // Direct Supabase Fallback for mobile/Capacitor
-    try {
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // 3. Fallback to direct Supabase query if API didn't succeed
+      if (!apiSuccess) {
+        try {
+          const { data: allProfiles, error: profilesErr } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-      if (allProfiles && allProfiles.length > 0) {
-        const { data: paidOrders } = await supabase
-          .from('orders')
-          .select('user_id')
-          .eq('status', 'paid');
+          if (profilesErr) {
+            console.error('Supabase fallback profiles error:', profilesErr);
+            setError((prev) => prev || profilesErr.message);
+          } else if (allProfiles && allProfiles.length > 0) {
+            const { data: paidOrders } = await supabase
+              .from('orders')
+              .select('user_id')
+              .eq('status', 'paid');
 
-        const ordersCountMap: Record<string, number> = {};
-        (paidOrders || []).forEach((o: any) => {
-          ordersCountMap[o.user_id] = (ordersCountMap[o.user_id] || 0) + 1;
-        });
+            const ordersCountMap: Record<string, number> = {};
+            (paidOrders || []).forEach((o: any) => {
+              if (o.user_id) {
+                ordersCountMap[o.user_id] = (ordersCountMap[o.user_id] || 0) + 1;
+              }
+            });
 
-        const usersList: UserSummary[] = allProfiles.map((p: any) => ({
-          id: p.id,
-          name: p.full_name || 'Anonymous User',
-          email: p.email,
-          avatar_url: p.avatar_url || null,
-          role: p.role || 'user',
-          joined_date: p.created_at,
-          total_purchased_courses: ordersCountMap[p.id] || 0,
-          total_downloads: 0,
-        }));
-        setUsers(usersList);
+            const usersList: UserSummary[] = allProfiles.map((p: any) => ({
+              id: p.id,
+              name: p.full_name || 'Anonymous User',
+              email: p.email,
+              avatar_url: p.avatar_url || null,
+              role: p.role || 'user',
+              joined_date: p.created_at,
+              total_purchased_courses: ordersCountMap[p.id] || 0,
+              total_downloads: 0,
+            }));
+            setUsers(usersList);
+            setError(null);
+          }
+        } catch (directErr: any) {
+          console.error('Supabase direct users fallback error:', directErr);
+          setError((prev) => prev || directErr?.message || 'Failed to load registered users');
+        }
       }
-    } catch (directErr) {
-      console.error('Supabase direct users fallback error:', directErr);
+    } catch (unexpectedErr: any) {
+      console.error('Unexpected error in fetchUsers:', unexpectedErr);
+      setError(unexpectedErr?.message || 'An unexpected error occurred while loading users');
     } finally {
+      // GUARANTEED: Spinner is always dismissed!
       setLoading(false);
-      if (isManual) setIsRefreshing(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -161,86 +210,122 @@ export default function AdminUsersPage() {
   const openUserDetails = async (userId: string) => {
     setSelectedUserId(userId);
     setLoadingDetail(true);
+    setDetailError(null);
     setUserDetail(null);
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      let token: string | null = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token || null;
+      } catch (sessionErr) {
+        console.warn('Could not get session:', sessionErr);
+      }
+
       const headers: Record<string, string> = {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
       };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch(getApiUrl(`/api/admin/users?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`), {
-        headers,
-        cache: 'no-store',
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      if (res.ok) {
-        const data: UserDetailResponse = await res.json();
-        if (data.profile.avatar_url) {
-          data.profile.avatar_url = await resolveStorageUrl(data.profile.avatar_url);
+      let detailLoaded = false;
+      try {
+        const res = await fetch(
+          getApiUrl(`/api/admin/users?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`),
+          {
+            headers,
+            cache: 'no-store',
+            signal: controller.signal,
+            credentials: 'include',
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data: UserDetailResponse = await res.json();
+          if (data.profile.avatar_url) {
+            data.profile.avatar_url = await resolveStorageUrl(data.profile.avatar_url);
+          }
+          setUserDetail(data);
+          detailLoaded = true;
+        } else {
+          const errData = await res.json().catch(() => null);
+          console.warn('API openUserDetails error:', errData);
         }
-        setUserDetail(data);
-        return;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn('API openUserDetails failed, falling back to Supabase:', err);
       }
-    } catch (err) {
-      console.warn('API openUserDetails failed, falling back to Supabase:', err);
-    }
 
-    // Direct Supabase fallback for mobile
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // Direct Supabase fallback
+      if (!detailLoaded) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
 
-      if (profile) {
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('id, course_id, amount, status, payment_id, created_at, courses(title)')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
+          if (profile) {
+            const { data: orders } = await supabase
+              .from('orders')
+              .select('id, course_id, amount, status, payment_id, created_at, courses(title)')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false });
 
-        const purchasedCourses = (orders || [])
-          .filter((o: any) => o.status === 'paid')
-          .map((o: any) => ({
-            order_id: o.id,
-            course_id: o.course_id,
-            course_name: (o.courses as any)?.title || 'Course',
-            purchase_date: o.created_at,
-            amount_paid: o.amount,
-            status: o.status,
-            payment_id: o.payment_id,
-          }));
+            const purchasedCourses = (orders || [])
+              .filter((o: any) => o.status === 'paid')
+              .map((o: any) => ({
+                order_id: o.id,
+                course_id: o.course_id,
+                course_name: (o.courses as any)?.title || 'Course',
+                purchase_date: o.created_at,
+                amount_paid: o.amount,
+                status: o.status,
+                payment_id: o.payment_id,
+              }));
 
-        let resolvedAvatar = profile.avatar_url;
-        if (resolvedAvatar) {
-          resolvedAvatar = await resolveStorageUrl(resolvedAvatar);
+            let resolvedAvatar = profile.avatar_url;
+            if (resolvedAvatar) {
+              resolvedAvatar = await resolveStorageUrl(resolvedAvatar);
+            }
+
+            setUserDetail({
+              profile: {
+                id: profile.id,
+                name: profile.full_name || 'Anonymous User',
+                email: profile.email,
+                avatar_url: resolvedAvatar || null,
+                role: profile.role || 'user',
+                joined_date: profile.created_at,
+              },
+              purchased_courses: purchasedCourses,
+              download_history: [],
+              stats: {
+                total_purchased: purchasedCourses.length,
+                total_downloads: 0,
+              },
+            });
+            detailLoaded = true;
+          }
+        } catch (directErr) {
+          console.error('Failed to load user details from Supabase fallback:', directErr);
         }
-
-        setUserDetail({
-          profile: {
-            id: profile.id,
-            name: profile.full_name || 'Anonymous User',
-            email: profile.email,
-            avatar_url: resolvedAvatar || null,
-            role: profile.role || 'user',
-            joined_date: profile.created_at,
-          },
-          purchased_courses: purchasedCourses,
-          download_history: [],
-          stats: {
-            total_purchased: purchasedCourses.length,
-            total_downloads: 0,
-          },
-        });
       }
-    } catch (directErr) {
-      console.error('Failed to load user details from Supabase fallback:', directErr);
+
+      if (!detailLoaded) {
+        setDetailError('Could not load activity details for this user.');
+      }
+    } catch (err: any) {
+      console.error('Error in openUserDetails:', err);
+      setDetailError(err?.message || 'Error loading user details.');
     } finally {
+      // GUARANTEED: Detail modal spinner is always dismissed!
       setLoadingDetail(false);
     }
   };
@@ -248,6 +333,7 @@ export default function AdminUsersPage() {
   const closeUserDetails = () => {
     setSelectedUserId(null);
     setUserDetail(null);
+    setDetailError(null);
   };
 
   // Filter users by name or email
@@ -323,6 +409,21 @@ export default function AdminUsersPage() {
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading registered users...</p>
+          </div>
+        ) : error && users.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-3 text-xl font-bold">
+              !
+            </div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Unable to Load Users</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              {error}
+            </p>
+            <div className="mt-4">
+              <Button onClick={() => fetchUsers(true)} variant="outline" size="sm">
+                Try Again
+              </Button>
+            </div>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="p-12 text-center">
@@ -506,8 +607,12 @@ export default function AdminUsersPage() {
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                   <p className="mt-2 text-sm text-slate-500">Loading user activity and history...</p>
                 </div>
-              ) : !userDetail ? (
-                <p className="text-center text-sm text-red-500">Could not load details for this user.</p>
+              ) : detailError || !userDetail ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-red-500 font-medium">
+                    {detailError || 'Could not load details for this user.'}
+                  </p>
+                </div>
               ) : (
                 <>
                   {/* Summary Metric Pills */}

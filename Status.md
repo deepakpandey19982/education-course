@@ -24,12 +24,16 @@ Phase 22 — Test Series Admin Management Hierarchy Redesign & Multi-Subject Tes
   5. **Create New Test Modal Responsive Sizing (100% Zoom):**
      - **Issue:** At 100% browser zoom on standard laptop/desktop displays, the "Create New Test" modal exceeded viewport height with no internal scrolling, causing bottom action buttons (Cancel / Create Test) to be cut off unless zoomed out to 67%.
      - **Fix:** Refactored modal container into a flex column with `max-h-[90vh]`, fixed top header, scrollable body (`overflow-y-auto min-h-0`) containing all 4 form sections, and a fixed sticky footer (`shrink-0`) keeping Cancel and Create Test buttons permanently accessible.
+  6. **Admin Users Management Infinite Loading Resolution:**
+     - **Root Cause:** In `src/app/admin/users/page.tsx`, `fetchUsers()` contained an early `return;` inside `if (res.ok)` immediately after parsing the response, before `setLoading(false)` or `setIsRefreshing(false)` was executed. Because `finally { setLoading(false); }` was attached only to the second fallback try-catch block, `setLoading(false)` was skipped on successful API responses, leaving `loading: true` perpetually active with the spinner running indefinitely. Similarly, `openUserDetails()` suffered from the same early return bug for the detail modal.
+     - **Fix:** Restructured `fetchUsers()` and `openUserDetails()` with robust `try...catch...finally` architecture guaranteeing `setLoading(false)`, `setIsRefreshing(false)`, and `setLoadingDetail(false)` execute on all outcomes. Added 12s timeout protection via `AbortController`, clear error messaging with a "Try Again" retry action, and defensive non-blocking downloads aggregation in `/api/admin/users/route.ts`.
 
 ## Validation Results
 
 - **TypeScript Typecheck:** `npx tsc --noEmit` exited with code 0 (clean).
 - **Production Build:** `npm run build` completed successfully (40 routes compiled).
 - **Modal Responsiveness:** Verified modal conforms to 90vh maximum height with internal scrolling at 100% browser zoom.
+- **Admin Users Verification:** Verified `/api/admin/users` end-to-end with active admin token, returning HTTP 200 with registered users and single-user details. Confirmed spinner immediately resolves to the user table.
 
 ## Last Updated
 
