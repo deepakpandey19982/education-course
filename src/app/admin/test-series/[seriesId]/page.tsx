@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/Button';
 import { ImageUploadField } from '../_components/ImageUploadField';
 import {
   decodeSubjectTag,
+  decodeTestSubjectsTag,
   encodeSubjectTag,
+  encodeTestSubjectsTag,
   resolveQuestionSubjectId,
+  resolveTestSubjectIds,
 } from '../_components/testSeriesHelpers';
 import type { TestSeries, TestSeriesSubject, Test, Question } from '@/types/supabase';
 
@@ -212,6 +215,21 @@ export default function DedicatedSeriesManagementPage() {
           .order('order', { ascending: true });
         testRows = tData ?? [];
       }
+      try {
+        const { data: directTests } = await supabase
+          .from('tests')
+          .select('*')
+          .eq('series_id', seriesId)
+          .order('order', { ascending: true });
+        if (directTests && directTests.length > 0) {
+          const existingIds = new Set(testRows.map((t) => t.id));
+          directTests.forEach((t) => {
+            if (!existingIds.has(t.id)) testRows.push(t);
+          });
+        }
+      } catch {
+        // Safe fallback if series_id column not present in DB cache
+      }
       setTests(testRows);
 
       // Auto-select first test if none selected or invalid
@@ -254,11 +272,7 @@ export default function DedicatedSeriesManagementPage() {
   // Subjects assigned to current test
   const assignedSubjectsForCurrentTest = useMemo(() => {
     if (!currentTest) return subjects;
-    const testSubIds = new Set<string>();
-    if (currentTest.subject_id) testSubIds.add(currentTest.subject_id);
-    if (Array.isArray((currentTest as any).subject_ids)) {
-      (currentTest as any).subject_ids.forEach((id: string) => testSubIds.add(id));
-    }
+    const testSubIds = new Set<string>(resolveTestSubjectIds(currentTest));
     // Also include subjects of existing questions in this test
     questions
       .filter((q) => q.test_id === currentTest.id)
@@ -462,18 +476,15 @@ export default function DedicatedSeriesManagementPage() {
   };
 
   const openEditTestModal = (test: Test) => {
-    const assignedIds = new Set<string>();
-    if (test.subject_id) assignedIds.add(test.subject_id);
-    if (Array.isArray((test as any).subject_ids)) {
-      (test as any).subject_ids.forEach((id: string) => assignedIds.add(id));
-    }
-    // Also add subjects of questions inside this test
+    const assignedIds = new Set<string>(resolveTestSubjectIds(test));
     questions
       .filter((q) => q.test_id === test.id)
       .forEach((q) => {
         const sId = resolveQuestionSubjectId(q, test);
         if (sId) assignedIds.add(sId);
       });
+
+    const decoded = decodeTestSubjectsTag(test.instructions);
 
     setTestForm({
       id: test.id,
@@ -484,7 +495,7 @@ export default function DedicatedSeriesManagementPage() {
       marks_per_correct: Number(test.marks_per_correct ?? 1),
       negative_marks: Number(test.negative_marks ?? 0),
       language: test.language || 'English',
-      instructions: test.instructions || '',
+      instructions: decoded.cleanInstructions,
       is_paid: test.is_paid,
       price: test.price || 0,
       is_published: test.is_published,
@@ -513,6 +524,12 @@ export default function DedicatedSeriesManagementPage() {
       // Primary subject_id is the first selected subject
       const primarySubjectId = testForm.selected_subject_ids[0];
 
+      // Encode multi-subject mapping in instructions as guaranteed fallback
+      const taggedInstructions = encodeTestSubjectsTag(
+        testForm.instructions.trim() || null,
+        testForm.selected_subject_ids
+      );
+
       const payload: any = {
         subject_id: primarySubjectId,
         title: testForm.title.trim(),
@@ -522,7 +539,7 @@ export default function DedicatedSeriesManagementPage() {
         marks_per_correct: Number(testForm.marks_per_correct) || 1,
         negative_marks: Number(testForm.negative_marks) || 0,
         language: testForm.language || 'English',
-        instructions: testForm.instructions.trim() || null,
+        instructions: taggedInstructions || null,
         is_paid: testForm.is_paid,
         price: testForm.is_paid ? Number(testForm.price) || 0 : 0,
         is_published: testForm.is_published,
@@ -601,7 +618,8 @@ export default function DedicatedSeriesManagementPage() {
       alert('Please select or create a Test first.');
       return;
     }
-    const defaultSubId = assignedSubjectsForCurrentTest[0]?.id || subjects[0]?.id || '';
+    const preferredSubId = selectedSubjectFilter !== 'all' ? selectedSubjectFilter : '';
+    const defaultSubId = preferredSubId || assignedSubjectsForCurrentTest[0]?.id || subjects[0]?.id || '';
     setQuestionForm(
       emptyQuestionForm(
         defaultSubId,
@@ -1082,11 +1100,7 @@ export default function DedicatedSeriesManagementPage() {
               {tests.map((test) => {
                 const qCount = questions.filter((q) => q.test_id === test.id).length;
                 // Included subjects
-                const testSubIds = new Set<string>();
-                if (test.subject_id) testSubIds.add(test.subject_id);
-                if (Array.isArray((test as any).subject_ids)) {
-                  (test as any).subject_ids.forEach((id: string) => testSubIds.add(id));
-                }
+                const testSubIds = new Set<string>(resolveTestSubjectIds(test));
                 const includedSubjects = subjects.filter((s) => testSubIds.has(s.id));
 
                 return (
@@ -1967,6 +1981,19 @@ export default function DedicatedSeriesManagementPage() {
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                 {questionForm.id ? 'Edit Question' : 'Add Question'}
               </h2>
+              {/* Scope Indicator: Test & Subject */}
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 text-xs">
+                <div>
+                  <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Test</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{currentTest.title}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Subject</span>
+                  <span className="font-bold text-brand-primary dark:text-blue-400">
+                    {assignedSubjectsForCurrentTest.find((s) => s.id === questionForm.subject_id)?.name || 'Select subject below'}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <form onSubmit={handleSaveQuestion} className="mt-4 space-y-4">

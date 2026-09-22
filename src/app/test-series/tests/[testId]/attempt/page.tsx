@@ -60,37 +60,31 @@ export default function TestAttemptPage() {
       return list.map((subject) => ({ id: subject.id, name: subject.name, questions: [] }));
     }
 
-    const hasExplicitSubjectIds = questions.some((question) => Boolean(question.subject_id));
-    if (hasExplicitSubjectIds) {
-      const grouped = new Map<string, number[]>();
-      questions.forEach((question, questionIndex) => {
-        const mappedSubjectId = question.subject_id || (testSubjects.find((subject) => subject.id === question.subject_id)?.id) || list[0]?.id || 'single-subject';
-        const current = grouped.get(mappedSubjectId) ?? [];
-        current.push(questionIndex);
-        grouped.set(mappedSubjectId, current);
-      });
-
-      return list.map((subject) => ({
-        id: subject.id,
-        name: subject.name,
-        questions: grouped.get(subject.id) ?? [],
-      }));
+    const grouped = new Map<string, number[]>();
+    for (const sub of list) {
+      grouped.set(sub.id, []);
     }
 
-    const ranges = list.map((subject, subjectIndex) => {
-      const start = Math.floor((questions.length * subjectIndex) / list.length);
-      const end = Math.floor((questions.length * (subjectIndex + 1)) / list.length);
-      return {
-        id: subject.id,
-        name: subject.name,
-        start,
-        end: Math.max(start, end),
-      };
+    questions.forEach((question, questionIndex) => {
+      let targetSubjectId = question.subject_id;
+      if (!targetSubjectId || !grouped.has(targetSubjectId)) {
+        const found = list.find((s) => s.id === question.subject_id);
+        targetSubjectId = found ? found.id : list[0]?.id;
+      }
+      if (targetSubjectId && grouped.has(targetSubjectId)) {
+        grouped.get(targetSubjectId)!.push(questionIndex);
+      } else {
+        const fallbackId = list[0]?.id;
+        if (fallbackId && grouped.has(fallbackId)) {
+          grouped.get(fallbackId)!.push(questionIndex);
+        }
+      }
     });
 
-    return ranges.map((group) => ({
-      ...group,
-      questions: questions.slice(group.start, group.end).map((_, localIndex) => group.start + localIndex),
+    return list.map((subject) => ({
+      id: subject.id,
+      name: subject.name,
+      questions: grouped.get(subject.id) ?? [],
     }));
   }, [questions, subjectName, testSubjects]);
 
@@ -350,7 +344,16 @@ export default function TestAttemptPage() {
       <main className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 pb-20 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_320px] gap-4 md:gap-6">
         <section className="bg-white dark:bg-slate-900 rounded-2xl soft-shadow border border-slate-100 dark:border-slate-800 p-4 sm:p-6 md:p-8 flex flex-col min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold text-brand-primary dark:text-blue-400">Question {index + 1}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold text-brand-primary dark:text-blue-400">
+                Question {index + 1} of {questionCount}
+              </p>
+              {subjectGroups[selectedSubjectIndex]?.name && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {subjectGroups[selectedSubjectIndex]?.name}
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
               <span className="rounded-full bg-blue-50 dark:bg-blue-950/70 px-2.5 py-1 font-medium text-brand-primary dark:text-blue-300">+{marksPerCorrect} marks</span>
               <span className="rounded-full bg-rose-50 dark:bg-rose-950/70 px-2.5 py-1 font-medium text-rose-700 dark:text-rose-300">-{negativeMarks} negative</span>

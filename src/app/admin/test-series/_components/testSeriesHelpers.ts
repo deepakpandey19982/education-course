@@ -17,6 +17,47 @@ export function decodeSubjectTag(explanation: string | null | undefined): { subj
   };
 }
 
+export function encodeTestSubjectsTag(instructions: string | null | undefined, subjectIds: string[]): string {
+  const cleanInst = (instructions || '').replace(/<!--subjects:\[[^\]]*\]-->/gi, '').trim();
+  if (!subjectIds || subjectIds.length === 0) return cleanInst;
+  return `<!--subjects:${JSON.stringify(subjectIds)}-->${cleanInst}`;
+}
+
+export function decodeTestSubjectsTag(instructions: string | null | undefined): { subjectIds: string[]; cleanInstructions: string } {
+  if (!instructions) return { subjectIds: [], cleanInstructions: '' };
+  const match = instructions.match(/<!--subjects:(\[[^\]]*\])-->/i);
+  let subjectIds: string[] = [];
+  if (match) {
+    try {
+      subjectIds = JSON.parse(match[1]);
+    } catch {
+      subjectIds = [];
+    }
+  }
+  const cleanInstructions = instructions.replace(/<!--subjects:\[[^\]]*\]-->/gi, '').trim();
+  return { subjectIds, cleanInstructions };
+}
+
+export function resolveTestSubjectIds(test: any): string[] {
+  if (!test) return [];
+  const ids = new Set<string>();
+  if (Array.isArray(test.subject_ids) && test.subject_ids.length > 0) {
+    test.subject_ids.forEach((id: string) => {
+      if (id && typeof id === 'string') ids.add(id);
+    });
+  }
+  if (test.instructions) {
+    const decoded = decodeTestSubjectsTag(test.instructions);
+    decoded.subjectIds.forEach((id) => {
+      if (id && typeof id === 'string') ids.add(id);
+    });
+  }
+  if (test.subject_id && typeof test.subject_id === 'string') {
+    ids.add(test.subject_id);
+  }
+  return Array.from(ids);
+}
+
 export function resolveQuestionSubjectId(question: any, parentTest?: Test | null): string {
   if (question.subject_id) return question.subject_id;
   const decoded = decodeSubjectTag(question.explanation);

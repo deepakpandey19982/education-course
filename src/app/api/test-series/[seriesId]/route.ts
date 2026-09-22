@@ -89,6 +89,24 @@ export async function GET(
       }
     }
 
+    try {
+      const { data: directTests } = await admin
+        .from('tests')
+        .select('id, series_id, subject_id, subject_ids, title, date_label, thumbnail_url, duration_minutes, max_marks, language, instructions, is_paid, price, is_published, scheduled_start, scheduled_end, order')
+        .eq('series_id', seriesId)
+        .eq('is_published', true)
+        .eq('is_paid', type === 'paid')
+        .order('order', { ascending: true });
+      if (directTests && directTests.length > 0) {
+        const existingIds = new Set(tests.map((t) => t.id));
+        directTests.forEach((t) => {
+          if (!existingIds.has(t.id)) tests.push(t);
+        });
+      }
+    } catch {
+      // Safe fallback if series_id column not present in DB cache
+    }
+
     const testIds = tests.map((test: any) => test.id);
     const { data: questionRows } = testIds.length
       ? await admin.from('questions').select('test_id').in('test_id', testIds)
@@ -99,6 +117,23 @@ export async function GET(
       questionCounts.set(test_id, (questionCounts.get(test_id) ?? 0) + 1);
     });
 
+    const { resolveTestSubjectIds, decodeTestSubjectsTag } = await import('@/app/admin/test-series/_components/testSeriesHelpers');
+    const enrichedTests = tests.map((test: any) => {
+      const configuredSubjectIds = resolveTestSubjectIds(test);
+      const testSubjects = subjectList
+        .filter((sub: any) => configuredSubjectIds.includes(sub.id))
+        .map((sub: any) => ({ id: sub.id, name: sub.name }));
+
+      const decoded = decodeTestSubjectsTag(test.instructions);
+
+      return {
+        ...test,
+        instructions: decoded.cleanInstructions,
+        question_count: questionCounts.get(test.id) ?? 0,
+        subjects: testSubjects.length > 0 ? testSubjects : [{ id: test.subject_id, name: 'Subject' }],
+      };
+    });
+
     const NO_CACHE_HEADERS = {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'Pragma': 'no-cache',
@@ -107,19 +142,15 @@ export async function GET(
 
     return NextResponse.json({
       series,
+      tests: enrichedTests,
       subjects: subjectList.map((subject: any) => {
-        const matchingTests = tests.filter((test: any) => {
-          if (test.subject_id === subject.id) return true;
-          if (Array.isArray(test.subject_ids) && test.subject_ids.includes(subject.id)) return true;
-          return false;
+        const matchingTests = enrichedTests.filter((test: any) => {
+          return test.subjects.some((s: any) => s.id === subject.id) || test.subject_id === subject.id;
         });
 
         return {
           ...subject,
-          tests: matchingTests.map((test: any) => ({
-            ...test,
-            question_count: questionCounts.get(test.id) ?? 0,
-          })),
+          tests: matchingTests,
         };
       }),
     }, { headers: NO_CACHE_HEADERS });

@@ -27,6 +27,7 @@ export type TestCard = {
   scheduled_start: string | null;
   scheduled_end: string | null;
   question_count: number;
+  subjects?: Array<{ id: string; name: string }>;
 };
 
 export type SubjectWithTests = {
@@ -44,6 +45,7 @@ export type SeriesDetailData = {
     thumbnail_url: string | null;
   };
   subjects: SubjectWithTests[];
+  tests?: TestCard[];
 };
 
 /**

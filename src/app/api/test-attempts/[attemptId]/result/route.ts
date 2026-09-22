@@ -46,10 +46,16 @@ export async function GET(
     }
 
     const answersByQuestion = new Map((answers ?? []).map((answer) => [answer.question_id, answer]));
-    const analysis = questions.map((question) => ({
-      ...question,
-      answer: answersByQuestion.get(question.id) ?? null,
-    }));
+    const analysis = questions.map((question) => {
+      const cleanExplanation = question.explanation
+        ? question.explanation.replace(/<!--subj:[a-f0-9-]+-->/gi, '').trim()
+        : null;
+      return {
+        ...question,
+        explanation: cleanExplanation || null,
+        answer: answersByQuestion.get(question.id) ?? null,
+      };
+    });
 
     return NextResponse.json({ attempt, analysis });
   } catch (error) {

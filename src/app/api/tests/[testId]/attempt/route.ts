@@ -5,6 +5,7 @@ import {
   getSupabaseAdmin,
   stripQuestionAnswers,
 } from '@/lib/test-series-server';
+import { resolveTestSubjectIds } from '@/app/admin/test-series/_components/testSeriesHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,41 +100,78 @@ export async function POST(
       return NextResponse.json({ error: `Could not load test questions: ${detail}` }, { status: 500 });
     }
 
-    const { data: testMeta, error: testMetaError } = await admin
+    let testMeta: any = null;
+    const { data: fullTestMeta, error: fullTestMetaError } = await admin
       .from('tests')
-      .select('id, title, subject_id, marks_per_correct, negative_marks')
+      .select('id, title, subject_id, instructions, marks_per_correct, negative_marks')
       .eq('id', testId)
       .maybeSingle();
 
-    if (testMetaError || !testMeta) {
-      return NextResponse.json({ error: 'Could not load this test configuration' }, { status: 500 });
+    if (!fullTestMetaError && fullTestMeta) {
+      testMeta = fullTestMeta;
+    } else {
+      const { data: fbTestMeta, error: fbError } = await admin
+        .from('tests')
+        .select('id, title, subject_id, marks_per_correct, negative_marks')
+        .eq('id', testId)
+        .maybeSingle();
+      if (fbError || !fbTestMeta) {
+        return NextResponse.json({ error: 'Could not load this test configuration' }, { status: 500 });
+      }
+      testMeta = fbTestMeta;
     }
 
-    const { data: subjectMeta, error: subjectMetaError } = await admin
-      .from('test_series_subjects')
-      .select('id, name, series_id')
-      .eq('id', testMeta.subject_id)
-      .maybeSingle();
-
-    if (subjectMetaError) {
-      return NextResponse.json({ error: 'Could not load the subject configuration' }, { status: 500 });
+    // Try reading subject_ids column if available
+    try {
+      const { data: sidsData } = await admin
+        .from('tests')
+        .select('subject_ids')
+        .eq('id', testId)
+        .maybeSingle();
+      if (sidsData?.subject_ids && Array.isArray(sidsData.subject_ids)) {
+        testMeta.subject_ids = sidsData.subject_ids;
+      }
+    } catch {
+      // Ignore if subject_ids column doesn't exist
     }
 
-    const { data: seriesSubjects, error: seriesSubjectsError } = subjectMeta?.series_id
+    const configuredSubjectIds = resolveTestSubjectIds(testMeta);
+    if (!configuredSubjectIds.length && testMeta.subject_id) {
+      configuredSubjectIds.push(testMeta.subject_id);
+    }
+
+    // Load EXACTLY the subjects configured for this test
+    const { data: testSubjectsData, error: testSubjectsError } = configuredSubjectIds.length > 0
       ? await admin
           .from('test_series_subjects')
           .select('id, name, order')
-          .eq('series_id', subjectMeta.series_id)
+          .in('id', configuredSubjectIds)
           .eq('is_enabled', true)
           .order('order', { ascending: true })
       : { data: [], error: null };
 
-    if (seriesSubjectsError) {
+    if (testSubjectsError) {
       return NextResponse.json({ error: 'Could not load the test subject list' }, { status: 500 });
     }
 
-    const resolvedSubjectId = subjectMeta?.id || testMeta.subject_id || null;
-    const uniqueSubjectIds = new Set<string>();
+    // Preserve the order defined in configuredSubjectIds
+    const subjectMap = new Map((testSubjectsData ?? []).map((s: any) => [s.id, s]));
+    const orderedSubjects: Array<{ id: string; name: string }> = [];
+    for (const sid of configuredSubjectIds) {
+      const s = subjectMap.get(sid);
+      if (s && !orderedSubjects.some((os) => os.id === s.id)) {
+        orderedSubjects.push({ id: s.id, name: s.name });
+      }
+    }
+    for (const s of (testSubjectsData ?? [])) {
+      if (!orderedSubjects.some((os) => os.id === s.id)) {
+        orderedSubjects.push({ id: s.id, name: s.name });
+      }
+    }
+
+    if (!orderedSubjects.length) {
+      orderedSubjects.push({ id: testMeta.subject_id || 'default-subject', name: 'General' });
+    }
 
     const mappedQuestions = (questions ?? []).map((q: any) => {
       let subjId = q.subject_id;
@@ -141,8 +179,7 @@ export async function POST(
         const match = q.explanation.match(/<!--subj:([a-f0-9-]+)-->/i);
         if (match) subjId = match[1];
       }
-      subjId = subjId || resolvedSubjectId;
-      if (subjId) uniqueSubjectIds.add(subjId);
+      subjId = subjId || testMeta.subject_id || orderedSubjects[0]?.id || null;
 
       return {
         ...stripQuestionAnswers(q),
@@ -150,18 +187,13 @@ export async function POST(
       };
     });
 
-    if (resolvedSubjectId) uniqueSubjectIds.add(resolvedSubjectId);
-
-    const subjectList = (seriesSubjects ?? []).filter((subject) => uniqueSubjectIds.has(subject.id));
-    const fallbackSubjects = subjectList.length > 0 ? subjectList : (seriesSubjects ?? []).filter((subject) => subject.id === subjectMeta?.id || subject.id === testMeta.subject_id);
-
     return NextResponse.json({
       attempt,
       test: {
         id: test.id,
         title: test.title,
-        subject_name: subjectMeta?.name ?? 'Subject',
-        subjects: (fallbackSubjects.length > 0 ? fallbackSubjects : (seriesSubjects ?? []).map((subject) => ({ id: subject.id, name: subject.name }))).map((subject) => ({ id: subject.id, name: subject.name })),
+        subject_name: orderedSubjects[0]?.name ?? 'Subject',
+        subjects: orderedSubjects,
         marks_per_correct: Number(testMeta.marks_per_correct ?? 1),
         negative_marks: Number(testMeta.negative_marks ?? 0),
       },

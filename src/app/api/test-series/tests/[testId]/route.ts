@@ -26,13 +26,34 @@ export async function GET(
       .eq('test_id', testId);
     if (countError) throw countError;
 
+    const { decodeTestSubjectsTag, resolveTestSubjectIds } = await import('@/app/admin/test-series/_components/testSeriesHelpers');
+    const decoded = decodeTestSubjectsTag(test.instructions);
+    const configuredSubjectIds = resolveTestSubjectIds(test);
+    let subjects: any[] = [];
+    if (configuredSubjectIds.length > 0) {
+      const { data: subs } = await admin
+        .from('test_series_subjects')
+        .select('id, name, order')
+        .in('id', configuredSubjectIds)
+        .eq('is_enabled', true)
+        .order('order', { ascending: true });
+      subjects = subs ?? [];
+    }
+
     const NO_CACHE_HEADERS = {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'Pragma': 'no-cache',
       'Expires': '0',
     };
 
-    return NextResponse.json({ test: { ...test, question_count: count ?? 0 } }, { headers: NO_CACHE_HEADERS });
+    return NextResponse.json({
+      test: {
+        ...test,
+        instructions: decoded.cleanInstructions,
+        subjects,
+        question_count: count ?? 0,
+      },
+    }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error('Test detail error:', error);
     return NextResponse.json(

@@ -34,27 +34,32 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 22)
+## Latest Production Status & Updates (Phase 23)
 
-- **Key Changes:**
-  1. **Admin Test Series Central Hub (`/admin/test-series`):** Clean, non-technical overview showing series cards with Published/Draft status, Free/Paid badge, metrics (Subjects, Tests, Questions), and quick "+ Create Test Series" modal.
-  2. **Dedicated Series Manager (`/admin/test-series/[seriesId]`):** 4 distinct tabs (Overview, Subjects, Tests, Questions) for managing a single series without technical clutter.
-  3. **Multi-Subject Tests (Section 4):** Tests configure which subjects are included from the parent series with question counts and target indicators.
-  4. **Question Bank Context Management:** Context header (Series → Test → Subject), subject filters, search, and intuitive question creation/editing.
-  5. **Student 4-Step Journey Alignment:**
-     - Step 1: Dynamic published series list on `/test-series` & `/test-series/paid`.
-     - Step 2: Series detail page displaying subjects with configured tests and 0-test empty indicators.
-     - Step 3: Instructions & Agree & Continue screen.
-     - Step 4: Subject-wise question attempt panel with real-time timer, palette, and orientation lock.
-  6. **Safe Additive Migration (`supabase/migrations/20260921_test_series_hierarchy.sql`):** Preserves existing data, demo tests, and backwards compatibility.
-  7. **Responsive "Create New Test" Modal:** Constrained modal to `max-h-[90vh]` with fixed header and sticky footer (`shrink-0`), internal body scrolling (`overflow-y-auto min-h-0`), and fixed viewport overlay (`overflow-hidden`). Guaranteed full accessibility and visibility of all 4 form sections and action buttons at 100% desktop zoom.
-  8. **Admin Users Infinite Loading Fixed:** Resolved bug where `fetchUsers()` returned early before calling `setLoading(false)`, causing perpetual spinner display. Wrapped in unconditional `try...finally` dismissal, added 12s request timeout, clear error state with retry button, and single-user detail modal resilience.
+- **Test-Specific Subject & Question Flow Scoping:**
+  1. **Strict Hierarchy Established:** `TEST SERIES -> TEST -> SUBJECTS INCLUDED IN THAT TEST -> QUESTIONS OF THAT TEST + SUBJECT`.
+  2. **Scoped Questions & Subjects:**
+     - Questions strictly bounded to `test_id = test.id` AND `subject_id = subject.id`.
+     - Tests configure which subjects are included (`subject_ids` and fallback `<!--subjects:[...]-->` in instructions).
+     - On student attempt screen (`/test-series/tests/[testId]/attempt`), subject tabs show ONLY the subjects configured for that specific test.
+     - Questions are grouped strictly by `question.subject_id === subject.id` without synthetic slicing.
+     - Confirmed Test A + Computer questions never appear in Test B + Computer.
+  3. **Admin Management Flow:**
+     - Admin selects Test Series → creates/selects a Test → selects included subjects (Section 4 with question count indicators).
+     - Tab 4 (Questions) displays active test context with subject-wise question counts.
+     - Question modal explicitly displays scoped Test and Subject with pre-selection from active filter.
+     - Questions are stored, loaded, edited, and deleted strictly within test scope.
+  4. **Student Experience Alignment:**
+     - Series detail pages (`/test-series/[seriesId]` and `/test-series/paid/[seriesId]`) display tests belonging to the series with included subject badges, questions, marks, and duration.
+     - Student clicks "Attempt" → Agree & Continue (`/test-series/tests/[testId]/instructions`) → Timed Attempt Interface.
+     - Question counter displays `Question {index + 1} of {questionCount}` with active subject badge.
+     - Right-side question palette lists each configured subject with exact question count and interactive question status buttons.
 - **Verification:**
   - `npx tsc --noEmit`: Code 0 (clean).
   - `npm run build`: Code 0 (clean, 40 routes).
-  - Live Endpoint Probe: Free and Paid endpoints tested and verified.
-  - Admin Users API Probe: End-to-end admin token verification passed; returns registered users and activity metrics with 200 OK.
+  - Multi-Test Isolation & Subject Scoping Test (`scripts/test-hierarchy-verification.mjs`): Passed.
+  - Live Endpoint Probe: Free, Paid, and attempt endpoints verified with HTTP 200.
 
 ## Last Updated
 
-2026-09-21
+2026-09-22

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Footer from '@/components/shared/Footer';
 import Navbar from '@/components/shared/Navbar';
@@ -20,6 +20,8 @@ export default function TestSeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const [series, setSeries] = useState<SeriesDetailData['series'] | null>(null);
   const [subjects, setSubjects] = useState<SubjectWithTests[]>([]);
+  const [tests, setTests] = useState<TestCard[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +31,9 @@ export default function TestSeriesDetailPage() {
       const data = await fetchSeriesDetail(seriesId, 'free');
       setSeries(data.series);
       setSubjects(data.subjects);
+      const allTests: TestCard[] = data.tests || (data.subjects || []).flatMap((s) => s.tests);
+      const uniqueTests = Array.from(new Map(allTests.map((t) => [t.id, t])).values());
+      setTests(uniqueTests);
       setError('');
     } catch (reason: any) {
       setError(reason.message || 'Could not load this free test series.');
@@ -51,20 +56,186 @@ export default function TestSeriesDetailPage() {
     };
   }, [loadDetail]);
 
-  return <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950"><Navbar /><main className="flex-grow py-10">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {loading ? <Loading /> : error || !series ? <Message title="Test series unavailable" text={error || 'This series is not currently available.'} /> : <>
-        <section className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden soft-shadow border border-slate-100 dark:border-slate-800 mb-10">
-          <div className="grid md:grid-cols-3"><div className="h-56 md:h-full bg-blue-50 dark:bg-slate-800">{series.thumbnail_url ? <img src={series.thumbnail_url} alt={series.title} className="w-full h-full object-cover" /> : <div className="h-full min-h-56 flex items-center justify-center text-6xl">📝</div>}</div><div className="md:col-span-2 p-7 md:p-10"><p className="text-brand-primary dark:text-blue-400 font-bold text-sm uppercase tracking-widest">Test Series</p><h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white mt-2">{series.title}</h1><p className="text-slate-600 dark:text-slate-300 mt-5 whitespace-pre-wrap leading-relaxed">{series.description || 'Select a subject below to begin practicing.'}</p><p className="mt-6 inline-block bg-green-100 dark:bg-emerald-950/80 text-green-700 dark:text-emerald-300 text-sm font-bold px-3 py-1 rounded-full">Free and paid tests are clearly marked</p></div></div>
-        </section>
-        <section><h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-6">Subjects & Tests</h2>{subjects.length === 0 ? <Message title="No subjects available" text="Tests will appear here when the series is published." /> : <div className="space-y-6">{subjects.map((subject) => <article key={subject.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 soft-shadow overflow-hidden"><div className="p-5 md:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">{subject.icon_url ? <img src={subject.icon_url} alt="" className="h-12 w-12 rounded-xl object-cover" /> : <span className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950/70 flex items-center justify-center text-xl">📖</span>}<div><h3 className="text-xl font-bold text-slate-900 dark:text-white">{subject.name}</h3><p className="text-sm text-slate-500 dark:text-slate-400">{subject.tests.length} published {subject.tests.length === 1 ? 'test' : 'tests'}</p></div></div><div className="p-5 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-4">{subject.tests.length === 0 ? <p className="text-slate-500 dark:text-slate-400">No tests are available for this subject yet.</p> : subject.tests.map((test) => <TestCardView key={test.id} test={test} />)}</div></article>)}</div>}</section>
-      </>}
+  const filteredTests = useMemo(() => {
+    if (selectedSubjectId === 'all') return tests;
+    return tests.filter(
+      (t) =>
+        t.subjects?.some((s) => s.id === selectedSubjectId) ||
+        (t as any).subject_id === selectedSubjectId
+    );
+  }, [selectedSubjectId, tests]);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
+      <Navbar />
+      <main className="flex-grow py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {loading ? (
+            <Loading />
+          ) : error || !series ? (
+            <Message title="Test series unavailable" text={error || 'This series is not currently available.'} />
+          ) : (
+            <>
+              <section className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden soft-shadow border border-slate-100 dark:border-slate-800 mb-10">
+                <div className="grid md:grid-cols-3">
+                  <div className="h-56 md:h-full bg-blue-50 dark:bg-slate-800">
+                    {series.thumbnail_url ? (
+                      <img src={series.thumbnail_url} alt={series.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="h-full min-h-56 flex items-center justify-center text-6xl">📝</div>
+                    )}
+                  </div>
+                  <div className="md:col-span-2 p-7 md:p-10">
+                    <p className="text-brand-primary dark:text-blue-400 font-bold text-sm uppercase tracking-widest">
+                      Test Series
+                    </p>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white mt-2">
+                      {series.title}
+                    </h1>
+                    <p className="text-slate-600 dark:text-slate-300 mt-5 whitespace-pre-wrap leading-relaxed">
+                      {series.description || 'Select a test below to begin practicing.'}
+                    </p>
+                    <p className="mt-6 inline-block bg-green-100 dark:bg-emerald-950/80 text-green-700 dark:text-emerald-300 text-sm font-bold px-3 py-1 rounded-full">
+                      Free and paid tests are clearly marked
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Tests in this Series</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      Choose a test to start your timed practice exam.
+                    </p>
+                  </div>
+                  {subjects.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSubjectId('all')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                          selectedSubjectId === 'all'
+                            ? 'bg-brand-primary text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        All Tests ({tests.length})
+                      </button>
+                      {subjects.map((sub) => {
+                        const subCount = tests.filter(
+                          (t) =>
+                            t.subjects?.some((s) => s.id === sub.id) ||
+                            (t as any).subject_id === sub.id
+                        ).length;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => setSelectedSubjectId(sub.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                              selectedSubjectId === sub.id
+                                ? 'bg-brand-primary text-white shadow-xs'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {sub.name} ({subCount})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {filteredTests.length === 0 ? (
+                  <Message title="No tests available" text="Tests will appear here when published by the administrator." />
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {filteredTests.map((test) => (
+                      <TestCardView key={test.id} test={test} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </main>
+      <Footer />
     </div>
-  </main><Footer /></div>;
+  );
 }
 
 function TestCardView({ test }: { test: TestCard }) {
   const status = testStatus(test);
   const canStart = status === 'Available';
-  return <div className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 rounded-xl p-5"><div className="flex justify-between gap-3"><h4 className="font-bold text-slate-900 dark:text-white">{test.title}</h4><span className={`text-xs font-bold px-2 py-1 rounded h-fit ${test.is_paid ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300' : 'bg-green-100 dark:bg-emerald-950/80 text-green-700 dark:text-emerald-300'}`}>{test.is_paid ? `PAID · ₹${test.price}` : 'FREE'}</span></div><div className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 mt-4"><span>⏱ {test.duration_minutes} min</span><span>📝 {test.question_count} questions</span><span>🏆 {test.max_marks} marks</span><span>🌐 {test.language}</span></div><div className="flex items-center justify-between mt-5"><span className={`text-sm font-semibold ${status === 'Available' ? 'text-green-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{status}</span>{canStart ? <Link href={`/test-series/tests/${test.id}/instructions`}><Button size="sm">{test.is_paid ? 'Check Access' : 'Start Test'}</Button></Link> : <Button size="sm" disabled>{status}</Button>}</div></div>;
+  return (
+    <div className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 rounded-xl p-5 soft-shadow hover:border-brand-primary/40 transition-colors flex flex-col justify-between">
+      <div>
+        <div className="flex justify-between items-start gap-3">
+          <div>
+            <h4 className="font-bold text-lg text-slate-900 dark:text-white">{test.title}</h4>
+            {test.date_label && (
+              <span className="inline-block mt-1 text-[11px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                📅 {test.date_label}
+              </span>
+            )}
+          </div>
+          <span
+            className={`text-xs font-bold px-2.5 py-1 rounded-full h-fit ${
+              test.is_paid
+                ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300'
+                : 'bg-green-100 dark:bg-emerald-950/80 text-green-700 dark:text-emerald-300'
+            }`}
+          >
+            {test.is_paid ? `PAID · ₹${test.price}` : 'FREE'}
+          </span>
+        </div>
+
+        {/* Subjects in this Test */}
+        {test.subjects && test.subjects.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Subjects:
+            </span>
+            {test.subjects.map((sub) => (
+              <span
+                key={sub.id}
+                className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-brand-primary dark:text-blue-300 border border-blue-100 dark:border-blue-900/50"
+              >
+                {sub.name}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 mt-4">
+          <span>⏱ {test.duration_minutes} min</span>
+          <span>📝 {test.question_count} questions</span>
+          <span>🏆 {test.max_marks} marks</span>
+          <span>🌐 {test.language}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+        <span
+          className={`text-sm font-semibold ${
+            status === 'Available' ? 'text-green-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+          }`}
+        >
+          {status}
+        </span>
+        {canStart ? (
+          <Link href={`/test-series/tests/${test.id}/instructions`}>
+            <Button size="sm">{test.is_paid ? 'Check Access' : 'Attempt'}</Button>
+          </Link>
+        ) : (
+          <Button size="sm" disabled>
+            {status}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }
