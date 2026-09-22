@@ -2,7 +2,33 @@
 
 ## Current Phase
 
-Phase 24 — Edit Test Series Details Modal Viewport Responsiveness Fix
+Phase 25 — Add Question & Test Series Modals Viewport Responsiveness Fix
+
+- **Problem Statement:**
+  - At 100% normal desktop browser zoom, the "Add Question" modal was too tall and its bottom fields and action buttons (Cancel and Add Question / Save Changes) were not accessible or cut off within the viewport.
+  - At 75% browser zoom it was forced to fit, but it required a proper viewport-safe flex structure at 100% zoom.
+- **Root Cause & Layout Fix:**
+  - The "Add Question" modal overlay previously had `p-4 overflow-y-auto` while its container was `w-full max-w-2xl p-6 my-8` without vertical viewport boundaries or internal scroll segregation.
+  - Restructured the "Add Question" modal (and related modals) in `src/app/admin/test-series/[seriesId]/page.tsx` with standard viewport-safe flex architecture:
+    - **Modal Overlay:** `fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden`
+    - **Modal Container:** `bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl`
+    - **Modal Header:** `flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900` with series/test breadcrumbs and dedicated close `✕` button.
+    - **Form & Scrollable Body:** Form with `flex flex-col flex-1 min-h-0 overflow-hidden` containing a dedicated scrollable body `flex-1 overflow-y-auto min-h-0 p-6 space-y-4`. All fields (Test/Subject scope indicator, Subject dropdown, Question Text, 4 Options A-D, Correct Option pills, Explanation, Marks, Negative Marks, Language) are fully accessible via smooth internal scrolling.
+    - **Fixed Modal Footer:** `flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs` keeping Cancel and Add Question / Save Changes buttons permanently visible and accessible at 100% zoom.
+- **Constraints Maintained:**
+  - Zero database, API, question data structure, subject, payment, auth, or student flow changes.
+  - No font downsizing, field removals, or `transform: scale()` workarounds.
+  - Preserved existing visual design system, dark/light modes, and multi-test scoping.
+
+## Validation Results
+
+- **TypeScript Typecheck:** `npx tsc --noEmit` exited with code 0 (clean).
+- **Production Build:** `npm run build` completed successfully (40 routes compiled).
+- **Responsive Viewports:** Fully usable at 100% desktop zoom, 75% zoom, 80% zoom, laptop viewports, and mobile viewports.
+
+---
+
+## Phase 24 — Edit Test Series Details Modal Viewport Responsiveness Fix
 
 - **Problem Statement:**
   - The "Edit Test Series Details" modal worked at 80% browser zoom, but at 100% desktop browser zoom (and smaller laptop viewports), the modal was too tall, overflowing the viewport and cutting off the bottom form controls and Cancel / Save Changes buttons.

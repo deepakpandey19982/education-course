@@ -1578,69 +1578,76 @@ export default function DedicatedSeriesManagementPage() {
       {/* MODAL: ADD / EDIT SUBJECT */}
       {/* =================================================================== */}
       {isSubjectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-md p-6 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                 {subjectForm.id ? 'Edit Subject' : `Add Subject to ${series.title}`}
               </h2>
-              <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="text-slate-400 p-1">
+              <button
+                type="button"
+                onClick={() => setIsSubjectModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveSubject} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Subject Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Computer, General Knowledge, Reasoning, Hindi"
-                  value={subjectForm.name}
-                  onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <ImageUploadField
-                label="Subject Icon / Image (Optional)"
-                folder="subjects"
-                existingUrl={subjectForm.icon_url}
-                onUrlChange={(url) => setSubjectForm({ ...subjectForm, icon_url: url })}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSaveSubject} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Display Order
+                    Subject Name *
                   </label>
                   <input
-                    type="number"
-                    value={subjectForm.order}
-                    onChange={(e) => setSubjectForm({ ...subjectForm, order: Number(e.target.value) || 0 })}
+                    type="text"
+                    required
+                    placeholder="e.g. Computer, General Knowledge, Reasoning, Hindi"
+                    value={subjectForm.name}
+                    onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })}
                     className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Status
-                  </label>
-                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                <ImageUploadField
+                  label="Subject Icon / Image (Optional)"
+                  folder="subjects"
+                  existingUrl={subjectForm.icon_url}
+                  onUrlChange={(url) => setSubjectForm({ ...subjectForm, icon_url: url })}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Display Order
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={subjectForm.is_enabled}
-                      onChange={(e) => setSubjectForm({ ...subjectForm, is_enabled: e.target.checked })}
-                      className="h-4 w-4 accent-emerald-600"
+                      type="number"
+                      value={subjectForm.order}
+                      onChange={(e) => setSubjectForm({ ...subjectForm, order: Number(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
-                    <span className="text-sm text-slate-800 dark:text-slate-200">Enabled</span>
-                  </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Status
+                    </label>
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={subjectForm.is_enabled}
+                        onChange={(e) => setSubjectForm({ ...subjectForm, is_enabled: e.target.checked })}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      <span className="text-sm text-slate-800 dark:text-slate-200">Enabled</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs">
                 <Button type="button" variant="ghost" onClick={() => setIsSubjectModalOpen(false)}>
                   Cancel
                 </Button>
@@ -1976,219 +1983,233 @@ export default function DedicatedSeriesManagementPage() {
       {/* MODAL: ADD / EDIT QUESTION */}
       {/* =================================================================== */}
       {isQuestionModalOpen && currentTest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-2xl p-6 my-8">
-            {/* Context Header */}
-            <div className="pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary dark:text-blue-400">
-                <span>{series.title}</span>
-                <span>›</span>
-                <span>Test: {currentTest.title}</span>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                {questionForm.id ? 'Edit Question' : 'Add Question'}
-              </h2>
-              {/* Scope Indicator: Test & Subject */}
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 text-xs">
-                <div>
-                  <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Test</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{currentTest.title}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary dark:text-blue-400">
+                  <span>{series.title}</span>
+                  <span>›</span>
+                  <span>Test: {currentTest.title}</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Subject</span>
-                  <span className="font-bold text-brand-primary dark:text-blue-400">
-                    {assignedSubjectsForCurrentTest.find((s) => s.id === questionForm.subject_id)?.name || 'Select subject below'}
-                  </span>
-                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                  {questionForm.id ? 'Edit Question' : 'Add Question'}
+                </h2>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsQuestionModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
             </div>
 
-            <form onSubmit={handleSaveQuestion} className="mt-4 space-y-4">
-              {/* Subject Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Subject *
-                </label>
-                <select
-                  required
-                  value={questionForm.subject_id}
-                  onChange={(e) => setQuestionForm({ ...questionForm, subject_id: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                >
-                  {assignedSubjectsForCurrentTest.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Question Text */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Question Text *
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Enter the complete question text..."
-                  value={questionForm.question_text}
-                  onChange={(e) => setQuestionForm({ ...questionForm, question_text: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              {/* Options A, B, C, D */}
-              <div className="space-y-2.5">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Options *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleSaveQuestion} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4">
+                {/* Scope Indicator: Test & Subject */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 text-xs">
                   <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-bold text-xs">Option A</span>
-                      {questionForm.correct_option === 'A' && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={questionForm.option_a}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_a: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Test</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{currentTest.title}</span>
                   </div>
-
                   <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-bold text-xs">Option B</span>
-                      {questionForm.correct_option === 'B' && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={questionForm.option_b}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_b: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-bold text-xs">Option C</span>
-                      {questionForm.correct_option === 'C' && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={questionForm.option_c}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_c: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-bold text-xs">Option D</span>
-                      {questionForm.correct_option === 'D' && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={questionForm.option_d}
-                      onChange={(e) => setQuestionForm({ ...questionForm, option_d: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                    />
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 block text-[10px] uppercase tracking-wider">Subject</span>
+                    <span className="font-bold text-brand-primary dark:text-blue-400">
+                      {assignedSubjectsForCurrentTest.find((s) => s.id === questionForm.subject_id)?.name || 'Select subject below'}
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Correct Option Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Correct Option *
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setQuestionForm({ ...questionForm, correct_option: opt })}
-                      className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
-                        questionForm.correct_option === opt
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                          : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      Option {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Explanation */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Explanation (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Solution / explanation shown to students after submitting the test..."
-                  value={questionForm.explanation}
-                  onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              {/* Marks, Negative Marks, Language */}
-              <div className="grid grid-cols-3 gap-3">
+                {/* Subject Selector */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Marks
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Subject *
                   </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={questionForm.marks}
-                    onChange={(e) => setQuestionForm({ ...questionForm, marks: Number(e.target.value) || 1 })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                  <select
+                    required
+                    value={questionForm.subject_id}
+                    onChange={(e) => setQuestionForm({ ...questionForm, subject_id: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                  >
+                    {assignedSubjectsForCurrentTest.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Question Text */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Question Text *
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Enter the complete question text..."
+                    value={questionForm.question_text}
+                    onChange={(e) => setQuestionForm({ ...questionForm, question_text: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Negative Marks
+                {/* Options A, B, C, D */}
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Options *
                   </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={questionForm.negative_marks}
-                    onChange={(e) => setQuestionForm({ ...questionForm, negative_marks: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="font-bold text-xs">Option A</span>
+                        {questionForm.correct_option === 'A' && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={questionForm.option_a}
+                        onChange={(e) => setQuestionForm({ ...questionForm, option_a: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="font-bold text-xs">Option B</span>
+                        {questionForm.correct_option === 'B' && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={questionForm.option_b}
+                        onChange={(e) => setQuestionForm({ ...questionForm, option_b: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="font-bold text-xs">Option C</span>
+                        {questionForm.correct_option === 'C' && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={questionForm.option_c}
+                        onChange={(e) => setQuestionForm({ ...questionForm, option_c: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="font-bold text-xs">Option D</span>
+                        {questionForm.correct_option === 'D' && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Correct</span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={questionForm.option_d}
+                        onChange={(e) => setQuestionForm({ ...questionForm, option_d: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Correct Option Selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Correct Option *
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setQuestionForm({ ...questionForm, correct_option: opt })}
+                        className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                          questionForm.correct_option === opt
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        Option {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Explanation */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Explanation (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Solution / explanation shown to students after submitting the test..."
+                    value={questionForm.explanation}
+                    onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Language
-                  </label>
-                  <input
-                    type="text"
-                    value={questionForm.language}
-                    onChange={(e) => setQuestionForm({ ...questionForm, language: e.target.value })}
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                  />
+                {/* Marks, Negative Marks, Language */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Marks
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={questionForm.marks}
+                      onChange={(e) => setQuestionForm({ ...questionForm, marks: Number(e.target.value) || 1 })}
+                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Negative Marks
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={questionForm.negative_marks}
+                      onChange={(e) => setQuestionForm({ ...questionForm, negative_marks: Number(e.target.value) || 0 })}
+                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Language
+                    </label>
+                    <input
+                      type="text"
+                      value={questionForm.language}
+                      onChange={(e) => setQuestionForm({ ...questionForm, language: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              {/* Fixed Modal Footer with Action Buttons */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs">
                 <Button type="button" variant="ghost" onClick={() => setIsQuestionModalOpen(false)}>
                   Cancel
                 </Button>

@@ -34,7 +34,14 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 24)
+## Latest Production Status & Updates (Phase 25)
+
+- **Add Question & Test Series Modals Viewport Responsiveness Fix:**
+  - Standardized viewport-safe flex layout (`max-h-[90vh]`, fixed header, `overflow-y-auto min-h-0` body, `shrink-0` footer) for Add/Edit Question and Add/Edit Subject modals in `src/app/admin/test-series/[seriesId]/page.tsx`.
+  - All question fields (Scope indicator, Subject, Question Text, 4 Options A-D, Correct Option selector, Explanation, Marks, Negative Marks, Language) and bottom action buttons (Cancel, Add Question / Save Changes) are fully accessible via internal scrolling at 100% desktop browser zoom without any cutoff or background page scrolling required.
+  - Zero database, API, question data model, or student attempt flow modifications.
+
+## Phase 24 — Edit Test Series Details Modal Viewport Responsiveness Fix
 
 - **Edit Test Series Details Modal Viewport Responsiveness Fix:**
   - Standardized viewport-safe flex layout (`max-h-[90vh]`, fixed header, `overflow-y-auto min-h-0` body, `shrink-0` footer) in both `src/app/admin/test-series/[seriesId]/page.tsx` and `src/app/admin/test-series/page.tsx`.
