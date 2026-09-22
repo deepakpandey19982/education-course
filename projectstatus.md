@@ -34,7 +34,14 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 23)
+## Latest Production Status & Updates (Phase 24)
+
+- **Edit Test Series Details Modal Viewport Responsiveness Fix:**
+  - Standardized viewport-safe flex layout (`max-h-[90vh]`, fixed header, `overflow-y-auto min-h-0` body, `shrink-0` footer) in both `src/app/admin/test-series/[seriesId]/page.tsx` and `src/app/admin/test-series/page.tsx`.
+  - Fully eliminates cutoff issues at 100% desktop browser zoom, laptop screens, and mobile viewports while preserving all visual styling, fields, and 80% zoom usability.
+  - Zero database, API, question, subject, or student attempt flow modifications.
+
+## Phase 23 — Test-Specific Subject & Question Flow Scoping
 
 - **Test-Specific Subject & Question Flow Scoping:**
   1. **Strict Hierarchy Established:** `TEST SERIES -> TEST -> SUBJECTS INCLUDED IN THAT TEST -> QUESTIONS OF THAT TEST + SUBJECT`.

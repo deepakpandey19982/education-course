@@ -414,139 +414,142 @@ export default function AdminTestSeriesCentralPage() {
 
       {/* Create / Edit Series Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-lg p-6 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                 {modalForm.id ? 'Edit Test Series' : 'Create New Test Series'}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg p-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveSeries} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Series Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. UPP Computer Operator 2026, Bank PO, SSC CGL"
-                  value={modalForm.title}
-                  onChange={(e) => setModalForm({ ...modalForm, title: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Short Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe what students will practice in this series..."
-                  value={modalForm.description}
-                  onChange={(e) => setModalForm({ ...modalForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary"
-                />
-              </div>
-
-              {/* Free vs Paid Toggle */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Series Type
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      !modalForm.is_paid
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30'
-                        : 'border-slate-200 dark:border-slate-800'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="seriesType"
-                      checked={!modalForm.is_paid}
-                      onChange={() => setModalForm({ ...modalForm, is_paid: false })}
-                      className="accent-emerald-600"
-                    />
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">Free Series</p>
-                      <p className="text-xs text-slate-500">Accessible for free practice</p>
-                    </div>
-                  </label>
-
-                  <label
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      modalForm.is_paid
-                        ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
-                        : 'border-slate-200 dark:border-slate-800'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="seriesType"
-                      checked={modalForm.is_paid}
-                      onChange={() => setModalForm({ ...modalForm, is_paid: true })}
-                      className="accent-amber-600"
-                    />
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">Paid Series</p>
-                      <p className="text-xs text-slate-500">Includes premium test packages</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Thumbnail Image */}
-              <ImageUploadField
-                label="Series Thumbnail Image"
-                buttonLabel="Upload Thumbnail"
-                folder="test-series"
-                existingUrl={modalForm.thumbnail_url}
-                onUrlChange={(url) => setModalForm({ ...modalForm, thumbnail_url: url })}
-              />
-
-              {/* Published Toggle and Order */}
-              <div className="grid grid-cols-2 gap-4 pt-2">
+            <form onSubmit={handleSaveSeries} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Display Order
+                    Series Title *
                   </label>
                   <input
-                    type="number"
-                    value={modalForm.order}
-                    onChange={(e) => setModalForm({ ...modalForm, order: Number(e.target.value) || 0 })}
-                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                    type="text"
+                    required
+                    placeholder="e.g. UPP Computer Operator 2026, Bank PO, SSC CGL"
+                    value={modalForm.title}
+                    onChange={(e) => setModalForm({ ...modalForm, title: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Publication Status
+                    Short Description
                   </label>
-                  <label className="flex items-center gap-2.5 mt-2 cursor-pointer">
+                  <textarea
+                    rows={3}
+                    placeholder="Describe what students will practice in this series..."
+                    value={modalForm.description}
+                    onChange={(e) => setModalForm({ ...modalForm, description: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary"
+                  />
+                </div>
+
+                {/* Free vs Paid Toggle */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Series Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        !modalForm.is_paid
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30'
+                          : 'border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="seriesType"
+                        checked={!modalForm.is_paid}
+                        onChange={() => setModalForm({ ...modalForm, is_paid: false })}
+                        className="accent-emerald-600"
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">Free Series</p>
+                        <p className="text-xs text-slate-500">Accessible for free practice</p>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        modalForm.is_paid
+                          ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
+                          : 'border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="seriesType"
+                        checked={modalForm.is_paid}
+                        onChange={() => setModalForm({ ...modalForm, is_paid: true })}
+                        className="accent-amber-600"
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">Paid Series</p>
+                        <p className="text-xs text-slate-500">Includes premium test packages</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Thumbnail Image */}
+                <ImageUploadField
+                  label="Series Thumbnail Image"
+                  buttonLabel="Upload Thumbnail"
+                  folder="test-series"
+                  existingUrl={modalForm.thumbnail_url}
+                  onUrlChange={(url) => setModalForm({ ...modalForm, thumbnail_url: url })}
+                />
+
+                {/* Published Toggle and Order */}
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Display Order
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={modalForm.is_published}
-                      onChange={(e) => setModalForm({ ...modalForm, is_published: e.target.checked })}
-                      className="h-4 w-4 accent-emerald-600 rounded"
+                      type="number"
+                      value={modalForm.order}
+                      onChange={(e) => setModalForm({ ...modalForm, order: Number(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                      Published (visible to students)
-                    </span>
-                  </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Publication Status
+                    </label>
+                    <label className="flex items-center gap-2.5 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modalForm.is_published}
+                        onChange={(e) => setModalForm({ ...modalForm, is_published: e.target.checked })}
+                        className="h-4 w-4 accent-emerald-600 rounded"
+                      />
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                        Published (visible to students)
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs">
                 <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
                   Cancel
                 </Button>

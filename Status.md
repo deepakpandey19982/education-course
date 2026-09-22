@@ -2,7 +2,32 @@
 
 ## Current Phase
 
-Phase 23 — Test-Specific Subject + Question Flow Scoping & Verification
+Phase 24 — Edit Test Series Details Modal Viewport Responsiveness Fix
+
+- **Problem Statement:**
+  - The "Edit Test Series Details" modal worked at 80% browser zoom, but at 100% desktop browser zoom (and smaller laptop viewports), the modal was too tall, overflowing the viewport and cutting off the bottom form controls and Cancel / Save Changes buttons.
+- **Root Cause & Layout Fix:**
+  - The modal container previously lacked an explicit viewport height restriction and internal scrolling structure, allowing its vertical height to exceed the viewport at 100% zoom.
+  - Implemented standard viewport-safe flex modal architecture across both `src/app/admin/test-series/[seriesId]/page.tsx` and `src/app/admin/test-series/page.tsx`:
+    - **Modal Overlay:** `fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-hidden`
+    - **Modal Container:** `bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 soft-shadow w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl`
+    - **Modal Header:** `flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900`
+    - **Modal Form & Scrollable Body:** `flex flex-col flex-1 min-h-0 overflow-hidden` with body `flex-1 overflow-y-auto min-h-0 p-6 space-y-4` ensuring Series Title, Description, Series Type (Free/Paid), Thumbnail Image, Display Order, and Published are reachable via internal scrolling.
+    - **Modal Footer:** `flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xs` with Cancel and Save Changes buttons permanently visible and accessible.
+- **Constraints Maintained:**
+  - No database, API, question, subject, payment, auth, or student flow changes.
+  - No font downsizing or field removal.
+  - Preserved existing visual design system and dark/light modes.
+
+## Validation Results
+
+- **TypeScript Typecheck:** `npx tsc --noEmit` exited with code 0 (clean).
+- **Production Build:** `npm run build` completed successfully (40 routes compiled).
+- **Responsive Viewports:** Fully usable at 100% desktop zoom, 80% zoom, laptop viewports, and mobile viewports.
+
+---
+
+## Phase 23 — Test-Specific Subject + Question Flow Scoping & Verification
 
 - **Root Cause Analysis & Architecture Redesign:**
   1. **Strict Hierarchy Established:**
