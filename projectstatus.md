@@ -42,7 +42,7 @@ Education-Course/
   - Supported formats: PDF (text and scanned OCR fallback), Word DOCX, Excel XLSX & CSV (flexible column mapping), and Images JPG/JPEG/PNG with Tesseract OCR (English & Hindi).
   - Subject auto-detection and matching against existing series subjects, duplicate detection against database and within upload batch, and comprehensive preview/review modal before database insert.
   - Viewport-safe responsive design (`max-h-[92vh]`, internal scroll, sticky footer) fully functional at 100%, 90%, 80%, 75% zoom and mobile/tablets.
-  - Validation: `npx tsc --noEmit` code 0, `npm run build` code 0 across all 40 routes, automated tests passed.
+  - Validation & Bug Fixes: Fixed React hook order in `ImportQuestionsModal` where `useMemo` hooks were positioned after an early return; `npx tsc --noEmit` code 0, `npm run build` code 0 across all 40 routes, automated tests passed.
 
 ## Phase 26 — Comprehensive System Verification & GitHub Sync
 

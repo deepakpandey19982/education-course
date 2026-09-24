@@ -23,7 +23,8 @@ Phase 27 — Smart Question Import System for Test Series
   - Full inline review: filter tabs (All, Valid, Needs Review, Duplicates), inline edit drawer, delete, subject assignment, and checkboxes.
   - Import options: "Import All Valid Questions" and "Import Selected Questions".
   - Viewport-safe responsive design (`max-h-[92vh]`, internal scroll, sticky footer) fully functional at 100%, 90%, 80%, 75% zoom and mobile/tablets.
-- **Validation Results:**
+- **Validation Results & Bug Fixes:**
+  - **React Hook Order Fix:** Fixed `ImportQuestionsModal` where `if (!isOpen) return null` was placed before `useMemo` hooks (lines 217-229). Restructured so that all 15 hooks (`useState`, `useRef`, `useMemo`) execute unconditionally at the top of the component body on every render, and guarded modal mounting in `[seriesId]/page.tsx` with `{isImportModalOpen && ...}`.
   - `npx tsc --noEmit`: Code 0 (clean).
   - `npm run build`: Code 0 (clean, 40 static/dynamic routes compiled).
   - Automated test suite (`scripts/test-comprehensive-import.ts`): All 6 comprehensive tests passed (100-question Excel scaling, CSV with Hindi characters, varied question/option formats, validation & needs review flagging, DB/batch duplicate detection, and PDF text extraction).

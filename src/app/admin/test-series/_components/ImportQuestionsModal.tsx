@@ -47,7 +47,20 @@ export function ImportQuestionsModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
+  // Filter questions for display
+  const filteredQuestions = useMemo(() => {
+    return questions.filter((q) => {
+      if (reviewFilter === 'valid') return q.status === 'valid';
+      if (reviewFilter === 'needs_review') return q.status === 'needs_review';
+      if (reviewFilter === 'duplicate') return q.status === 'duplicate';
+      return true;
+    });
+  }, [questions, reviewFilter]);
+
+  // Summary counts
+  const validCount = useMemo(() => questions.filter((q) => q.status === 'valid').length, [questions]);
+  const reviewCount = useMemo(() => questions.filter((q) => q.status === 'needs_review').length, [questions]);
+  const duplicateCount = useMemo(() => questions.filter((q) => q.status === 'duplicate').length, [questions]);
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -213,20 +226,6 @@ export function ImportQuestionsModal({
     setSelectedQuestionIds(new Set());
   };
 
-  // Filter questions for display
-  const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
-      if (reviewFilter === 'valid') return q.status === 'valid';
-      if (reviewFilter === 'needs_review') return q.status === 'needs_review';
-      if (reviewFilter === 'duplicate') return q.status === 'duplicate';
-      return true;
-    });
-  }, [questions, reviewFilter]);
-
-  // Counts
-  const validCount = useMemo(() => questions.filter((q) => q.status === 'valid').length, [questions]);
-  const reviewCount = useMemo(() => questions.filter((q) => q.status === 'needs_review').length, [questions]);
-  const duplicateCount = useMemo(() => questions.filter((q) => q.status === 'duplicate').length, [questions]);
 
   // Step 3 -> Step 4: Import selected / valid questions
   const handleCommitImport = async (importMode: 'selected' | 'all_valid') => {
@@ -293,6 +292,8 @@ export function ImportQuestionsModal({
       setStep('review');
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-hidden">

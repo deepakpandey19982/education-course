@@ -2246,18 +2246,20 @@ export default function DedicatedSeriesManagementPage() {
       {/* =================================================================== */}
       {/* MODAL: SMART IMPORT QUESTIONS */}
       {/* =================================================================== */}
-      <ImportQuestionsModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onSuccess={async (importedCount) => {
-          await loadSeriesData();
-          alert(`Successfully imported ${importedCount} questions!`);
-        }}
-        seriesId={seriesId}
-        currentTest={currentTest}
-        subjects={subjects}
-        activeSubjectFilter={selectedSubjectFilter}
-      />
+      {isImportModalOpen && (
+        <ImportQuestionsModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={async (importedCount) => {
+            await loadSeriesData();
+            alert(`Successfully imported ${importedCount} questions!`);
+          }}
+          seriesId={seriesId}
+          currentTest={currentTest}
+          subjects={subjects}
+          activeSubjectFilter={selectedSubjectFilter}
+        />
+      )}
     </div>
   );
 }
