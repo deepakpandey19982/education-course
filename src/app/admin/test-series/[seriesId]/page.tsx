@@ -15,6 +15,7 @@ import {
   resolveTestSubjectIds,
 } from '../_components/testSeriesHelpers';
 import type { TestSeries, TestSeriesSubject, Test, Question } from '@/types/supabase';
+import { ImportQuestionsModal } from '../_components/ImportQuestionsModal';
 
 type Tab = 'overview' | 'subjects' | 'tests' | 'questions';
 
@@ -156,6 +157,7 @@ export default function DedicatedSeriesManagementPage() {
 
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [questionForm, setQuestionForm] = useState<QuestionForm>(emptyQuestionForm());
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
@@ -1230,11 +1232,21 @@ export default function DedicatedSeriesManagementPage() {
                 )}
               </div>
 
-              {/* Add Question Button */}
+              {/* Add & Import Question Buttons */}
               {currentTest && (
-                <Button onClick={openAddQuestionModal} variant="primary" size="sm" className="shadow-xs shrink-0">
-                  + Add Question
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button onClick={openAddQuestionModal} variant="primary" size="sm" className="shadow-xs">
+                    + Add Question
+                  </Button>
+                  <Button
+                    onClick={() => setIsImportModalOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="shadow-xs bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  >
+                    📥 Import Questions
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -1332,9 +1344,18 @@ export default function DedicatedSeriesManagementPage() {
                   ? 'No questions match the selected filters.'
                   : 'Start by adding questions to this test.'}
               </p>
-              <Button onClick={openAddQuestionModal} variant="primary" className="mt-5">
-                + Add First Question
-              </Button>
+              <div className="flex items-center justify-center gap-3 mt-5 flex-wrap">
+                <Button onClick={openAddQuestionModal} variant="primary">
+                  + Add First Question
+                </Button>
+                <Button
+                  onClick={() => setIsImportModalOpen(true)}
+                  variant="outline"
+                  className="bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                >
+                  📥 Import Questions
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -2221,6 +2242,22 @@ export default function DedicatedSeriesManagementPage() {
           </div>
         </div>
       )}
+
+      {/* =================================================================== */}
+      {/* MODAL: SMART IMPORT QUESTIONS */}
+      {/* =================================================================== */}
+      <ImportQuestionsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={async (importedCount) => {
+          await loadSeriesData();
+          alert(`Successfully imported ${importedCount} questions!`);
+        }}
+        seriesId={seriesId}
+        currentTest={currentTest}
+        subjects={subjects}
+        activeSubjectFilter={selectedSubjectFilter}
+      />
     </div>
   );
 }

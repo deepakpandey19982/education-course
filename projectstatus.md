@@ -34,13 +34,17 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 26)
+## Latest Production Status & Updates (Phase 27)
 
-- **Comprehensive System Verification & GitHub Sync:**
-  - Audited and verified all core application modules: Test series admin hierarchy & viewport-safe modals, student test series catalog/instructions/attempts, subject scoping, Razorpay payment flows, course management, Supabase service-role APIs, and responsive UI layouts.
-  - Verified security boundaries: zero `.env*` or secret credentials exposed; `.gitignore` validated.
-  - Verification: `npx tsc --noEmit` passed cleanly; `npm run build` passed cleanly across all 40 production routes.
-  - GitHub synchronization ready for remote main branch.
+- **Smart Question Import System for Test Series:**
+  - Added smart bulk question import alongside existing manual question creation (`+ Add Question` and `📥 Import Questions`).
+  - Completely additive: zero changes or breaks to manual creation, test series, subjects, tests, attempts, timer, scoring, solution review, payments, or courses.
+  - Supported formats: PDF (text and scanned OCR fallback), Word DOCX, Excel XLSX & CSV (flexible column mapping), and Images JPG/JPEG/PNG with Tesseract OCR (English & Hindi).
+  - Subject auto-detection and matching against existing series subjects, duplicate detection against database and within upload batch, and comprehensive preview/review modal before database insert.
+  - Viewport-safe responsive design (`max-h-[92vh]`, internal scroll, sticky footer) fully functional at 100%, 90%, 80%, 75% zoom and mobile/tablets.
+  - Validation: `npx tsc --noEmit` code 0, `npm run build` code 0 across all 40 routes, automated tests passed.
+
+## Phase 26 — Comprehensive System Verification & GitHub Sync
 
 ## Phase 25 — Add Question & Test Series Modals Viewport Responsiveness Fix
 

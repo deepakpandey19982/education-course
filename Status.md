@@ -2,7 +2,35 @@
 
 ## Current Phase
 
-Phase 26 — Final Project State Verification & Production Sync
+Phase 27 — Smart Question Import System for Test Series
+
+- **Scope & Additive Architecture:**
+  - Added smart bulk question import alongside existing manual question creation (`+ Add Question` and `📥 Import Questions`).
+  - Completely additive: zero changes or breaks to manual creation, test series, subjects, tests, attempts, timer, scoring, solution review, payments, or courses.
+  - Reuses existing database schema (`questions`, `test_series_subjects`, `tests`) and auto-updates test's `subject_ids` when questions from multiple subjects are imported.
+- **Supported File Formats & OCR:**
+  - **PDF:** Processes all pages; extracts digital text; automatically detects scanned/image PDFs and falls back to OCR via Tesseract.
+  - **DOCX / Word:** Raw text & paragraph extraction via Mammoth, parsing all question patterns, options, answers, and explanations.
+  - **XLSX / Excel & CSV:** Flexible column mapping engine (maps variations like Q, Question Text, Option 1/A, Ans, Key, Subject, Explanation, Marks), supports 10, 50, 100, 200, 500+ questions.
+  - **JPG / JPEG / PNG:** High-accuracy OCR extraction using Tesseract.js with Hindi & English support.
+- **Intelligent Processing Engine:**
+  - Auto-detects subject headings (`COMPUTER`, `GENERAL KNOWLEDGE`, `REASONING`, `Subject: ...`, `विषय: ...`).
+  - Confidently maps detected subject names to existing series subjects. If ambiguous/undetected, flags "Subject not detected" for admin review without silent guessing.
+  - Recognizes standard formats: `Q1.`, `1.`, `1)`, `(1)`, options `(A)-(D)`, `A.-D.`, `A)-D)`, Hindi `क.-घ.`, answers `Answer: B`, `Ans: B`, `उत्तर: B`, and trailing answer keys.
+  - Multi-tier duplicate detection against existing test database questions and intra-batch duplicates.
+- **Preview & Admin Review Before Database Insert:**
+  - Preview modal showing question count, valid questions, needs review, duplicates, and detected column mappings.
+  - Full inline review: filter tabs (All, Valid, Needs Review, Duplicates), inline edit drawer, delete, subject assignment, and checkboxes.
+  - Import options: "Import All Valid Questions" and "Import Selected Questions".
+  - Viewport-safe responsive design (`max-h-[92vh]`, internal scroll, sticky footer) fully functional at 100%, 90%, 80%, 75% zoom and mobile/tablets.
+- **Validation Results:**
+  - `npx tsc --noEmit`: Code 0 (clean).
+  - `npm run build`: Code 0 (clean, 40 static/dynamic routes compiled).
+  - Automated test suite (`scripts/test-comprehensive-import.ts`): All 6 comprehensive tests passed (100-question Excel scaling, CSV with Hindi characters, varied question/option formats, validation & needs review flagging, DB/batch duplicate detection, and PDF text extraction).
+
+---
+
+## Phase 26 — Final Project State Verification & Production Sync
 
 - **Scope & Verification:**
   - Comprehensive verification across all core platform modules:
