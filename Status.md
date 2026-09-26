@@ -2,6 +2,42 @@
 
 ## Current Phase
 
+Phase 36 — Question File Formatter PDF Extraction Regression Resolution
+
+- **Regression Diagnosed & Root Cause Identified:**
+  - **Issue Reported:** The same UP Police Hindi PDF that previously extracted 60/60 questions showed `"No questions could be detected in ...pdf"`.
+  - **Trace & Root Causes:**
+    1. **Premature section filtering via `selectedSectionId` default in frontend (`page.tsx`):**
+       `selectedSectionId` was initialized to `'sec-1'`. On first upload before sections were detected, the form data sent `sectionId: 'sec-1'`.
+    2. **Practice Set header stripping in noise filter (`pdf-parser.ts`):**
+       `isInstructionOrNoise` contained `if (/^प्रैक्टिस\s*सेट\s*[-–—]?\s*\d+/i.test(trimmed)) return true;`, which stripped `प्रैक्टिस सेट - 1` from the document text during page layout formatting. Because `detectPracticeSetHeader` could not find section headers, it assigned all questions to `section_id: 'sec-all'`.
+    3. **Empty result filtering cascade (`text-extractor.ts`):**
+       The filter `targetQuestions.filter(q => q.section_id === activeSectionId)` looked for `sec-1` among questions with `sec-all`, discarding all questions down to 0, which triggered the `"No questions could be detected"` error.
+    4. **Guard 1 range check in `text-extractor.ts`:**
+       When extracting a sub-range (e.g. Q101-160) from a multi-page chunk, Guard 1 used strict equality `parsedQNum === options.fromQuestion`. Questions appearing earlier on the starting page (e.g. Q95-100 on page 11) were skipped, causing internal numbered statements (e.g. `1. Necrology`) inside Q95 to be mistaken for Question 1.
+
+- **Fixes Applied & Architecture Hardening:**
+  1. **Noise filter correction (`pdf-parser.ts`):**
+     Removed `^प्रैक्टिस सेट` stripping from `isInstructionOrNoise` so section headers remain in page text for section detection.
+  2. **Frontend initial state correction (`page.tsx`):**
+     Initialized `selectedSectionId` to `'all'` so initial extraction never sends a premature section filter.
+  3. **Section filter mismatch safeguard (`text-extractor.ts`):**
+     Added safeguard in `text-extractor.ts`: if filtering by `activeSectionId` results in 0 questions, it does not wipe out all extracted questions.
+  4. **Range-aware first-question guard (`text-extractor.ts`):**
+     Updated Guard 1 so when a range starting after Q1 is requested (`options.fromQuestion > 1`), any question number `<= options.fromQuestion` is accepted on the start page, ensuring questions like Q95 on page 11 establish `activeBlock` and internal statements `1-4` are protected.
+
+- **Verification:**
+  - `npx tsx scripts/test-main-1-60.ts`: 60/60 questions found, 0 missing, range complete = true, execution time ~1.2s.
+  - Target questions verified: Q1, Q2, Q3, Q6, Q7, Q9, Q10, Q13, Q14, Q15, Q19, Q23, Q49, Q56, Q57, Q58, Q59, Q60.
+  - `npx tsx scripts/test-real-pdf-job-flow.ts`: All 5 job steps passed (Full Scan 10 sections, Range 1-10 [10/10], Range 1-60 [60/60], Range 1-100 [100/100], Range 101-160 [60/60]).
+  - `npx tsx scripts/regression-suite.ts`: 8/8 regression tests passed.
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Production build succeeded with 0 errors (41 routes optimized).
+
+---
+
+## Prior Phase
+
 Phase 35 — Universal High-Accuracy Question Importer & Extraction Quality Engine
 
 - **Overview & Problem Diagnosed:**

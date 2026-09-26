@@ -34,7 +34,27 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 35)
+## Latest Production Status & Updates (Phase 36)
+
+- **Question File Formatter PDF Extraction Regression Resolution:**
+  - **Regression Diagnosed:** Traced regression where UP Police Hindi PDF extraction fell to 0 questions:
+    1. Frontend `selectedSectionId` state defaulted to `'sec-1'` instead of `'all'`.
+    2. `pdf-parser.ts` `isInstructionOrNoise` was stripping `^प्रैक्टिस सेट` headers from text.
+    3. `text-extractor.ts` section filter discarded all questions when no section matched `sec-1`.
+    4. Guard 1 in `text-extractor.ts` used strict equality `parsedQNum === options.fromQuestion`, skipping questions preceding `fromQuestion` on the starting page and confusing internal statements for Question 1.
+  - **Hardened Architecture:**
+    1. Removed practice set title stripping in `pdf-parser.ts`.
+    2. Initialized `selectedSectionId` to `'all'` in `page.tsx`.
+    3. Added fallback in `text-extractor.ts` so mismatched section IDs do not empty the questions array.
+    4. Updated Guard 1 in `text-extractor.ts` to allow questions `<= options.fromQuestion` on start pages.
+  - **Verification:**
+    - Real UP Police PDF extraction: 60/60 questions found (Q1 → Q60), 0 missing, range complete.
+    - Verified Q1, Q2, Q3, Q6, Q7, Q9, Q10, Q13, Q14, Q15, Q19, Q23, Q49, Q56, Q57, Q58, Q59, Q60.
+    - Full background job flow: 5/5 tests passed (Full scan, 1-10, 1-60, 1-100, 101-160).
+    - 8/8 regression suite tests passed.
+    - Quality Gates: `npx tsc --noEmit` (0 errors), `npm run build` (0 errors, 41 routes optimized).
+
+## Phase 35 — Universal High-Accuracy Question Importer & Extraction Quality Engine
 
 - **Universal High-Accuracy Question Importer & Extraction Quality Engine:**
   - **Hindi Transliteration & Typographic Normalization:** Fixed KrutiDev conjuncts (`=k` -> `=`, `¼` -> `द्ध`, `Ú` -> `Ý`, `iQ` -> `Q+`, `fpÉ` -> `चिह्न`), trailing matras (`मंत्राी` -> `मंत्री`), anusvara ordering (`ंे` -> `ें`), and parenthetical conversions `य([क-ह]...)द्ध` -> `(...)` (fixes `(गायन)` while strictly preserving `युद्ध`).

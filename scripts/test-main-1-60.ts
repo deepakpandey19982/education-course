@@ -11,13 +11,14 @@ async function main() {
   const res = await parseQuestionFile(buf, 'sample.pdf', {
     fromQuestion: 1,
     toQuestion: 60,
+    sectionId: 'sec-1',
   });
   console.log(`Execution time: ${Date.now() - t0}ms`);
   console.log(`Questions found: ${res.questions.length}`);
   console.log(`Is range complete: ${res.is_range_complete}`);
   console.log(`Missing numbers: ${res.missing_question_numbers}`);
 
-  const targets = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15, 19, 23, 49];
+  const targets = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15, 19, 23, 49, 56, 57, 58, 59, 60];
   for (const n of targets) {
     const q = res.questions.find((x) => x.question_number === n);
     console.log(`\n================== QUESTION ${n} ==================`);

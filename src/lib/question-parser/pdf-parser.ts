@@ -81,7 +81,6 @@ function isInstructionOrNoise(line: string): boolean {
   if (/^(?:समय\s*[:रू]|le;\s*[:])/i.test(trimmed) && /(?:घण्टे|\?k\.Vs)/i.test(trimmed)) return true;
   if (/(?:अधिकतम\s*अंक|vf\/dre\s*vad)/i.test(trimmed)) return true;
   if (/^(?:भाग|Hkkx)\s*\d+[\s%:रू]/i.test(trimmed)) return true;
-  if (/^प्रैक्टिस\s*सेट\s*[-–—]?\s*\d+/i.test(trimmed)) return true;
   // Solo digits or page numbers
   if (/^\d{1,3}$/.test(trimmed)) return true;
   return false;

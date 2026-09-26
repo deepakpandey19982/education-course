@@ -37,7 +37,7 @@ export default function QuestionFileFormatterPage() {
 
   // Section / Practice Set selection
   const [detectedSections, setDetectedSections] = useState<DetectedSection[]>([]);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('sec-1');
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('all');
 
   // Question Range
   const [fromQuestion, setFromQuestion] = useState<number>(1);

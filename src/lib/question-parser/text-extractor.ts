@@ -400,10 +400,13 @@ export function extractQuestionsWithRangeFromText(
         const initialText = (qMatch[5] || '').trim();
         const isExplicit = Boolean(qMatch[1]);
 
-        // Guard 1: Before Question 1 (or fromQuestion) is seen in this section, reject lines starting with numbers
-        // (these are document instructions like "160 वस्तुनिष्ठ प्रश्न...", "3 घण्टे", etc.)
-        const isExpectedFirst = options.fromQuestion ? parsedQNum === options.fromQuestion : parsedQNum === 1;
-        if (!seenFirstQuestionInDraft && !isExplicit && !isExpectedFirst && parsedQNum !== 1) {
+        // Guard 1: Before the first question is seen in this section, reject lines starting with numbers
+        // unless they are Question 1 (or <= fromQuestion when a range starting after Q1 is requested)
+        const isExpectedFirst =
+          options.fromQuestion && options.fromQuestion > 1
+            ? parsedQNum <= options.fromQuestion
+            : parsedQNum === 1;
+        if (!seenFirstQuestionInDraft && !isExplicit && !isExpectedFirst) {
           continue;
         }
 
@@ -629,10 +632,13 @@ export function extractQuestionsWithRangeFromText(
   // -------------------------------------------------------------------------
   let targetQuestions = allParsedQuestions;
 
-  // Filter by sectionId if requested
+  // Filter by sectionId if requested (safeguard against empty result on mismatch)
   const activeSectionId = options.sectionId;
   if (activeSectionId && activeSectionId !== 'all') {
-    targetQuestions = targetQuestions.filter((q) => q.section_id === activeSectionId);
+    const sectionFiltered = targetQuestions.filter((q) => q.section_id === activeSectionId);
+    if (sectionFiltered.length > 0) {
+      targetQuestions = sectionFiltered;
+    }
   }
 
   // Filter by fromQuestion and toQuestion range if requested
