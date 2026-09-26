@@ -1,5 +1,5 @@
 import { PDFParse } from 'pdf-parse';
-import { extractQuestionsFromText } from './text-extractor';
+import { extractQuestionsFromText, extractQuestionsWithRangeFromText, TextExtractRangeResult } from './text-extractor';
 import { parseImageOcr } from './ocr-parser';
 import { ParsedQuestion } from './types';
 
@@ -22,19 +22,30 @@ function extractRawJpegsFromPdf(buffer: Buffer): Buffer[] {
   return images;
 }
 
+export interface PdfParseOptions {
+  fromQuestion?: number;
+  toQuestion?: number;
+  defaultMarks?: number;
+  defaultNegativeMarks?: number;
+  defaultLanguage?: string;
+}
+
 export async function parsePdf(
   buffer: Buffer,
-  options: {
-    defaultMarks?: number;
-    defaultNegativeMarks?: number;
-    defaultLanguage?: string;
-  } = {}
+  options: PdfParseOptions = {}
 ): Promise<{
   questions: ParsedQuestion[];
   pagesProcessed: number;
   parsingMethod: 'text' | 'ocr';
   rawText: string;
   isScanned: boolean;
+  rangeInfo?: {
+    requested_range?: { from: number; to: number };
+    found_question_numbers: number[];
+    missing_question_numbers: number[];
+    is_range_complete: boolean;
+    total_requested: number;
+  };
 }> {
   const parser = new PDFParse({ data: buffer });
   let pagesProcessed = 1;
@@ -53,17 +64,25 @@ export async function parsePdf(
   const textHasContent = cleanText.length > 60;
 
   if (textHasContent) {
-    const questions = extractQuestionsFromText(rawText, options);
-    if (questions.length > 0) {
+    const rangeResult = extractQuestionsWithRangeFromText(rawText, options);
+    if (rangeResult.questions.length > 0 || (options.fromQuestion !== undefined && rangeResult.found_question_numbers.length >= 0)) {
       return {
-        questions,
+        questions: rangeResult.questions,
         pagesProcessed,
         parsingMethod: 'text',
         rawText,
         isScanned: false,
+        rangeInfo: {
+          requested_range: rangeResult.requested_range,
+          found_question_numbers: rangeResult.found_question_numbers,
+          missing_question_numbers: rangeResult.missing_question_numbers,
+          is_range_complete: rangeResult.is_range_complete,
+          total_requested: rangeResult.total_requested,
+        },
       };
     }
   }
+
 
   // If text is absent or 0 questions were extracted, attempt Scanned / Image PDF OCR
   console.log('PDF has minimal selectable text or 0 questions. Attempting OCR on scanned pages...');

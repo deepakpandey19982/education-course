@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { ImageUploadField } from './_components/ImageUploadField';
 import { fetchAllSeriesWithMetrics } from './_components/testSeriesHelpers';
+import { CreateSeriesFromPdfModal } from './_components/CreateSeriesFromPdfModal';
 import type { TestSeries } from '@/types/supabase';
 
 type SeriesWithMetrics = TestSeries & {
@@ -47,8 +48,16 @@ export default function AdminTestSeriesCentralPage() {
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPdfImportOpen, setIsPdfImportOpen] = useState(false);
   const [modalForm, setModalForm] = useState<SeriesModalForm>(emptySeriesModalForm());
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'pdf-import') {
+      setIsPdfImportOpen(true);
+    }
+  }, [searchParams]);
+
 
   const loadData = useCallback(async () => {
     try {
@@ -191,17 +200,37 @@ export default function AdminTestSeriesCentralPage() {
               Create and manage all test series, subjects, tests, and questions in an organized hierarchy.
             </p>
           </div>
-          <Button onClick={openCreateModal} variant="primary" className="shrink-0 shadow-md">
-            + Create Test Series
-          </Button>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Button
+              onClick={() => setIsPdfImportOpen(true)}
+              variant="secondary"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md flex items-center gap-2 px-4 py-2"
+            >
+              <span className="text-base">📄</span>
+              <span>Create Test Series from PDF</span>
+            </Button>
+            <Button onClick={openCreateModal} variant="primary" className="shrink-0 shadow-md">
+              + Create Test Series
+            </Button>
+          </div>
         </div>
 
         {/* Step-by-Step Helper Box */}
         <div className="mt-5 p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/40">
-          <p className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
-            How Test Series Management Works
-          </p>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs text-blue-900 dark:text-blue-200 font-medium">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              How Test Series Management Works
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsPdfImportOpen(true)}
+              className="text-xs font-bold text-blue-700 dark:text-blue-300 hover:underline flex items-center gap-1 self-start sm:self-auto"
+            >
+              <span>⚡ Have a PDF? Import by Question Range (e.g. 1 → 100)</span>
+              <span>→</span>
+            </button>
+          </div>
+          <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs text-blue-900 dark:text-blue-200 font-medium">
             <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-blue-100 dark:border-blue-950">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">1</span>
               <span>Create a Test Series first</span>
@@ -220,6 +249,7 @@ export default function AdminTestSeriesCentralPage() {
             </div>
           </div>
         </div>
+
       </div>
 
       {/* Filter & Search Bar */}
@@ -561,6 +591,20 @@ export default function AdminTestSeriesCentralPage() {
           </div>
         </div>
       )}
+
+      {/* Create Test Series from PDF Modal */}
+      {isPdfImportOpen && (
+        <CreateSeriesFromPdfModal
+          isOpen={isPdfImportOpen}
+          onClose={() => setIsPdfImportOpen(false)}
+          onSuccess={async () => {
+            await loadData();
+          }}
+          existingSeriesList={seriesList.map((s) => ({ id: s.id, title: s.title }))}
+        />
+      )}
     </div>
   );
 }
+
+

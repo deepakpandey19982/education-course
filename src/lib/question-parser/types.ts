@@ -3,6 +3,7 @@ export type QuestionValidationStatus = 'valid' | 'needs_review' | 'duplicate';
 export interface ParsedQuestion {
   id: string; // Client/preview unique ID
   order: number;
+  question_number?: number; // Parsed question number from the document (e.g. 1, 101)
   question_text: string;
   option_a: string;
   option_b: string;
@@ -34,6 +35,11 @@ export interface ParseResult {
   duplicate_count: number;
   detected_subjects: string[];
   detected_column_mapping?: Record<string, string>;
+  requested_range?: { from: number; to: number };
+  total_requested?: number;
+  found_question_numbers?: number[];
+  missing_question_numbers?: number[];
+  is_range_complete?: boolean;
   questions: ParsedQuestion[];
 }
 
@@ -55,3 +61,51 @@ export interface QuestionImportCommitPayload {
     order?: number;
   }>;
 }
+
+export interface CreateSeriesFromPdfCommitPayload {
+  existingSeriesId?: string | null;
+  series: {
+    title: string;
+    description?: string | null;
+    thumbnail_url?: string | null;
+    is_paid: boolean;
+    is_published: boolean;
+    order?: number;
+  };
+  subjectName: string;
+  test: {
+    title: string;
+    date_label?: string | null;
+    duration_minutes: number;
+    max_marks: number;
+    marks_per_correct: number;
+    negative_marks: number;
+    language: string;
+    instructions?: string | null;
+    is_paid: boolean;
+    price: number;
+    is_published: boolean;
+    scheduled_start?: string | null;
+    scheduled_end?: string | null;
+  };
+  questions: Array<{
+    question_number?: number;
+    question_text: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+    correct_option: 'A' | 'B' | 'C' | 'D';
+    explanation?: string | null;
+    marks?: number;
+    negative_marks?: number;
+    language?: string;
+    order?: number;
+  }>;
+  sourceMetadata?: {
+    fileName: string;
+    fromQuestion: number;
+    toQuestion: number;
+  };
+}
+

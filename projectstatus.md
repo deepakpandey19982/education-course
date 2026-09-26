@@ -34,15 +34,20 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 27)
+## Latest Production Status & Updates (Phase 28)
 
-- **Smart Question Import System for Test Series:**
-  - Added smart bulk question import alongside existing manual question creation (`+ Add Question` and `📥 Import Questions`).
-  - Completely additive: zero changes or breaks to manual creation, test series, subjects, tests, attempts, timer, scoring, solution review, payments, or courses.
-  - Supported formats: PDF (text and scanned OCR fallback), Word DOCX, Excel XLSX & CSV (flexible column mapping), and Images JPG/JPEG/PNG with Tesseract OCR (English & Hindi).
-  - Subject auto-detection and matching against existing series subjects, duplicate detection against database and within upload batch, and comprehensive preview/review modal before database insert.
-  - Viewport-safe responsive design (`max-h-[92vh]`, internal scroll, sticky footer) fully functional at 100%, 90%, 80%, 75% zoom and mobile/tablets.
-  - Validation & Bug Fixes: Fixed React hook order in `ImportQuestionsModal` where `useMemo` hooks were positioned after an early return; `npx tsc --noEmit` code 0, `npm run build` code 0 across all 40 routes, automated tests passed.
+- **Create Test Series from PDF using Question Number Range:**
+  - Added dedicated Admin workflow: `Create Test Series from PDF` accessible from Admin → Test Series (`/admin/test-series`).
+  - **Question Number Range as Primary Mechanism:** Scans the whole document to locate printed question numbers (e.g. 1 → 100, 101 → 200, 201 → 300, 501 → 650) rather than taking PDF page numbers. Supports arbitrary batch sizes (50, 100, 150, 200+).
+  - **Question Boundary Detection Engine:** Recognizes numbering variations (`Q1.`, `Q.1`, `Q 1`, `Question 1`, `Question No. 1`, `Que. 1`, `प्रश्न 1:`, `1.`, `1)`, `(1)`, `[1]`), multiline questions, inline/multiline options, and answer keys. Filters page headers/footers (`Page X of Y`, `-- X --`) to prevent text pollution.
+  - **Preview & Non-Silent Validation:** Prior to database commit, displays an import preview with requested range, found question count, valid questions, and needs-review flags.
+  - **Incomplete Range Guard:** If requested range is e.g. 1 → 100 but only 96 questions are found, the system displays a clear warning banner with exact missing question numbers (`97, 98, 99, 100`) and a `[Go Back and Change Range]` option to prevent silent incomplete series creation.
+  - **Inline Question Editing in Preview:** Admin can review and edit question text, options A-D, and correct answer directly in an inline sub-modal before committing.
+  - **Fast-Track Multi-Set Flow:** After saving Set 01 (1 → 100), offers a 1-click `[Setup Next Set (101 → 200)]` option with the same PDF preloaded and auto-incremented series name ("General Knowledge Set 02").
+  - Validation: `npx tsc --noEmit` code 0, `npm run build` code 0 (40 routes compiled), automated tests passed (`scripts/test-pdf-range-import.ts`).
+
+## Phase 27 — Smart Question Import System for Test Series
+
 
 ## Phase 26 — Comprehensive System Verification & GitHub Sync
 

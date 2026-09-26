@@ -46,23 +46,54 @@ export function detectSubjectHeader(line: string): string | null {
   return null;
 }
 
-export function extractQuestionsFromText(
+export interface TextExtractOptions {
+  fromQuestion?: number;
+  toQuestion?: number;
+  defaultMarks?: number;
+  defaultNegativeMarks?: number;
+  defaultLanguage?: string;
+}
+
+export interface TextExtractRangeResult {
+  questions: ParsedQuestion[];
+  requested_range?: { from: number; to: number };
+  found_question_numbers: number[];
+  missing_question_numbers: number[];
+  is_range_complete: boolean;
+  total_requested: number;
+}
+
+// Check if a line is a document page header/footer line to avoid polluting questions
+function isHeaderOrFooterLine(line: string): boolean {
+  const clean = line.trim();
+  if (!clean) return false;
+  // Match lines like: Page 1, Page 1 of 400, 1 of 50, -- 1 --, - 1 -, --- Page 1 ---
+  if (/^page\s*\d+(?:\s*(?:of|\/)\s*\d+)?$/i.test(clean)) return true;
+  if (/^\d+\s*(?:of|\/)\s*\d+$/i.test(clean)) return true;
+  if (/^[-–—]{1,3}\s*\d+\s*[-–—]{1,3}$/.test(clean)) return true;
+  if (/^---+.*---+$/.test(clean) && !clean.includes('=')) return true;
+  return false;
+}
+
+export function extractQuestionsWithRangeFromText(
   rawText: string,
-  options: {
-    defaultMarks?: number;
-    defaultNegativeMarks?: number;
-    defaultLanguage?: string;
-  } = {}
-): ParsedQuestion[] {
+  options: TextExtractOptions = {}
+): TextExtractRangeResult {
   const marks = options.defaultMarks ?? 1;
   const negMarks = options.defaultNegativeMarks ?? 0;
   const lang = options.defaultLanguage || 'English';
 
   if (!rawText || !rawText.trim()) {
-    return [];
+    return {
+      questions: [],
+      found_question_numbers: [],
+      missing_question_numbers: [],
+      is_range_complete: false,
+      total_requested: 0,
+    };
   }
 
-  // Pre-process: normalize various bullet/dash characters, standardize newlines
+  // Pre-process: normalize bullet/dash characters, standardize newlines
   const normalized = rawText
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
@@ -73,13 +104,12 @@ export function extractQuestionsFromText(
   const lines = normalized.split('\n');
 
   // Check if an Answer Key exists at the end of the text
-  // e.g. "Answer Key\n1. B\n2. C..." or "Answers: 1-B, 2-C..."
   const answerKeyMap = new Map<number, 'A' | 'B' | 'C' | 'D'>();
   const answerKeyRegex = /(?:answer\s*key|answers|उत्तर\s*कुंजी)[\s\S]*$/i;
   const answerKeySection = normalized.match(answerKeyRegex);
   if (answerKeySection) {
     const akText = answerKeySection[0];
-    const pairMatches = akText.matchAll(/(?:(?:Q\.?|प्रश्न\s*)?(\d{1,4}))\s*[:\.\-\)]\s*\(?([A-Da-d1-4क-घ])\)?/gi);
+    const pairMatches = akText.matchAll(/(?:(?:Q(?:uestion|\.)?|प्रश्न\s*)?(\d{1,5}))\s*[:\.\-\)]\s*\(?([A-Da-d1-4क-घ])\)?/gi);
     for (const match of pairMatches) {
       const qNum = parseInt(match[1], 10);
       const opt = normalizeOptionKey(match[2]);
@@ -90,8 +120,14 @@ export function extractQuestionsFromText(
   }
 
   // Regex for question starters:
-  // Q1. / Q.1 / Q-1 / Q. 1 / Question 1: / प्रश्न 1: / प्र. 1. / 1. / 1) / (1)
-  const questionStartRegex = /^(?:(?:Q(?:uestion|\.)?|प्रश्न|प्र\.)\s*(\d{1,4})(?:\s*[:\.\-\)]|\s+)|\((\d{1,4})\)|(\d{1,4})\s*[\.\)])\s*(.*)$/i;
+  // Q1. / Q.1 / Q-1 / Q. 1 / Q 1 / Question 1 / Question No. 1 / Que. 1 / प्रश्न 1 / प्र. 1 / 1. / 1) / (1) / [1]
+  // Group 1: Q / Question / Que / प्रश्न / प्र followed by number
+  // Group 2: (123)
+  // Group 3: [123]
+  // Group 4: 123. or 123) or 123:
+  // Group 5: Trailing question text
+  const questionStartRegex = /^(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)])(?:\s+|$)))\s*(.*)$/i;
+
 
   // Regex for option starters:
   // (A) / A. / A) / [A] / (क) / क.
@@ -125,6 +161,7 @@ export function extractQuestionsFromText(
   let activeBlock: RawBlock | null = null;
   let currentTargetOption: 'A' | 'B' | 'C' | 'D' | null = null;
   let inExplanation = false;
+  let runningAutoQNum = 1;
 
   const pushActiveBlock = () => {
     if (activeBlock) {
@@ -147,6 +184,11 @@ export function extractQuestionsFromText(
       continue;
     }
 
+    // Ignore page headers/footers
+    if (isHeaderOrFooterLine(line)) {
+      continue;
+    }
+
     // Check for Subject header
     const subjectHeader = detectSubjectHeader(line);
     if (subjectHeader) {
@@ -157,22 +199,37 @@ export function extractQuestionsFromText(
     // Check for Question start
     const qMatch = line.match(questionStartRegex);
     if (qMatch) {
-      pushActiveBlock();
+      const qNumStr = qMatch[1] || qMatch[2] || qMatch[3] || qMatch[4];
+      const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
+      const initialText = (qMatch[5] || '').trim();
 
-      const qNumStr = qMatch[1] || qMatch[2] || qMatch[3];
-      const qNum = parseInt(qNumStr, 10);
-      const initialText = (qMatch[4] || '').trim();
+      // Guard against false positive option numbers:
+      // If we are currently inside a question with question number > 4 (e.g. Q5, Q101),
+      // and a line like "1." or "(1)" appears with NO options A populated yet,
+      // it could be Option 1 of this question rather than restarting Question 1.
+      const isLikelyOption1 =
+        activeBlock &&
+        activeBlock.qNum > 4 &&
+        parsedQNum <= 4 &&
+        !activeBlock.options.A &&
+        !qMatch[1]; // Only if it was plain "1." or "(1)", not explicit "Q1." or "Question 1"
 
-      activeBlock = {
-        qNum,
-        subjectName: currentSubject,
-        questionLines: initialText ? [initialText] : [],
-        options: {},
-        answer: null,
-        explanation: '',
-        rawSnippet: line,
-      };
-      continue;
+      if (!isLikelyOption1) {
+        pushActiveBlock();
+
+        runningAutoQNum = parsedQNum + 1;
+
+        activeBlock = {
+          qNum: parsedQNum,
+          subjectName: currentSubject,
+          questionLines: initialText ? [initialText] : [],
+          options: {},
+          answer: null,
+          explanation: '',
+          rawSnippet: line,
+        };
+        continue;
+      }
     }
 
     if (!activeBlock) {
@@ -218,7 +275,6 @@ export function extractQuestionsFromText(
     }
 
     // Check if line contains inline multiple options, e.g. "(A) Apple (B) Banana (C) Cherry (D) Date"
-    // or "(a) Apple (b) Banana"
     const inlineOptionsRegex = /(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])\s*([^\(\[\nA-Da-dक-घ1-4]+?)(?=(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])|$)/g;
     const inlineMatches = Array.from(line.matchAll(inlineOptionsRegex));
 
@@ -260,7 +316,7 @@ export function extractQuestionsFromText(
   pushActiveBlock();
 
   // Convert raw blocks to ParsedQuestion objects with validation
-  const parsedQuestions: ParsedQuestion[] = rawBlocks.map((block, idx) => {
+  const allParsedQuestions: ParsedQuestion[] = rawBlocks.map((block, idx) => {
     const questionText = block.questionLines.join('\n').trim();
     const optA = (block.options.A || '').trim();
     const optB = (block.options.B || '').trim();
@@ -281,8 +337,9 @@ export function extractQuestionsFromText(
     const isValid = validationIssues.length === 0;
 
     return {
-      id: `parsed-q-${idx + 1}-${Date.now().toString(36)}`,
+      id: `parsed-q-${block.qNum || idx + 1}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
       order: idx + 1,
+      question_number: block.qNum || idx + 1,
       question_text: questionText,
       option_a: optA,
       option_b: optB,
@@ -302,5 +359,63 @@ export function extractQuestionsFromText(
     };
   });
 
-  return parsedQuestions;
+  // If question range is specified (fromQuestion and toQuestion)
+  if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
+    const fromQ = Math.min(options.fromQuestion, options.toQuestion);
+    const toQ = Math.max(options.fromQuestion, options.toQuestion);
+    const totalRequested = toQ - fromQ + 1;
+
+    // Filter questions whose detected question_number falls within the requested range
+    const inRange = allParsedQuestions.filter(
+      (q) => q.question_number !== undefined && q.question_number >= fromQ && q.question_number <= toQ
+    );
+
+    // Sort in ascending order of question_number
+    inRange.sort((a, b) => (a.question_number ?? 0) - (b.question_number ?? 0));
+
+    // Reset sequential order for test
+    inRange.forEach((q, idx) => {
+      q.order = idx + 1;
+    });
+
+    // Detect missing question numbers
+    const foundNumSet = new Set(inRange.map((q) => q.question_number!));
+    const missingQuestionNumbers: number[] = [];
+    const foundQuestionNumbers: number[] = [];
+
+    for (let n = fromQ; n <= toQ; n++) {
+      if (foundNumSet.has(n)) {
+        foundQuestionNumbers.push(n);
+      } else {
+        missingQuestionNumbers.push(n);
+      }
+    }
+
+    return {
+      questions: inRange,
+      requested_range: { from: fromQ, to: toQ },
+      found_question_numbers: foundQuestionNumbers,
+      missing_question_numbers: missingQuestionNumbers,
+      is_range_complete: missingQuestionNumbers.length === 0,
+      total_requested: totalRequested,
+    };
+  }
+
+  // No range specified: return all questions
+  const allNumbers = allParsedQuestions.map((q) => q.question_number ?? q.order);
+  return {
+    questions: allParsedQuestions,
+    found_question_numbers: allNumbers,
+    missing_question_numbers: [],
+    is_range_complete: true,
+    total_requested: allParsedQuestions.length,
+  };
 }
+
+export function extractQuestionsFromText(
+  rawText: string,
+  options: TextExtractOptions = {}
+): ParsedQuestion[] {
+  return extractQuestionsWithRangeFromText(rawText, options).questions;
+}
+

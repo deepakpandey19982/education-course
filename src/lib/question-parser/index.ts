@@ -1,5 +1,5 @@
 import { ParsedQuestion, ParseResult } from './types';
-import { extractQuestionsFromText } from './text-extractor';
+import { extractQuestionsFromText, extractQuestionsWithRangeFromText } from './text-extractor';
 import { parseExcelOrCsv } from './excel-csv-parser';
 import { parseDocx } from './docx-parser';
 import { parsePdf } from './pdf-parser';
@@ -71,9 +71,12 @@ export async function parseQuestionFile(
   buffer: Buffer,
   fileName: string,
   options: {
+    fromQuestion?: number;
+    toQuestion?: number;
     seriesSubjects?: Array<{ id: string; name: string }>;
     existingQuestions?: Array<{ id?: string; question_text: string }>;
     defaultSubjectId?: string;
+    defaultSubjectName?: string;
     defaultMarks?: number;
     defaultNegativeMarks?: number;
     defaultLanguage?: string;
@@ -83,11 +86,19 @@ export async function parseQuestionFile(
   const seriesSubjects = options.seriesSubjects || [];
   const existingQuestions = options.existingQuestions || [];
   const defaultSubId = options.defaultSubjectId || '';
+  const defaultSubName = options.defaultSubjectName || '';
 
   let rawQuestions: ParsedQuestion[] = [];
   let pagesOrRows = 1;
   let parsingMethod: 'text' | 'ocr' | 'excel' | 'docx' = 'text';
   let detectedColumnMapping: Record<string, string> | undefined;
+  let rangeInfo: {
+    requested_range?: { from: number; to: number };
+    found_question_numbers: number[];
+    missing_question_numbers: number[];
+    is_range_complete: boolean;
+    total_requested: number;
+  } | undefined;
 
   try {
     if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
@@ -100,6 +111,14 @@ export async function parseQuestionFile(
       rawQuestions = parsed.questions;
       pagesOrRows = parsed.rowCount;
       detectedColumnMapping = parsed.detectedMapping;
+
+      if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
+        const fromQ = Math.min(options.fromQuestion, options.toQuestion);
+        const toQ = Math.max(options.fromQuestion, options.toQuestion);
+        rawQuestions = rawQuestions.filter(
+          (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
+        );
+      }
     } else if (ext === 'docx') {
       parsingMethod = 'docx';
       const parsed = await parseDocx(buffer, {
@@ -108,8 +127,18 @@ export async function parseQuestionFile(
         defaultLanguage: options.defaultLanguage,
       });
       rawQuestions = parsed.questions;
+
+      if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
+        const fromQ = Math.min(options.fromQuestion, options.toQuestion);
+        const toQ = Math.max(options.fromQuestion, options.toQuestion);
+        rawQuestions = rawQuestions.filter(
+          (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
+        );
+      }
     } else if (ext === 'pdf') {
       const parsed = await parsePdf(buffer, {
+        fromQuestion: options.fromQuestion,
+        toQuestion: options.toQuestion,
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
         defaultLanguage: options.defaultLanguage,
@@ -117,6 +146,7 @@ export async function parseQuestionFile(
       rawQuestions = parsed.questions;
       pagesOrRows = parsed.pagesProcessed;
       parsingMethod = parsed.parsingMethod;
+      rangeInfo = parsed.rangeInfo;
     } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
       parsingMethod = 'ocr';
       const parsed = await parseImageOcr(buffer, {
@@ -125,10 +155,26 @@ export async function parseQuestionFile(
         defaultLanguage: options.defaultLanguage,
       });
       rawQuestions = parsed.questions;
+
+      if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
+        const fromQ = Math.min(options.fromQuestion, options.toQuestion);
+        const toQ = Math.max(options.fromQuestion, options.toQuestion);
+        rawQuestions = rawQuestions.filter(
+          (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
+        );
+      }
     } else {
       // Fallback: try raw text parse
       const text = buffer.toString('utf-8');
-      rawQuestions = extractQuestionsFromText(text, options);
+      const textRes = extractQuestionsWithRangeFromText(text, options);
+      rawQuestions = textRes.questions;
+      rangeInfo = {
+        requested_range: textRes.requested_range,
+        found_question_numbers: textRes.found_question_numbers,
+        missing_question_numbers: textRes.missing_question_numbers,
+        is_range_complete: textRes.is_range_complete,
+        total_requested: textRes.total_requested,
+      };
     }
   } catch (err: any) {
     console.error('File parsing error:', err);
@@ -147,6 +193,7 @@ export async function parseQuestionFile(
       questions: [],
     };
   }
+
 
   if (rawQuestions.length === 0) {
     return {
@@ -200,10 +247,14 @@ export async function parseQuestionFile(
       }
     }
 
+    if (!subjectName && defaultSubName) {
+      subjectName = defaultSubName;
+    }
+
     const issues = [...q.validation_issues];
 
     // Check if subject is still missing
-    if (!subjectId) {
+    if (!subjectId && !subjectName) {
       issues.push('Subject not detected (please select subject)');
     }
 
@@ -245,6 +296,32 @@ export async function parseQuestionFile(
   const duplicateCount = finalQuestions.filter((q) => q.status === 'duplicate').length;
   const reviewCount = finalQuestions.filter((q) => q.status === 'needs_review').length;
 
+  let finalRangeInfo = rangeInfo;
+  if (!finalRangeInfo && options.fromQuestion !== undefined && options.toQuestion !== undefined) {
+    const fromQ = Math.min(options.fromQuestion, options.toQuestion);
+    const toQ = Math.max(options.fromQuestion, options.toQuestion);
+    const totalRequested = toQ - fromQ + 1;
+    const foundNumSet = new Set(
+      finalQuestions.map((q) => q.question_number ?? q.order)
+    );
+    const foundNumbers: number[] = [];
+    const missingNumbers: number[] = [];
+    for (let n = fromQ; n <= toQ; n++) {
+      if (foundNumSet.has(n)) {
+        foundNumbers.push(n);
+      } else {
+        missingNumbers.push(n);
+      }
+    }
+    finalRangeInfo = {
+      requested_range: { from: fromQ, to: toQ },
+      total_requested: totalRequested,
+      found_question_numbers: foundNumbers,
+      missing_question_numbers: missingNumbers,
+      is_range_complete: missingNumbers.length === 0,
+    };
+  }
+
   return {
     success: true,
     file_name: fileName,
@@ -257,6 +334,12 @@ export async function parseQuestionFile(
     duplicate_count: duplicateCount,
     detected_subjects: Array.from(detectedSubjectSet),
     detected_column_mapping: detectedColumnMapping,
+    requested_range: finalRangeInfo?.requested_range,
+    total_requested: finalRangeInfo?.total_requested,
+    found_question_numbers: finalRangeInfo?.found_question_numbers,
+    missing_question_numbers: finalRangeInfo?.missing_question_numbers,
+    is_range_complete: finalRangeInfo?.is_range_complete,
     questions: finalQuestions,
   };
 }
+
