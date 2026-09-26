@@ -2,6 +2,53 @@
 
 ## Current Phase
 
+Phase 39 — Smart Question Import Question Number Range Selection Feature
+
+- **Feature Scope & Architecture:**
+  - Added dedicated Question Number Range selection directly within the Smart Question Import modal (`ImportQuestionsModal.tsx`) and the underlying extraction pipeline (`import-parse/route.ts`, `index.ts`, `pdf-parser.ts`, `text-extractor.ts`).
+  - Allows admins to specify `From Question Number` and `To Question Number` based on the document's actual printed question numbering (not PDF viewer page numbers).
+  - Preserved 100% of existing file support (PDF text/scanned OCR, DOCX, XLSX/XLS/CSV, and Images) and database import flows.
+  - Zero breaking changes to existing database schema, authentication, payment systems, or student test-taking flows.
+
+- **UI & Modal Enhancements (`src/app/admin/test-series/_components/ImportQuestionsModal.tsx`):**
+  - **Question Number Range Card:**
+    - Rendered in Step 1 (Upload): Disabled/dimmed prior to file selection, interactive and highlighted once a document is chosen.
+    - Fields: `From Question Number` (default: 1) and `To Question Number` (default: 60, editable).
+    - Clear helper guidance: `"PDF mein printed question number ke according range select karein."` and `"Example: From 1 → To 60 means PDF se sirf Question 1 se Question 60 tak extract honge."`.
+    - Live range indicator: `"Selected Range: Questions {from}–{to}"`.
+  - **Validation & Safety:**
+    - Client-side pre-validation: If `fromQuestion > toQuestion`, immediately triggers error banner: `"From Question Number must be less than or equal to To Question Number."`.
+    - Transmits `fromQuestion` and `toQuestion` inside `formData` to `/api/admin/test-series/import-parse`.
+  - **Preview & Review Step Integration:**
+    - Displays persistent Selected Range header badge with total requested vs found question metrics: `"Selected Range: Questions X–Y (N of M questions found)"`.
+    - Clear completion indicator (`✓ Range Complete`) or warning badge (`⚠️ X Missing in Range`).
+    - Dedicated warning banner enumerating any missing question numbers within the requested range.
+
+- **Backend & Pipeline Hardening:**
+  - **API Route (`src/app/api/admin/test-series/import-parse/route.ts`):**
+    - Parses and validates `fromQuestion` and `toQuestion` from `formData`. Returns HTTP 400 with clear message if `fromQuestion > toQuestion`.
+    - Returns HTTP 400 with clear message if no questions are found in the selected range: `"No questions found in the selected question-number range."`.
+  - **Extraction Engine (`src/lib/question-parser/index.ts` & `pdf-parser.ts`):**
+    - Handled early validation for `fromQuestion > toQuestion`.
+    - Enhanced PDF probe delimiters: `new RegExp(`(?:^|\\s)${qNum}[\\.\\-\\—\\)\\:\\]ण्]`)` to support KrutiDev period artifacts and prevent plain space numbers from prematurely truncating pages.
+    - Added fast return when probed document contains 0 matching pages for the requested range, eliminating 40+ second full document loops.
+
+- **Verification:**
+  - **Comprehensive Test Suite (`scripts/test-question-range-suite.ts`):**
+    - Case 1 (1 → 60): Exactly 60 questions extracted, Q1 to Q60, range complete: PASS.
+    - Case 2 (6 → 8): Exactly 3 questions [6, 7, 8], Page 6 questions 1-5 excluded: PASS.
+    - Case 3 (101 → 200): Exactly 60 questions [101-160], missing questions 161-200 flagged: PASS.
+    - Case 4 (999 → 1050): Returns `"No questions found in the selected question-number range."`: PASS.
+    - Case 5 (From > To: 60 → 10): Returns `"From Question Number must be less than or equal to To Question Number."`: PASS.
+    - Case 6 (Non-1 start: 101 → 105): Exactly 5 questions [101, 102, 103, 104, 105]: PASS.
+  - **Regression Suite (`scripts/regression-suite.ts`):** 8/8 tests passed.
+  - **TypeScript Verification:** `npx tsc --noEmit` exited with code 0 (0 errors).
+  - **Production Build:** `npm run build` completed with code 0 (all 41 routes statically/dynamically generated).
+
+---
+
+## Prior Phase
+
 Phase 38 — Question File Formatter PDF Question Text Extraction & Visual Header Isolation
 
 - **Root Cause Diagnosed:**

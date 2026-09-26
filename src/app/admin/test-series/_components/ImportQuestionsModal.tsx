@@ -36,6 +36,10 @@ export function ImportQuestionsModal({
   );
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // Question Range Selection state
+  const [fromQuestion, setFromQuestion] = useState<string>('1');
+  const [toQuestion, setToQuestion] = useState<string>('60');
+
   // Parsing result & questions state
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
@@ -74,11 +78,23 @@ export function ImportQuestionsModal({
   const handleSelectFile = (file: File) => {
     setSelectedFile(file);
     setErrorMsg(null);
+    if (!fromQuestion) setFromQuestion('1');
+    if (!toQuestion) setToQuestion('60');
   };
 
   // Step 1 -> Step 2: Upload and Parse File via API
   const handleStartParsing = async () => {
     if (!selectedFile || !currentTest) return;
+
+    // Validate From <= To if both numbers are entered
+    if (fromQuestion.trim() && toQuestion.trim()) {
+      const fNum = Number(fromQuestion);
+      const tNum = Number(toQuestion);
+      if (!isNaN(fNum) && !isNaN(tNum) && fNum > tNum) {
+        setErrorMsg('From Question Number must be less than or equal to To Question Number.');
+        return;
+      }
+    }
 
     setStep('processing');
     setErrorMsg(null);
@@ -89,6 +105,12 @@ export function ImportQuestionsModal({
     formData.append('testId', currentTest.id);
     if (defaultSubjectId) {
       formData.append('defaultSubjectId', defaultSubjectId);
+    }
+    if (fromQuestion.trim() && !isNaN(Number(fromQuestion))) {
+      formData.append('fromQuestion', fromQuestion.trim());
+    }
+    if (toQuestion.trim() && !isNaN(Number(toQuestion))) {
+      formData.append('toQuestion', toQuestion.trim());
     }
 
     try {
@@ -421,6 +443,76 @@ export function ImportQuestionsModal({
                   </div>
                 )}
               </div>
+
+              {/* Question Number Range Section */}
+              <div
+                className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                  selectedFile
+                    ? 'bg-white dark:bg-slate-900 border-indigo-200 dark:border-indigo-900/60 shadow-xs ring-1 ring-indigo-500/10'
+                    : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 opacity-60'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔢</span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                      QUESTION NUMBER RANGE
+                    </h3>
+                  </div>
+                  {selectedFile && fromQuestion && toQuestion && Number(fromQuestion) <= Number(toQuestion) && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                      Selected Range: Questions {fromQuestion}–{toQuestion}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      From Question Number
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      disabled={!selectedFile}
+                      value={fromQuestion}
+                      onChange={(e) => {
+                        setFromQuestion(e.target.value);
+                        setErrorMsg(null);
+                      }}
+                      placeholder="1"
+                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      To Question Number
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      disabled={!selectedFile}
+                      value={toQuestion}
+                      onChange={(e) => {
+                        setToQuestion(e.target.value);
+                        setErrorMsg(null);
+                      }}
+                      placeholder="e.g. 60"
+                      className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+                  <p className="flex items-center gap-1">
+                    <span>ℹ️</span> PDF mein printed question number ke according range select karein.
+                  </p>
+                  <p className="text-slate-400 dark:text-slate-500 italic pl-4">
+                    Example: From 1 → To 60 means PDF se sirf Question 1 se Question 60 tak extract honge.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -444,6 +536,42 @@ export function ImportQuestionsModal({
           {/* ================================================================= */}
           {step === 'review' && (
             <div className="space-y-4">
+              {/* Selected Range Banner in Review */}
+              <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🎯</span>
+                  <span className="font-bold text-indigo-900 dark:text-indigo-200">
+                    Selected Range: Questions {parseResult?.requested_range?.from ?? fromQuestion}–{parseResult?.requested_range?.to ?? toQuestion}
+                  </span>
+                  {parseResult?.total_requested !== undefined && (
+                    <span className="text-indigo-600 dark:text-indigo-400">
+                      ({questions.length} of {parseResult.total_requested} questions found)
+                    </span>
+                  )}
+                </div>
+                {parseResult?.is_range_complete === true ? (
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2.5 py-0.5 rounded-full">
+                    ✓ Range Complete
+                  </span>
+                ) : parseResult?.missing_question_numbers && parseResult.missing_question_numbers.length > 0 ? (
+                  <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full">
+                    ⚠️ {parseResult.missing_question_numbers.length} Missing in Range
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Range Warnings Banner if missing numbers */}
+              {parseResult?.warnings && parseResult.warnings.length > 0 && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                  {parseResult.warnings.map((w, idx) => (
+                    <p key={idx} className="flex items-start gap-1.5 font-medium">
+                      <span>⚠️</span>
+                      <span>{w}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+
               {/* Summary Metrics Bar */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">

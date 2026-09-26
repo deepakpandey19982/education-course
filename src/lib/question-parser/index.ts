@@ -90,6 +90,28 @@ export async function parseQuestionFile(
   const defaultSubId = options.defaultSubjectId || '';
   const defaultSubName = options.defaultSubjectName || '';
 
+  // Validate fromQuestion <= toQuestion
+  if (
+    options.fromQuestion !== undefined &&
+    options.toQuestion !== undefined &&
+    options.fromQuestion > options.toQuestion
+  ) {
+    return {
+      success: false,
+      error: 'From Question Number must be less than or equal to To Question Number.',
+      file_name: fileName,
+      file_type: ext,
+      parsing_method: 'text',
+      pages_or_rows_processed: 0,
+      questions_detected: 0,
+      valid_questions_count: 0,
+      needs_review_count: 0,
+      duplicate_count: 0,
+      detected_subjects: [],
+      questions: [],
+    };
+  }
+
   let rawQuestions: ParsedQuestion[] = [];
   let pagesOrRows = 1;
   let parsingMethod: 'text' | 'ocr' | 'excel' | 'docx' = 'text';
@@ -217,9 +239,14 @@ export async function parseQuestionFile(
 
 
   if (rawQuestions.length === 0) {
+    const isRangeRequested = options.fromQuestion !== undefined || options.toQuestion !== undefined;
+    const errorMsg = isRangeRequested
+      ? 'No questions found in the selected question-number range.'
+      : `No questions could be detected in "${fileName}". Please ensure the file follows standard formats (e.g. Q1., 1., options A-D, Answer: B).`;
+
     return {
       success: false,
-      error: `No questions could be detected in "${fileName}". Please ensure the file follows standard formats (e.g. Q1., 1., options A-D, Answer: B).`,
+      error: errorMsg,
       file_name: fileName,
       file_type: ext,
       parsing_method: parsingMethod,

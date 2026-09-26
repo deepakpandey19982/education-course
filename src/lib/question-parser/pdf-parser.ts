@@ -399,8 +399,8 @@ export async function parsePdf(
         const isTOC = /CONTENTS|विषय\s*सूची|ब्व्छज्म्छज्/i.test(raw);
 
         // A question page must have question numbers and options, not TOC headers
-        const hasFrom = !isTOC && (hasOptions || p >= 6) && new RegExp(`(?:^|\\s)${fromQ}[\\.\\-\\—\\)]`).test(raw);
-        const hasTo = new RegExp(`(?:^|\\s)${toQ}[\\.\\-\\—\\)]`).test(raw);
+        const hasFrom = !isTOC && (hasOptions || p >= 6) && new RegExp(`(?:^|\\s)${fromQ}[\\.\\-\\—\\)\\:\\]ण्]`).test(raw);
+        const hasTo = new RegExp(`(?:^|\\s)${toQ}[\\.\\-\\—\\)\\:\\]ण्]`).test(raw);
 
         if (hasFrom) foundStart = true;
         if (foundStart) {
@@ -435,9 +435,23 @@ export async function parsePdf(
           break;
         }
       }
-      // If no questions found via probe, fallback to all pages
+      // If no questions found via probe when range was requested, return early
       if (pagesToExtract.length === 0) {
-        for (let p = 1; p <= totalPages; p++) pagesToExtract.push(p);
+        return {
+          questions: [],
+          pagesProcessed: totalPages,
+          parsingMethod: 'text',
+          rawText: '',
+          isScanned: false,
+          sections: [],
+          rangeInfo: {
+            requested_range: { from: fromQ, to: toQ },
+            found_question_numbers: [],
+            missing_question_numbers: Array.from({ length: Math.max(0, toQ - fromQ + 1) }, (_, i) => fromQ + i),
+            is_range_complete: false,
+            total_requested: Math.max(0, toQ - fromQ + 1),
+          },
+        };
       }
     } else {
       for (let p = 1; p <= totalPages; p++) {

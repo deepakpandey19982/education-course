@@ -33,6 +33,8 @@ export async function POST(req: Request) {
     const seriesId = formData.get('seriesId') as string | null;
     const testId = formData.get('testId') as string | null;
     const defaultSubjectId = (formData.get('defaultSubjectId') as string | null) || undefined;
+    const fromQuestionRaw = formData.get('fromQuestion') as string | null;
+    const toQuestionRaw = formData.get('toQuestion') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -40,6 +42,25 @@ export async function POST(req: Request) {
 
     if (!seriesId || !testId) {
       return NextResponse.json({ error: 'seriesId and testId are required' }, { status: 400 });
+    }
+
+    const fromQuestion =
+      fromQuestionRaw && !isNaN(Number(fromQuestionRaw)) && Number(fromQuestionRaw) > 0
+        ? Number(fromQuestionRaw)
+        : undefined;
+    const toQuestion =
+      toQuestionRaw && !isNaN(Number(toQuestionRaw)) && Number(toQuestionRaw) > 0
+        ? Number(toQuestionRaw)
+        : undefined;
+
+    if (fromQuestion !== undefined && toQuestion !== undefined && fromQuestion > toQuestion) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'From Question Number must be less than or equal to To Question Number.',
+        },
+        { status: 400 }
+      );
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -97,6 +118,8 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const parseResult = await parseQuestionFile(buffer, fileName, {
+      fromQuestion,
+      toQuestion,
       seriesSubjects,
       existingQuestions,
       defaultSubjectId,
@@ -104,6 +127,10 @@ export async function POST(req: Request) {
       defaultNegativeMarks: Number(testData.negative_marks) || 0,
       defaultLanguage: testData.language || 'English',
     });
+
+    if (!parseResult.success) {
+      return NextResponse.json(parseResult, { status: 400 });
+    }
 
     return NextResponse.json(parseResult);
   } catch (error: any) {

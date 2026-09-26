@@ -34,7 +34,15 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 38)
+## Latest Production Status & Updates (Phase 39)
+
+- **Smart Question Import Question Number Range Selection Feature:**
+  - **Feature Overview:** Added dedicated Question Number Range selection directly in the Smart Question Import modal (`ImportQuestionsModal.tsx`) and processing pipeline (`import-parse/route.ts`, `index.ts`, `pdf-parser.ts`, `text-extractor.ts`).
+  - **UI Implementation:** Step 1 presents an interactive "QUESTION NUMBER RANGE" card with From (default 1) and To (default 60) fields, clear helper text, and live range badge (`Selected Range: Questions 1–60`). Pre-validates `From <= To` before submission. Step 3 (Review) displays a persistent range summary banner with found count, complete badge, and missing question warnings.
+  - **Pipeline Hardening:** Backend route `/api/admin/test-series/import-parse` parses `fromQuestion` and `toQuestion`, returns 400 if `fromQuestion > toQuestion` or if no questions are found in range (`"No questions found in the selected question-number range."`). PDF probing uses strict question delimiters (`.`, `-`, `—`, `)`, `:`, `]`, `ण्`) preventing premature termination on number spaces.
+  - **Verification:** Tested all 6 edge cases (1 → 60, 6 → 8, 101 → 200, 999 → 1050 no match, 60 → 10 From > To, and non-1 starts 101 → 105). 8/8 regression tests passed. TypeScript typecheck passed with 0 errors. Production build passed with 0 errors (41 routes optimized).
+
+## Prior Phase (Phase 38)
 
 - **Question File Formatter PDF Question Text Extraction & Visual Header Isolation:**
   - **Root Cause Diagnosed:** On the UP Police Hindi PDF, Question 8 (`‘विश्व जल दिवस’ तिथि को मनाया जाता है?`) erroneously included `"प्रैक्टिस सेट\nअधिकतम अंक: 300"`. Investigated and identified that: (1) Page 6 top instruction/title block (`y > 500`) with `x > midX` was grouped into `colRight` instead of top header, (2) `colLeft` (ending with Question 8) was concatenated directly before `colRight`, (3) `text-extractor.ts` appended stray non-option lines into `questionLines` even after options A-D were complete, and (4) KrutiDev `vf/dre vad%` converted to `अध्कितम अंकः` (`ध्क` instead of `धिक`), escaping the previous regex.
