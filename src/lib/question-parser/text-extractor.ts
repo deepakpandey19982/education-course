@@ -16,6 +16,11 @@ export function detectPracticeSetHeader(line: string): string | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.length > 80) return null;
 
+  // Never treat an Answer Key or Solution title as a new section header
+  if (/उत्तरमाला|mÙkjekyk|उत्तर\s*कुंजी|answer\s*key|व्याख्या|solution/i.test(trimmed)) {
+    return null;
+  }
+
   // 1. Practice Set / Model Paper / Mock Test variations:
   // "Practice Set - 1", "Practice Set 1", "Practice Set-1", "प्रैक्टिस सेट - 1", "प्रैक्टिस सेट 1", "izSfDVl lsV- 1"
   // "Model Paper - 1", "Model Paper 1", "मॉडल पेपर 1", "Mock Test 1"
@@ -130,8 +135,8 @@ function isTableOfContentsLine(line: string): boolean {
   const clean = line.trim();
   if (!clean) return false;
   if (/^(?:content|contents|index|table\s*of\s*contents|विषय\s*सूची|ब्व्छज्म्छज्)$/i.test(clean)) return true;
-  // Matches "1. Practice Set - 1 1-12", "1. izSfDVl lsV - 1 1-12", "1. प्रैक्टिस सेट - 1 1-12"
-  if (/^(?:\d{1,3}[\.\)\-]\s*)?(?:practice\s*set|प्रैक्टिस\s*सेट|izSfDVl\s*lsV|मॉडल\s*पेपर|model\s*paper|set|सेट)\s*[:\.\-\—]?\s*\d{1,4}\s+\d{1,4}\s*[-–—.]\s*\d{1,4}$/i.test(clean)) return true;
+  // Matches "1. Practice Set - 1 1-12", "1. izSfDVl lsV - 1 1-12", "1. प्रैक्टिस सेट - 1 1-12", or standalone "1. प्रैक्टिस सेट - 1"
+  if (/^(?:\d{1,3}[\.\)\-]\s*)?(?:practice\s*set|प्रैक्टिस\s*सेट|izSfDVl\s*lsV|मॉडल\s*पेपर|model\s*(?:test\s*)?paper|sample\s*paper|mock\s*test|अभ्यास\s*प्रश्न\s*पत्र|set|सेट)\s*[:\.\-\—]?\s*\d{1,4}(?:\s+\d{1,4}\s*[-–—.]\s*\d{1,4})?$/i.test(clean)) return true;
   return false;
 }
 
@@ -232,8 +237,9 @@ export function extractQuestionsWithRangeFromText(
   // Handles leading combining marks, stray bullets, and delimiters (., -, :, ), ], |, ण्, ।)
   const questionStartRegex = /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)\]\|ण्।]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)\]\|ण्।])(?:\s+|$)))\s*(.*)$/i;
 
-  // Single Option starters: (A) / A. / A) / [A] / (क) / क. / 1. / (1)
-  const optionStartRegex = /^(?:\(([A-Da-dक-घ1-4])\)|([A-Da-dक-घ1-4])\s*[\.\)\-\]]|\[([A-Da-dक-घ1-4])\])\s*(.*)$/;
+  // Single Option starters: (A) / A. / A) / [A] / (क) / क. / (1) / [1]
+  // Note: Unparenthesized numbers like "1." or "2." are NOT options — they are internal numbered statements!
+  const optionStartRegex = /^(?:\(([A-Da-dक-घ1-4])\)|([A-Da-dक-घ])\s*[\.\)\-\]]|\[([A-Da-dक-घ1-4])\])\s*(.*)$/;
 
   // Answer indicators: Answer: B / Ans: B / उत्तर: B / Answer - B / Ans. B / Option B / Correct: B
   const answerLineRegex = /^(?:(?:correct\s*)?(?:answer|ans|उत्तर|option|विकल्प)\s*[:\.\-\—]\s*\(?([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F])))\)?|(?:उत्तर|ans|answer)\s+([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F]))))\s*(.*)$/i;
@@ -241,8 +247,8 @@ export function extractQuestionsWithRangeFromText(
   // Explanation indicators: Explanation: ... / व्याख्या: ... / Solution: ... / हल: ...
   const explanationLineRegex = /^(?:explanation|व्याख्या|solution|हल|नोट|note)\s*[:\.\-\—]\s*(.*)$/i;
 
-  // Answer key section header indicator (must be a standalone section header, NOT an individual answer line)
-  const answerKeyHeaderRegex = /^(?:answer\s*key|answers\s*(?:key|sheet|table)?|answer-key|उत्तर\s*कुंजी|उत्तर\s*माला|उत्तरमाला|उत्तर-कुंजी|उत्तर\s*तालिका|key\s*answers?)(?:\s*[:\-]|\s*$)/i;
+  // Answer key section header indicator (can appear at start of line or with set prefix)
+  const answerKeyHeaderRegex = /(?:^|\s)(?:answer\s*key|answers\s*(?:key|sheet|table)?|answer-key|उत्तर\s*कुंजी|उत्तर\s*माला|उत्तरमाला|उत्तर-कुंजी|उत्तर\s*तालिका|key\s*answers?)(?:\s*[:\-]|\s*$|\s+\d+)/i;
 
   // -------------------------------------------------------------------------
   // PHASE 1: Scan for Practice Sets / Sections across lines
@@ -316,6 +322,17 @@ export function extractQuestionsWithRangeFromText(
       }
     }
 
+    if (answerKeyStartIndex === -1) {
+      for (let j = 0; j < sectionLines.length; j++) {
+        const trimmed = sectionLines[j].trim();
+        const matches = trimmed.match(/\b\d{1,3}\s*[-–—.:]\s*\(?[a-dA-D1-4क-घ]\)?/g);
+        if (matches && matches.length >= 3) {
+          answerKeyStartIndex = j;
+          break;
+        }
+      }
+    }
+
     if (answerKeyStartIndex !== -1) {
       options.onProgress?.({
         stage: 'detecting_answer_key',
@@ -338,6 +355,7 @@ export function extractQuestionsWithRangeFromText(
     let currentTargetOption: 'A' | 'B' | 'C' | 'D' | null = null;
     let inExplanation = false;
     let runningAutoQNum = 1;
+    let seenFirstQuestionInDraft = false;
 
     const pushSectionBlock = () => {
       if (activeBlock) {
@@ -380,19 +398,26 @@ export function extractQuestionsWithRangeFromText(
         const qNumStr = qMatch[1] || qMatch[2] || qMatch[3] || qMatch[4];
         const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
         const initialText = (qMatch[5] || '').trim();
-
         const isExplicit = Boolean(qMatch[1]);
-        // False-positive sub-list or option guard:
-        // Inside a question or after question 1:
-        // If it lacks explicit prefix (Q./Question/प्रश्न) and parsedQNum is backwards (< runningAutoQNum - 1)
-        // or parsedQNum leaps forward by more than 10 (e.g. 1990., 2014.),
-        // it is a numbered point inside the question body or explanation!
+
+        // Guard 1: Before Question 1 (or fromQuestion) is seen in this section, reject lines starting with numbers
+        // (these are document instructions like "160 वस्तुनिष्ठ प्रश्न...", "3 घण्टे", etc.)
+        const isExpectedFirst = options.fromQuestion ? parsedQNum === options.fromQuestion : parsedQNum === 1;
+        if (!seenFirstQuestionInDraft && !isExplicit && !isExpectedFirst && parsedQNum !== 1) {
+          continue;
+        }
+
+        // Guard 2: Sequence / internal numbered statement check
+        // Inside question N (e.g. 14, 23): if an un-prefixed number appears that is <= N
+        // (like 1. कोरिया युद्ध, 2. वियतनाम युद्ध), it is an internal numbered statement!
         const isInternalNumberedItem =
+          activeBlock &&
           !isExplicit &&
-          (parsedQNum < runningAutoQNum - 1 || (runningAutoQNum > 1 && parsedQNum > runningAutoQNum + 10));
+          (parsedQNum <= activeBlock.qNum || (runningAutoQNum > 1 && parsedQNum > runningAutoQNum + 10));
 
         if (!isInternalNumberedItem) {
           pushSectionBlock();
+          seenFirstQuestionInDraft = true;
           runningAutoQNum = parsedQNum + 1;
           activeBlock = {
             qNum: parsedQNum,
@@ -405,6 +430,8 @@ export function extractQuestionsWithRangeFromText(
             explanation: '',
             rawSnippet: line,
           };
+          currentTargetOption = null;
+          inExplanation = false;
           continue;
         }
       }
@@ -524,7 +551,15 @@ export function extractQuestionsWithRangeFromText(
     // Critical failures (Invalid)
     if (!questionText) {
       validationIssues.push('Question text missing or incomplete');
+    } else if (questionText.length < 8) {
+      validationIssues.push('Question text is too short (< 8 characters)');
     }
+
+    // Check for document instruction noise entering question
+    if (/इस\s*प्रैक्टिस\s*सेट\s*में\s*\d+|समय\s*:\s*\d+\s*घण्टे|अधिकतम\s*अंक\s*:\s*\d+/i.test(questionText)) {
+      validationIssues.push('Contains document instruction text');
+    }
+
     const hasAnyOption = optA || optB || optC || optD;
     if (!hasAnyOption) {
       validationIssues.push('No options found for this question');
@@ -537,6 +572,13 @@ export function extractQuestionsWithRangeFromText(
     if (!optD) validationIssues.push('Missing Option D');
     if (!correctOption) validationIssues.push('Missing Correct Answer');
 
+    // Check for duplicate options (e.g. Option A === Option B)
+    const activeOpts = [optA, optB, optC, optD].filter(Boolean);
+    const uniqueOpts = new Set(activeOpts);
+    if (activeOpts.length >= 2 && uniqueOpts.size < activeOpts.length) {
+      validationIssues.push('Duplicate option values detected');
+    }
+
     // Duplicate question number within the same section
     const dupCount = sectionQNumCount.get(`${block.sectionId}:${block.qNum}`) || 1;
     const isDup = dupCount > 1;
@@ -545,7 +587,13 @@ export function extractQuestionsWithRangeFromText(
     }
 
     let status: QuestionValidationStatus = 'valid';
-    if (!questionText || !hasAnyOption) {
+    if (
+      !questionText ||
+      !hasAnyOption ||
+      validationIssues.includes('Contains document instruction text') ||
+      validationIssues.includes('Question text is too short (< 8 characters)') ||
+      (!optA && !optB)
+    ) {
       status = 'invalid';
     } else if (validationIssues.length > 0) {
       status = 'needs_review';

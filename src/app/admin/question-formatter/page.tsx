@@ -482,6 +482,29 @@ export default function QuestionFileFormatterPage() {
     setStep('upload');
   };
 
+  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+  const toggleSourceView = (id: string) => {
+    setExpandedSources((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleUpdateQuestionStatus = (id: string, newStatus: 'valid' | 'needs_review' | 'invalid') => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id === id
+          ? {
+              ...q,
+              status: newStatus,
+              validation_issues: newStatus === 'valid' ? [] : q.validation_issues,
+            }
+          : q
+      )
+    );
+  };
+
+  const handleRemoveAllInvalid = () => {
+    setQuestions((prev) => prev.filter((q) => q.status !== 'invalid'));
+  };
+
   // Filter questions for display
   const filteredQuestions = useMemo(() => {
     return questions.filter((q) => {
@@ -1258,7 +1281,37 @@ export default function QuestionFileFormatterPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {q.status !== 'valid' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQuestionStatus(q.id, 'valid')}
+                          className="px-2 py-1 rounded text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                        >
+                          ✓ Mark Valid
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQuestionStatus(q.id, 'needs_review')}
+                          className="px-2 py-1 rounded text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 border border-amber-200 dark:border-amber-800 transition-colors"
+                        >
+                          ⚠️ Needs Review
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => toggleSourceView(q.id)}
+                        className={`px-2 py-1 rounded text-xs font-bold border transition-colors ${
+                          expandedSources[q.id]
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        📄 Source Compare
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setEditingQuestion(q)}
@@ -1278,61 +1331,95 @@ export default function QuestionFileFormatterPage() {
 
                   {/* Validation issues warning */}
                   {hasIssues && (
-                    <div className="mb-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60 p-2 rounded-lg font-medium">
+                    <div className="mb-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60 p-2.5 rounded-lg font-medium">
                       <strong>Issues:</strong> {q.validation_issues.join(', ')}
                     </div>
                   )}
 
-                  {/* Question Text */}
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap mb-3 leading-relaxed">
-                    {q.question_text || <span className="italic text-red-500">[Missing Question Text]</span>}
-                  </p>
+                  {/* Split View for Source Comparison */}
+                  <div className={`grid gap-4 ${expandedSources[q.id] ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+                    <div>
+                      {/* Question Text */}
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap mb-3 leading-relaxed">
+                        {q.question_text || <span className="italic text-red-500">[Missing Question Text]</span>}
+                      </p>
 
-                  {/* Options Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    {(['A', 'B', 'C', 'D'] as const).map((key) => {
-                      const optKey = `option_${key.toLowerCase()}` as keyof ParsedQuestion;
-                      const optVal = (q[optKey] as string) || '';
-                      const isCorrect = q.correct_option === key;
+                      {/* Options Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {(['A', 'B', 'C', 'D'] as const).map((key) => {
+                          const optKey = `option_${key.toLowerCase()}` as keyof ParsedQuestion;
+                          const optVal = (q[optKey] as string) || '';
+                          const isCorrect = q.correct_option === key;
 
-                      return (
-                        <div
-                          key={key}
-                          className={`p-2.5 rounded-lg border flex items-start gap-2 ${
-                            isCorrect
-                              ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
-                              : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                              isCorrect
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            {key}
-                          </span>
-                          <span className="flex-1 break-words">
-                            {optVal || <span className="italic text-slate-400">Empty</span>}
-                          </span>
-                          {isCorrect && (
-                            <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
-                              Correct
-                            </span>
-                          )}
+                          return (
+                            <div
+                              key={key}
+                              className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                                isCorrect
+                                  ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
+                                  : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <span
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                  isCorrect
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                {key}
+                              </span>
+                              <span className="flex-1 break-words">
+                                {optVal || <span className="italic text-slate-400">Empty</span>}
+                              </span>
+                              {isCorrect && (
+                                <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                                  Correct
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explanation */}
+                      {q.explanation && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+                          <strong className="text-slate-700 dark:text-slate-300">Explanation: </strong>
+                          {q.explanation}
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Explanation */}
-                  {q.explanation && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
-                      <strong className="text-slate-700 dark:text-slate-300">Explanation: </strong>
-                      {q.explanation}
+                      )}
                     </div>
-                  )}
+
+                    {/* Source Comparison Panel */}
+                    {expandedSources[q.id] && (
+                      <div className="bg-slate-950 text-slate-200 p-4 rounded-xl border border-slate-800 flex flex-col justify-between text-xs">
+                        <div>
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2 font-bold">
+                            <span className="text-slate-300 flex items-center gap-1.5">
+                              <span>📄</span> Original Document Raw Snippet
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              PDF Raw Text
+                            </span>
+                          </div>
+                          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap select-all text-slate-300 bg-slate-900/60 p-2.5 rounded border border-slate-800/80 max-h-72 overflow-y-auto">
+                            {q.raw_snippet || 'No raw snippet recorded for this item.'}
+                          </pre>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Compare text & options against original source</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleSourceView(q.id)}
+                            className="text-blue-400 hover:underline"
+                          >
+                            Close Preview
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1343,18 +1430,38 @@ export default function QuestionFileFormatterPage() {
             <Button variant="ghost" onClick={() => setStep('upload')}>
               ← Back to File & Range
             </Button>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500">
-                Ready to commit <strong>{questions.length}</strong> questions to{' '}
-                <strong>{destMode === 'create_new' ? seriesTitle : 'Existing Test'}</strong>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <strong>{questions.length}</strong> detected •{' '}
+                <strong className="text-emerald-600 dark:text-emerald-400">{validCount}</strong> valid •{' '}
+                <strong className="text-amber-600 dark:text-amber-400">{reviewCount}</strong> need review
+                {invalidCount > 0 && (
+                  <>
+                    {' '}• <strong className="text-red-600 dark:text-red-400">{invalidCount}</strong> invalid
+                  </>
+                )}
               </span>
+
+              {invalidCount > 0 && (
+                <Button
+                  onClick={handleRemoveAllInvalid}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-red-300 text-red-600 dark:border-red-800 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 font-bold"
+                >
+                  ✕ Remove All Invalid ({invalidCount})
+                </Button>
+              )}
+
               <Button
                 onClick={handleConfirmAndCommit}
                 variant="primary"
                 className="font-bold px-6 shadow-md"
-                disabled={questions.length === 0}
+                disabled={questions.length === 0 || invalidCount > 0}
               >
-                Confirm & Import Questions →
+                {invalidCount > 0
+                  ? `Blocked (${invalidCount} Invalid)`
+                  : 'Confirm & Import Questions →'}
               </Button>
             </div>
           </div>

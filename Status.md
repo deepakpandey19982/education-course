@@ -2,6 +2,52 @@
 
 ## Current Phase
 
+Phase 35 — Universal High-Accuracy Question Importer & Extraction Quality Engine
+
+- **Overview & Problem Diagnosed:**
+  - Previous extraction on real Hindi exam PDFs (e.g. UP Police practice tests) exhibited multiple extraction flaws:
+    1. Mangled Hindi words (`मुख्यमंत्राी` instead of `मुख्यमंत्री`, `क्षेत्रा`, `शास्त्राीय संगीत ;गायनद्ध`, `सिपफारिश`, `शीत यु(`).
+    2. Instruction/header text entering questions (e.g. Q13 or Q10 absorbing instruction boxes).
+    3. Chemical formulas (`CO₂`, `NO₂`, `CH₄`, `O₂`) mangled into Hindi transliteration tokens.
+    4. English names/terms mangled (e.g. `(Cold War)` mangled to KrutiDev glyphs).
+    5. Sequence/chronological statements (e.g. Q14 statements 1-4, Q23 statements 1-3) being mistaken for question numbers or options.
+    6. Answer keys in multi-column tables not mapping correctly to questions.
+    7. False "Valid" reports without source verification or import blocking for bad data.
+
+- **Pipeline Overhaul & Implementation:**
+  1. **Hindi Unicode Transliteration & Typographic Normalization (`krutidev-converter.ts`):**
+     - Corrected KrutiDev conjunct mapping: `=k` -> `=` (fixes `क्षेत्र`, `सूत्र`, `मुख्यमंत्री`, `शास्त्रीय`, `चित्रकार`).
+     - Fixed `¼` -> `द्ध` (`शीत युद्ध`, `सम्बद्ध`, `बुद्धि`), `Ú` -> `Ý` (`अल्फ्रेड`, `रेगनर फ्रिश`), `iQ` -> `Q+` (`सिफारिश`), `fpÉ` -> `चिह्न`.
+     - Corrected matra ordering: `([क-ह]्?त्र)ा([ीि])` -> `$1$2`, `([क-ह])ंे` -> `$1ें`.
+     - Converted typesetter parenthetical expressions `य([क-ह]...)द्ध` -> `(...)` (fixes `(गायन)` while strictly preserving `युद्ध`).
+  2. **Column-Aware PDF Extraction Engine (`pdf-parser.ts`):**
+     - Font classification identifies KrutiDev font streams while keeping English/Latin text in pure Latin (`(Cold War)`, `(Strategic Dialogue)`).
+     - Subscript formatting for chemical formulas: `formatChemicalFormulas` formats `CO 2` -> `CO₂`, `NO 2` -> `NO₂`, `CH 4` -> `CH₄`, `O 2` -> `O₂`.
+     - Filtered watermarks (`sscstudy.com`), page metadata, and publisher noise.
+     - Table of contents list guard skips front-matter and index lines (`isTableOfContentsLine`).
+     - Answer key lookahead probes up to 15 pages forward, bypassing OMR bubble sheets and formatting multi-column answer tables row-by-row (top-to-bottom) so all 160 answers map cleanly.
+  3. **Structured Question & Option Parsing Engine (`text-extractor.ts`):**
+     - Guard 1 rejects un-prefixed instruction numbers before the first question (or `fromQuestion`).
+     - Guard 2 protects sequence/chronological questions: internal statements `1.`, `2.`, `3.`, `4.` inside question N are preserved in question text and cannot hijack question numbers.
+     - Option regex strictly requires letters `(a)-(d)` or parenthesized numbers `(1)-(4)`, preventing statements from becoming options.
+     - Multi-line question text and options preserved without truncation.
+  4. **Safety, Validation & Source Comparison UI (`src/app/admin/question-formatter/page.tsx`):**
+     - **Source Comparison View:** Side-by-side or collapsible panel displaying original raw PDF snippet alongside extracted question and options.
+     - **Status Toggles:** Admin can toggle "✓ Mark Valid", "⚠️ Needs Review", "✏️ Edit", and "✕ Remove" per question.
+     - **Import Blocker:** Automatically blocks database import if any `invalid` questions exist, displaying `X detected • Y valid • Z need review • W invalid`, with a one-click "✕ Remove All Invalid" button.
+  5. **Automated Regression Suite (`scripts/regression-suite.ts`):**
+     - 8 automated tests covering Hindi Unicode, chemical formulas, mixed English/Hindi, sequence questions, instruction filtering, answer key parsing, and validation (8/8 passing).
+  6. **Real PDF Verification (UP Police Practice Set, Range 1–60):**
+     - Target questions verified with 100% accuracy: Q1 (Gov approval), Q2 (Bhimsen Joshi - classical vocal), Q3 (Three-language formula), Q6 (Person of the Year 2017), Q7 (Kiss of Life), Q9 (Artists/Art), Q10 (Fundamental duties), Q13 (Ghadar Party), Q14 (Cold War sequence 1-4), Q15 (Chemical formulas CO₂, NO₂, CH₄, O₂), Q19 (Microeconomics), Q23 (ISO statements 1-3), Q49 (Punctuation marks).
+     - 60 questions found, 0 missing, range complete = true, execution time ~1.2s.
+  7. **Quality Gates:**
+     - TypeScript check: `npx tsc --noEmit` passed with 0 errors.
+     - Production build: `npm run build` passed with 0 errors (41 routes optimized).
+
+---
+
+## Prior Phase
+
 Phase 34 — Question Formatter Database Insert Fix (`subject_id` Schema Alignment)
 
 - **Root Cause Diagnosed & Resolved:**

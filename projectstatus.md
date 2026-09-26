@@ -34,9 +34,18 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 34)
+## Latest Production Status & Updates (Phase 35)
 
-- **Question Formatter Database Insert Fix (`subject_id` Schema Alignment):**
+- **Universal High-Accuracy Question Importer & Extraction Quality Engine:**
+  - **Hindi Transliteration & Typographic Normalization:** Fixed KrutiDev conjuncts (`=k` -> `=`, `¼` -> `द्ध`, `Ú` -> `Ý`, `iQ` -> `Q+`, `fpÉ` -> `चिह्न`), trailing matras (`मंत्राी` -> `मंत्री`), anusvara ordering (`ंे` -> `ें`), and parenthetical conversions `य([क-ह]...)द्ध` -> `(...)` (fixes `(गायन)` while strictly preserving `युद्ध`).
+  - **Column-Aware PDF Layout & Mixed Language Extraction:** Font classification isolates KrutiDev streams while preserving English/Latin terms (`(Cold War)`, `(Strategic Dialogue)`). Chemical formulas formatted with Unicode subscripts (`CO₂`, `NO₂`, `CH₄`, `O₂`). Table of Contents guard (`isTableOfContentsLine`) skips front-matter and index lines.
+  - **Sequence & Chronological Question Guard:** Internal numbered statements (`1.`, `2.`, `3.`, `4.`) inside Question N are preserved in question text and prevented from hijacking main question numbers.
+  - **Answer Key Multi-Column Parser:** Lookahead probes up to 15 pages forward, bypasses OMR sheets, and formats answer key tables row-by-row (top-to-bottom) ensuring all 160 answers map cleanly to question blocks.
+  - **Safety & Source Comparison UI:** Side-by-side or collapsible source comparison panel displays original raw PDF snippet alongside extracted question. Database import is hard-blocked if any `invalid` questions exist, with a 1-click "Remove All Invalid" action.
+  - **Verification:** 8/8 automated regression tests passed. Full 60-question test on real UP Police PDF: 60/60 located, 0 missing, ~1.2s extraction time, 100% verified on Q1, Q2, Q3, Q6, Q7, Q9, Q10, Q13, Q14, Q15, Q19, Q23, Q49.
+  - **Quality Gates:** `npx tsc --noEmit` code 0 (0 errors), `npm run build` code 0 (41 routes optimized).
+
+## Phase 34 — Question Formatter Database Insert Fix (`subject_id` Schema Alignment)
   - **Root Cause:** In Supabase, the `questions` table schema does not contain a `subject_id` column (it uses `'id', 'test_id', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'marks', 'negative_marks', 'language', 'order', 'created_at', 'updated_at'`). Subject associations are stored at the test level (`tests.subject_id`) and at the question level via encoded tags in `explanation` (`encodeSubjectTag` / `decodeSubjectTag`). Attempting to insert `subject_id` in `questions` caused PostgREST error: `Could not find the 'subject_id' column of 'questions' in the schema cache`.
   - **Schema Alignment:**
     - Cleaned `question_text` of accidental tags.
