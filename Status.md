@@ -2,6 +2,40 @@
 
 ## Current Phase
 
+Phase 37 — Question File Formatter PDF.js Server-Side Worker Resolution
+
+- **Root Cause Diagnosed:**
+  - **Issue Reported:** In Next.js 16 + Turbopack development, uploading a PDF failed before extraction started with:
+    `Setting up fake worker failed: "Cannot find module C:\Deepak\Education-Course\.next\dev\server\chunks\pdf.worker.mjs imported from C:\Deepak\Education-Course\.next\dev\server\chunks\node_modules_pdfjs-dist_legacy_build_pdf_mjs_....js"`
+  - **Mechanism:**
+    1. In `next.config.ts`, `serverExternalPackages` previously included only `['pdf-parse']`. Because `src/lib/question-parser/pdf-parser.ts` directly imports `pdfjs-dist/legacy/build/pdf.mjs`, Turbopack bundled `pdfjs-dist` into server chunks (`.next/dev/server/chunks/`).
+    2. In Node.js, `pdfjs-dist` defaults `GlobalWorkerOptions.workerSrc` to `"./pdf.worker.mjs"`. When `#setupFakeWorker()` is triggered on the server, `_setupFakeWorkerGlobal` attempts dynamic `await import(this.workerSrc)`.
+    3. Because the bundling context placed `pdf.mjs` inside `.next/dev/server/chunks/`, Node evaluated the relative path against `.next/dev/server/chunks/`, where `pdf.worker.mjs` does not exist, triggering a fatal `MODULE_NOT_FOUND` error.
+  - **Architecture Solution:**
+    1. **External Package Configuration (`next.config.ts`):** Added `'pdfjs-dist'` to `serverExternalPackages: ['pdf-parse', 'pdfjs-dist']`. Turbopack and Webpack leave `pdfjs-dist` external, preventing it from being bundled into `.next/server/chunks/` and allowing Node's native module loader to resolve dependencies directly from `node_modules`.
+    2. **In-Memory Fake Worker Pre-Registration (`pdf-parser.ts`):**
+       Imported `pdfjsWorker` from `'pdfjs-dist/legacy/build/pdf.worker.mjs'` and registered `globalThis.pdfjsWorker = pdfjsWorker`. In `pdfjs-dist`, `PDFWorker.#mainThreadWorkerMessageHandler` checks `globalThis.pdfjsWorker?.WorkerMessageHandler`. When detected, it immediately provisions the in-memory fake worker over the loopback message handler on the main thread, bypassing any worker thread and completely avoiding any dynamic import or lookup of external `.mjs` worker files.
+
+- **Verification:**
+  - **Clean Dev Server Test:** Safely deleted `.next`, restarted Next.js development server with Turbopack, uploaded the 3.66 MB UP Police Hindi PDF via HTTP POST to `/api/admin/question-formatter/jobs/create` requesting questions 1 → 60.
+    - Zero `Setting up fake worker failed` errors.
+    - Zero `MODULE_NOT_FOUND` errors.
+    - Polling completed with status 200 OK: 60/60 questions detected, range complete: true, 0 missing.
+    - Q1 and Q49 inspected and verified with complete Hindi text, options A-D, and correct answers.
+  - **Authentication & Security Verification:** Tested all auth vectors via HTTP (`test-question-formatter-auth.mjs`):
+    - Unauthenticated create & poll returned 401: PASS.
+    - Non-admin student create & poll returned 403: PASS.
+    - Authenticated Admin create & poll: PASS (10/10 questions extracted).
+    - Cookie-based authentication: PASS.
+  - **Regression Suite:** 8/8 tests passed (`scripts/regression-suite.ts`).
+  - **TypeScript Verification:** `npx tsc --noEmit` passed with 0 errors.
+  - **Production Build:** `npm run build` compiled cleanly with 0 errors (all 41 routes optimized).
+  - **Production Server Verification:** Started `next start` production server and ran real HTTP upload/extraction for questions 1 → 60: 60/60 questions detected, range complete: true, 0 missing.
+
+---
+
+## Prior Phase
+
 Phase 36 — Question File Formatter PDF Extraction Regression Resolution
 
 - **Regression Diagnosed & Root Cause Identified:**

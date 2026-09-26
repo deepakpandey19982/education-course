@@ -1,4 +1,13 @@
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+// Pre-register fake worker handler for Node.js / server runtime to prevent dynamic import failure
+// @ts-ignore
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+
+// Register worker handler on globalThis so pdfjs finds #mainThreadWorkerMessageHandler directly
+if (typeof (globalThis as any).pdfjsWorker === 'undefined') {
+  (globalThis as any).pdfjsWorker = pdfjsWorker;
+}
+
 import { extractQuestionsFromText, extractQuestionsWithRangeFromText, TextExtractRangeResult } from './text-extractor';
 import { parseImageOcr } from './ocr-parser';
 import { convertKrutiDevToUnicode, isKrutiDevEncoded } from './krutidev-converter';

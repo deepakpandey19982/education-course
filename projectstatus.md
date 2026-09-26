@@ -34,9 +34,23 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 36)
+## Latest Production Status & Updates (Phase 37)
 
-- **Question File Formatter PDF Extraction Regression Resolution:**
+- **Question File Formatter PDF.js Server-Side Worker Resolution:**
+  - **Root Cause Diagnosed:** Under Next.js 16 + Turbopack, `pdfjs-dist/legacy/build/pdf.mjs` was bundled into `.next/dev/server/chunks/` because `pdfjs-dist` was omitted from `serverExternalPackages` in `next.config.ts`. In Node.js, `pdfjs` defaulted `GlobalWorkerOptions.workerSrc` to `"./pdf.worker.mjs"`, and `#setupFakeWorker()` attempted dynamic `await import(this.workerSrc)`. Node evaluated the relative path from the server chunks directory (`.next/dev/server/chunks/pdf.worker.mjs`), which did not exist, triggering `Cannot find module ... pdf.worker.mjs`.
+  - **Hardened Architecture:**
+    1. Added `'pdfjs-dist'` to `serverExternalPackages: ['pdf-parse', 'pdfjs-dist']` in `next.config.ts`, ensuring Next.js / Turbopack leaves `pdfjs-dist` external so Node resolves it directly from `node_modules`.
+    2. Imported `pdfjsWorker` from `'pdfjs-dist/legacy/build/pdf.worker.mjs'` and pre-registered `globalThis.pdfjsWorker = pdfjsWorker` in `src/lib/question-parser/pdf-parser.ts`. `pdfjs-dist` detects `globalThis.pdfjsWorker.WorkerMessageHandler` on `mainThreadWorkerMessageHandler` and provisions the in-memory fake worker directly over loopback ports, completely avoiding any dynamic import or lookup of external worker files.
+  - **Verification:**
+    - Clean Turbopack dev server test: Deleted `.next`, restarted dev server, uploaded 3.66 MB UP Police PDF via HTTP for questions 1 → 60. Clean 200 OK, 60/60 detected, 0 missing, Q1 and Q49 verified.
+    - Zero `Setting up fake worker failed` or `MODULE_NOT_FOUND` errors.
+    - All auth boundaries verified: 401 unauthenticated, 403 student, 200 admin.
+    - 8/8 regression suite tests passed.
+    - `npx tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded with 0 errors (41 routes optimized).
+    - Production server verification (`next start`): 60/60 questions extracted via HTTP.
+
+## Phase 36 — Question File Formatter PDF Extraction Regression Resolution
   - **Regression Diagnosed:** Traced regression where UP Police Hindi PDF extraction fell to 0 questions:
     1. Frontend `selectedSectionId` state defaulted to `'sec-1'` instead of `'all'`.
     2. `pdf-parser.ts` `isInstructionOrNoise` was stripping `^प्रैक्टिस सेट` headers from text.
