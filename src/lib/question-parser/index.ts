@@ -306,19 +306,22 @@ export async function parseQuestionFile(
       issues.push('Subject not detected (please select subject)');
     }
 
-    // Duplicate detection
+    // Duplicate detection (incorporate options so questions sharing instruction text are not marked duplicates)
     const normText = normalizeText(q.question_text);
+    const normKey = q.option_a || q.option_b
+      ? `${normText}::optA:${normalizeText(q.option_a)}::optB:${normalizeText(q.option_b)}`
+      : normText;
     let isDuplicate = false;
 
     if (normText.length > 10) {
-      if (existingSet.has(normText)) {
+      if (existingSet.has(normKey)) {
         isDuplicate = true;
         issues.push('Possible duplicate of existing test question');
-      } else if (seenInBatch.has(normText)) {
+      } else if (seenInBatch.has(normKey)) {
         isDuplicate = true;
         issues.push('Possible duplicate of another question in this upload');
       }
-      seenInBatch.add(normText);
+      seenInBatch.add(normKey);
     }
 
     const hasAnyOpt = Boolean(

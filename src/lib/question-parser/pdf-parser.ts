@@ -78,14 +78,13 @@ function isKrutiDevFont(fontSample: string): boolean {
   return indicators.some((ind) => fontSample.includes(ind));
 }
 
-// Check if a line is an instruction or noise header to exclude
+// Check if a line is a document-level noise header to exclude
 function isInstructionOrNoise(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return true;
   if (/For More PDF Download/i.test(trimmed)) return true;
   if (/^EBD_\d+/i.test(trimmed)) return true;
   if (/^\.\.\s*\d+\s*(?:व\s*ि|of)\s*\d+\s*\.\./i.test(trimmed)) return true;
-  if (/^(?:निर्देश|funsZ'k|instructions?)\b/i.test(trimmed)) return true;
   if (/^(?:\d+[\.\-\s]*)?(?:इस\s*प्रैक्टिस\s*सेट\s*में|bl\s*izSfDVl\s*lsV\s*esa)/i.test(trimmed)) return true;
   if (/^प्रैक्टिस\s*सेट\s*में\s*(?:गणित|xf\.kr)/i.test(trimmed)) return true;
   if (/^प्रैक्टिस\s*सेट\s*को\s*हल\s*करने/i.test(trimmed)) return true;
@@ -225,7 +224,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
     }
   }
 
-  const formatColumn = (colItems: any[]) => {
+  const formatColumn = async (colItems: any[], isRightCol: boolean = false) => {
     colItems.sort((a, b) => {
       const yA = a.transform[5];
       const yB = b.transform[5];
@@ -235,8 +234,15 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
       return a.transform[4] - b.transform[4]; // Left to right
     });
 
-    const lines: string[] = [];
+    interface VisualLine {
+      y: number;
+      text: string;
+      items: any[];
+    }
+
+    const visualLines: VisualLine[] = [];
     let currentLine: string[] = [];
+    let currentItems: any[] = [];
     let currentY: number | null = null;
     let lastX = 0;
 
@@ -247,10 +253,11 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
         if (currentLine.length > 0) {
           const l = formatChemicalFormulas(currentLine.join(' ').trim());
           if (!isInstructionOrNoise(l)) {
-            lines.push(l);
+            visualLines.push({ y: currentY!, text: l, items: currentItems });
           }
         }
         currentLine = [it.str];
+        currentItems = [it];
         currentY = y;
         lastX = x + (it.width || 0);
       } else {
@@ -259,16 +266,142 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
         } else {
           currentLine.push(it.str);
         }
+        currentItems.push(it);
         lastX = x + (it.width || 0);
       }
     }
     if (currentLine.length > 0) {
       const l = formatChemicalFormulas(currentLine.join(' ').trim());
       if (!isInstructionOrNoise(l)) {
-        lines.push(l);
+        visualLines.push({ y: currentY!, text: l, items: currentItems });
       }
     }
-    return lines.join('\n');
+
+    // Detect diagram regions across questions in this column
+    const qStartRegex = /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)\]\|ण्।]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)\]\|ण्।])(?:\s+|$)))/i;
+    const optMarkerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/;
+    const diagramKeywordRegex = /vkÑfr|आकृति|चित्र|लुप्त|yqIr|iz'u\s*vkÑfr|mÙkj\s*vkÑfr/i;
+
+    interface DiagramPlan {
+      qLineIdx: number;
+      topY: number;
+      bottomY: number;
+      skipLineIndices: Set<number>;
+      isOptionsDiagram?: boolean;
+    }
+
+    const diagrams: DiagramPlan[] = [];
+
+    for (let i = 0; i < visualLines.length; i++) {
+      const line = visualLines[i];
+      const qm = line.text.match(qStartRegex);
+      if (qm) {
+        // Find where options start for this question
+        let optLineIdx = -1;
+        let nextQIdx = -1;
+
+        for (let j = i + 1; j < Math.min(visualLines.length, i + 15); j++) {
+          if (visualLines[j].text.match(qStartRegex)) {
+            nextQIdx = j;
+            break;
+          }
+          if (optLineIdx === -1 && optMarkerRegex.test(visualLines[j].text)) {
+            optLineIdx = j;
+          }
+        }
+
+        if (optLineIdx !== -1) {
+          const gap = line.y - visualLines[optLineIdx].y;
+          const gapLines = visualLines.slice(i + 1, optLineIdx);
+          const gapText = gapLines.map((x) => x.text).join(' ').trim();
+          const hasDiagramKeyword = diagramKeywordRegex.test(line.text) || gapLines.some((x) => diagramKeywordRegex.test(x.text));
+          const isMostlySymbolsOrShort = gapText.length < 25 || /^[\d\\\/\s\.\,\-\?]+$/.test(gapText);
+
+          if ((gap >= 38 && (isMostlySymbolsOrShort || hasDiagramKeyword)) || gapLines.some((x) => /iz'u\s*vkÑfr|प्रश्न\s*आकृतियाँ/i.test(x.text))) {
+            const skipSet = new Set<number>();
+            if (isMostlySymbolsOrShort) {
+              for (let k = i + 1; k < optLineIdx; k++) {
+                skipSet.add(k);
+              }
+            }
+            diagrams.push({
+              qLineIdx: i,
+              topY: line.y,
+              bottomY: visualLines[optLineIdx].y,
+              skipLineIndices: skipSet,
+            });
+          }
+
+          // Check if option figures (उत्तर आकृतियाँ) exist
+          const hasOptionDiagramKeyword = visualLines.slice(optLineIdx, nextQIdx !== -1 ? nextQIdx : visualLines.length).some((x) => /mÙkj\s*vkÑfr|उत्तर\s*आकृतियाँ/i.test(x.text));
+          if (hasOptionDiagramKeyword) {
+            const optEndIdx = nextQIdx !== -1 ? nextQIdx - 1 : visualLines.length - 1;
+            const optTopY = visualLines[optLineIdx].y;
+            const optBottomY = visualLines[optEndIdx].y - 20;
+            diagrams.push({
+              qLineIdx: optLineIdx,
+              topY: optTopY,
+              bottomY: optBottomY,
+              skipLineIndices: new Set<number>(),
+              isOptionsDiagram: true,
+            });
+          }
+        }
+      }
+    }
+
+    // Render diagram crops if any detected
+    const diagramTokens = new Map<number, string[]>();
+    const allSkipLines = new Set<number>();
+
+    if (diagrams.length > 0) {
+      try {
+        const { createCanvas } = await import('@napi-rs/canvas');
+        const scale = 2.0;
+        const renderViewport = page.getViewport({ scale });
+        const canvas = createCanvas(renderViewport.width, renderViewport.height);
+        const context = canvas.getContext('2d');
+        await page.render({ canvasContext: context, viewport: renderViewport }).promise;
+
+        for (const diag of diagrams) {
+          diag.skipLineIndices.forEach((idx) => allSkipLines.add(idx));
+
+          const cropX = Math.max(0, Math.floor((isRightCol ? midX + 5 : 25) * scale));
+          const cropWidth = Math.min(renderViewport.width - cropX, Math.floor((isRightCol ? (viewport.width - midX - 25) : (midX - 25)) * scale));
+          const cropTop = Math.max(0, Math.floor((viewport.height - diag.topY) * scale));
+          const cropHeight = Math.min(renderViewport.height - cropTop, Math.max(15, Math.floor((diag.topY - diag.bottomY) * scale)));
+
+          if (cropWidth > 20 && cropHeight > 15) {
+            const cropCanvas = createCanvas(cropWidth, cropHeight);
+            const cropCtx = cropCanvas.getContext('2d');
+            cropCtx.drawImage(canvas, cropX, cropTop, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            const dataUrl = 'data:image/png;base64,' + cropCanvas.toBuffer('image/png').toString('base64');
+            const token = diag.isOptionsDiagram ? `[[OPTIONS_DIAGRAM_IMAGE:${dataUrl}]]` : `[[QUESTION_IMAGE:${dataUrl}]]`;
+
+            if (!diagramTokens.has(diag.qLineIdx)) {
+              diagramTokens.set(diag.qLineIdx, []);
+            }
+            diagramTokens.get(diag.qLineIdx)!.push(token);
+          }
+        }
+      } catch (err) {
+        console.error('Diagram rendering fallback:', err);
+      }
+    }
+
+    // Assemble final column lines
+    const finalLines: string[] = [];
+    for (let i = 0; i < visualLines.length; i++) {
+      if (allSkipLines.has(i)) continue;
+      finalLines.push(visualLines[i].text);
+      if (diagramTokens.has(i)) {
+        for (const token of diagramTokens.get(i)!) {
+          finalLines.push(token);
+        }
+      }
+    }
+
+    return finalLines.join('\n');
   };
 
   const isAnswerKeyPage = processedItems.some((it) =>
@@ -278,17 +411,17 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
   if (isTwoColumn && !isAnswerKeyPage) {
     const parts: string[] = [];
     if (topHeaderItems.length > 0) {
-      const hText = formatColumn(topHeaderItems);
+      const hText = await formatColumn(topHeaderItems, false);
       if (hText.trim()) parts.push(hText);
     }
-    const lText = formatColumn(colLeft);
+    const lText = await formatColumn(colLeft, false);
     if (lText.trim()) parts.push(lText);
-    const rText = formatColumn(colRight);
+    const rText = await formatColumn(colRight, true);
     if (rText.trim()) parts.push(rText);
     return parts.join('\n');
   }
 
-  return formatColumn(processedItems);
+  return await formatColumn(processedItems, false);
 }
 
 /**
@@ -367,19 +500,20 @@ export async function parsePdf(
     const fromQ = options.fromQuestion ?? 1;
     const toQ = options.toQuestion ?? 100;
 
-    // Find answer key pages (scan from end backwards or check pages with 'उत्तरमाला')
+    // Find answer key pages (probe end of document only when no range is provided)
     const answerKeyPages = new Set<number>();
-    // Fast probe for answer keys
-    for (let p = Math.max(1, totalPages - 25); p <= totalPages; p++) {
-      try {
-        const page = await doc.getPage(p);
-        const textContent = await page.getTextContent();
-        const raw = textContent.items.map((it: any) => it.str || '').join(' ');
-        if (/उत्तरमाला|mÙkjekyk|Answer\s*Key/i.test(raw)) {
-          answerKeyPages.add(p);
+    if (!hasRange) {
+      for (let p = Math.max(1, totalPages - 15); p <= totalPages; p++) {
+        try {
+          const page = await doc.getPage(p);
+          const textContent = await page.getTextContent();
+          const raw = textContent.items.map((it: any) => it.str || '').join(' ');
+          if (/उत्तरमाला|mÙkjekyk|Answer\s*Key/i.test(raw)) {
+            answerKeyPages.add(p);
+          }
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
       }
     }
 

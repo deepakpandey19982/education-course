@@ -129,7 +129,6 @@ function isHeaderOrFooterLine(line: string): boolean {
   if (/^---+.*---+$/.test(clean) && !clean.includes('=')) return true;
   if (/For More PDF Download/i.test(clean)) return true;
   if (/^EBD_\d+/i.test(clean)) return true;
-  if (/^(?:निर्देश|funsZ'k|instructions?)\b/i.test(clean)) return true;
   if (/(?:अधिकतम|अध्कितम|पूर्णांक)\s*अंक|vf\/dre\s*vad|iw\.kkZad/i.test(clean)) return true;
   if (/^(?:समय\s*[:रू]|le;\s*[:])/i.test(clean)) return true;
   if (/^(?:भाग|Hkkx)\s*\d+[\s%:रू]/i.test(clean)) return true;
@@ -190,6 +189,7 @@ interface RawBlock {
   answer?: 'A' | 'B' | 'C' | 'D' | null;
   explanation?: string;
   rawSnippet: string;
+  instructionText?: string;
 }
 
 /**
@@ -376,6 +376,8 @@ export function extractQuestionsWithRangeFromText(
     let runningAutoQNum = 1;
     let seenFirstQuestionInDraft = false;
 
+    let activeInstruction: { text: string; fromQ?: number; toQ?: number; active: boolean } | null = null;
+
     const pushSectionBlock = () => {
       if (activeBlock) {
         // If answer was not in block itself, try section's answer key map
@@ -397,6 +399,45 @@ export function extractQuestionsWithRangeFromText(
       const rawLine = contentLines[k];
       const line = rawLine.trim();
       if (!line || isHeaderOrFooterLine(line) || isTableOfContentsLine(line)) continue;
+
+      // Check for instruction boundary line (e.g. निर्देश (प्र.सं. 87–92): ..., funsZ'k (iz-l- 87&92)%)
+      const isInstLine =
+        /^(?:निर्देश|funsZ'k|instructions?|directions?|दिशा[\-\s]*निर्देश)(?:\s|$|[\(\:\.\-\—%])/i.test(line) ||
+        /^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+/i.test(line);
+
+      if (isInstLine) {
+        pushSectionBlock(); // Clean boundary: terminate any active question so instructions never enter option D!
+        const rangeMatch = line.match(
+          /(?:[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*(\d{1,4})\s*(?:&|[-–—]|to|से)\s*(\d{1,4})[)द्ध]?|\b(\d{1,4})\s*(?:&|[-–—]|to|से)\s*(\d{1,4})\b)/i
+        );
+        const fromQ = rangeMatch ? parseInt(rangeMatch[1] || rangeMatch[3], 10) : undefined;
+        const toQ = rangeMatch ? parseInt(rangeMatch[2] || rangeMatch[4], 10) : undefined;
+        const cleanInst = line
+          .replace(/^(?:निर्देश|funsZ'k|instructions?|directions?)\s*(?:\(.*?\)|;.*?द्ध|[;\(].*?(?:\)|द्ध))?[:\.\-\—\s%ः]*/i, '')
+          .replace(/^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+.*?(?:\)|द्ध)[:\.\-\—\s%ः]*/i, '')
+          .replace(/^fuEufyf\[kr\s*izR;sd\s*iz'u\s*esa\],?\s*/i, '')
+          .replace(/^निम्नलिखित\s*(?:प्रत्येक)?\s*प्रश्न(?:ों)?\s*(?:में|मे)[,\s]*/i, '')
+          .trim();
+        activeInstruction = {
+          text: cleanInst || line,
+          fromQ,
+          toQ,
+          active: true,
+        };
+        continue;
+      }
+
+      // Collect multi-line instruction text if active
+      if (activeInstruction && activeInstruction.active) {
+        const isQ = line.match(questionStartRegex) || (line.replace(/^[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]+/, '').match(questionStartRegex));
+        const isOpt = line.match(optionStartRegex) || extractInlineOptions(line);
+        if (!isQ && !isOpt && !detectSubjectHeader(line) && !detectPracticeSetHeader(line)) {
+          activeInstruction.text += ' ' + line;
+          continue;
+        } else {
+          activeInstruction.active = false;
+        }
+      }
 
       // Skip practice set title line itself if it matches
       if (detectPracticeSetHeader(line)) continue;
@@ -441,19 +482,94 @@ export function extractQuestionsWithRangeFromText(
           pushSectionBlock();
           seenFirstQuestionInDraft = true;
           runningAutoQNum = parsedQNum + 1;
-          activeBlock = {
+          const newBlock: RawBlock = {
             qNum: parsedQNum,
             subjectName: currentSubject,
             sectionId: draft.id,
             sectionName: draft.name,
-            questionLines: initialText ? [initialText] : [],
+            questionLines: [],
             options: {},
             answer: null,
             explanation: '',
             rawSnippet: line,
+            instructionText:
+              activeInstruction &&
+              ((activeInstruction.fromQ &&
+                activeInstruction.toQ &&
+                parsedQNum >= activeInstruction.fromQ &&
+                parsedQNum <= activeInstruction.toQ) ||
+               (!activeInstruction.fromQ && activeInstruction.active))
+                ? activeInstruction.text
+                : undefined,
           };
+          activeBlock = newBlock;
           currentTargetOption = null;
           inExplanation = false;
+
+          // Check if initialText contains inline options (e.g. "87- (a) IKMO (b) ACEG")
+          let qInitial = initialText;
+          const inlineOpts = extractInlineOptions(initialText);
+          if (inlineOpts && inlineOpts.length >= 2) {
+            const firstOptIdx = initialText.search(/(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/);
+            qInitial = firstOptIdx > 0 ? initialText.substring(0, firstOptIdx).trim() : '';
+            for (const opt of inlineOpts) {
+              newBlock.options[opt.key] = opt.text;
+            }
+            currentTargetOption = null;
+          } else {
+            const optMatch = initialText.match(optionStartRegex);
+            if (optMatch) {
+              const optKey = normalizeOptionKey(optMatch[1] || optMatch[2] || optMatch[3]);
+              if (optKey) {
+                qInitial = '';
+                newBlock.options[optKey] = (optMatch[4] || '').trim();
+                currentTargetOption = optKey;
+              }
+            }
+          }
+
+          if (qInitial) {
+            // Check if qInitial starts with a range instruction like "(प्र.सं. 93-94): ..." or ";प्र. स. 93-94द्धः ..."
+            const instMatch = qInitial.match(
+              /^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*(\d{1,4})\s*(?:&|[-–—]|to|से)\s*(\d{1,4})[)द्ध]?[:\.\-\—\s%ः]*/i
+            );
+            if (instMatch) {
+              const fromQ = parseInt(instMatch[1], 10);
+              const toQ = parseInt(instMatch[2], 10);
+              const cleaned = qInitial
+                .replace(/^(?:निर्देश|funsZ'k|instructions?|directions?)\s*(?:\(.*?\)|;.*?द्ध|[;\(].*?(?:\)|द्ध))?[:\.\-\—\s%ः]*/i, '')
+                .replace(/^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+.*?(?:\)|द्ध)[:\.\-\—\s%ः]*/i, '')
+                .replace(/^fuEufyf\[kr\s*izR;sd\s*iz'u\s*esa\],?\s*/i, '')
+                .replace(/^निम्नलिखित\s*(?:प्रत्येक)?\s*प्रश्न(?:ों)?\s*(?:में|मे)[,\s]*/i, '')
+                .trim();
+              activeInstruction = {
+                text: cleaned,
+                fromQ,
+                toQ,
+                active: true,
+              };
+              qInitial = cleaned;
+            }
+
+            // Discard single garbage character OCR (e.g. "\" or punctuation)
+            const isGarbage = /^[\s\\\/\-\.\,\;\:\_\~\*\#\$\@\!\?\^\&\=\+\|]+$/.test(qInitial);
+            if (isGarbage) {
+              qInitial = '';
+            }
+          }
+
+          if (qInitial) {
+            newBlock.questionLines.push(qInitial);
+          } else if (
+            activeInstruction &&
+            ((activeInstruction.fromQ &&
+              activeInstruction.toQ &&
+              parsedQNum >= activeInstruction.fromQ &&
+              parsedQNum <= activeInstruction.toQ) ||
+             (!activeInstruction.fromQ && activeInstruction.active))
+          ) {
+            newBlock.questionLines.push(activeInstruction.text);
+          }
           continue;
         }
       }
@@ -461,6 +577,28 @@ export function extractQuestionsWithRangeFromText(
       if (!activeBlock) continue;
 
       activeBlock.rawSnippet += '\n' + line;
+
+      // Check for Diagram Image Markers emitted by layout parser
+      const qImgMatch = line.match(/\[\[QUESTION_IMAGE:(data:image\/[^\]]+)\]\]/);
+      if (qImgMatch) {
+        activeBlock.questionImageUrl = qImgMatch[1];
+        activeBlock.isDiagramQuestion = true;
+        const rem = line.replace(/\[\[QUESTION_IMAGE:[^\]]+\]\]/, '').trim();
+        if (rem && Object.keys(activeBlock.options).length === 0) {
+          activeBlock.questionLines.push(rem);
+        }
+        continue;
+      }
+
+      const optImgMatch = line.match(/\[\[OPTIONS_DIAGRAM_IMAGE:(data:image\/[^\]]+)\]\]/);
+      if (optImgMatch) {
+        activeBlock.optionAImageUrl = optImgMatch[1];
+        activeBlock.optionBImageUrl = optImgMatch[1];
+        activeBlock.optionCImageUrl = optImgMatch[1];
+        activeBlock.optionDImageUrl = optImgMatch[1];
+        activeBlock.isDiagramQuestion = true;
+        continue;
+      }
 
       // Check for Answer line
       const ansMatch = line.match(answerLineRegex);
@@ -566,7 +704,7 @@ export function extractQuestionsWithRangeFromText(
   }
 
   const allParsedQuestions: ParsedQuestion[] = allRawBlocks.map((block, idx) => {
-    const questionText = block.questionLines.join('\n').trim();
+    let questionText = block.questionLines.join('\n').trim();
     const optA = (block.options.A || '').trim();
     const optB = (block.options.B || '').trim();
     const optC = (block.options.C || '').trim();
@@ -581,8 +719,16 @@ export function extractQuestionsWithRangeFromText(
 
     const isDiagramQ =
       block.isDiagramQuestion ||
+      hasQuestionImage ||
+      hasOptionAImage ||
       /आकृति|चित्र|दर्पण|प्रतिबिम्ब|लुप्त|वेन|पासा|vkÑfr|प्रश्न\s*आकृति|उत्तर\s*आकृति/i.test(questionText) ||
       (block.options.A !== undefined && block.options.B !== undefined && !optA && !optB);
+
+    if (isDiagramQ || hasQuestionImage) {
+      if (/^[\d\\\/\s\.\,\-\?]+$/.test(questionText) || questionText.length <= 3) {
+        questionText = (block as any).instructionText || '';
+      }
+    }
 
     const hasOptA = Boolean(optA || hasOptionAImage || (isDiagramQ && block.options.A !== undefined));
     const hasOptB = Boolean(optB || hasOptionBImage || (isDiagramQ && block.options.B !== undefined));

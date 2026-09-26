@@ -2,13 +2,50 @@
 
 ## Current Phase
 
-Phase 40 — Support for Image/Diagram-Based MCQ Questions
+Phase 41 — Multi-Column Layout and Diagram MCQ Extraction Pipeline Hardening
 
-- **Feature Scope & Architecture:**
-  - Added full end-to-end support for image/diagram-based MCQ questions across the PDF question import pipeline, database persistence, admin review screens, and student test-taking & result analysis interfaces.
-  - Preserved 100% of existing normal text MCQ parser and extraction logic. Existing text MCQs and Question Range functionality work with zero disruption.
-  - Implemented non-breaking database schema extension (`supabase/migrations/20260927_add_question_images.sql`) adding image URL fields (`question_image_url`, `option_a_image_url`, `option_b_image_url`, `option_c_image_url`, `option_d_image_url`) and relaxing `NOT NULL` constraints on `option_a..option_d` to allow options to be text, image, or both.
-  - Maintained zero changes to Razorpay, payments, authentication, courses, or unrelated tables.
+- **Summary of Problem & Root Cause:**
+  - In mixed-layout Hindi PDFs (e.g. Disha UP Police Practice Set), questions 87–92 formatted options in 2x2 grids: `87. (a) IKMO (b) ACEG` on line 1 and `(c) FHJL (d) TVWY` on line 2. The previous parser treated line 1 as question text and reported "Missing Option A" and "Missing Option B".
+  - Section instruction headers such as `निर्देश (प्र.सं. 87–92): ...` leaked into the previous question's Option D (`(d) 100/64`) because JavaScript regex word boundary `\b` does not match after Devanagari characters (e.g. `श\b` fails before space).
+  - Diagram questions (such as Question 93's circular number puzzle with 2, 3, 4, 8, 27, ? and Question 94's numeric matrix) were producing garbage OCR (e.g. `"\"`) as question text while missing the visual diagram.
+  - Questions sharing an instruction block (Q87–92) were falsely flagged as duplicates by batch deduplication when using instruction text as normalized key.
+
+- **Architectural Fixes Implemented:**
+  1. **Inline & Multi-Column Option Extraction (`src/lib/question-parser/text-extractor.ts`):**
+     - Extended question start matching (`qMatch`) to immediately check for inline options on the question line itself (`extractInlineOptions(initialText)`).
+     - Accurately populates options A & B directly from the question line without polluting question text.
+     - Subsequent lines with `(c) ... (d) ...` populate options C & D.
+  2. **Instruction Boundary Isolation & Devanagari Regex Fix (`src/lib/question-parser/text-extractor.ts`):**
+     - Replaced `\b` with `(?:\s|$|[\(\:\.\-\—%])` so Devanagari words like `निर्देश` cleanly trigger section termination (`pushSectionBlock()`).
+     - Added support for KrutiDev parenthesis encodings (`;` for `(`, `द्ध` for `)`), visarga `ः`, and `प्र.स.` without bindu.
+     - Automatically terminates the active question so instructions never pollute option D.
+     - Stores `activeInstruction` and associates instruction text with question ranges (e.g. Q87–92, Q93–94).
+  3. **High-Resolution Diagram Rendering & Cropping (`src/lib/question-parser/pdf-parser.ts` & `next.config.ts`):**
+     - Detects vertical gaps (`gap >= 38`) between question line and option line containing diagram keywords or short/symbolic text.
+     - Configured `@napi-rs/canvas` and `sharp` in `serverExternalPackages` in `next.config.ts` for clean native module execution.
+     - Renders PDF page at 2.0x scale and precisely crops diagram bounding box, encoding as high-resolution PNG Data URL `[[QUESTION_IMAGE:...]]`.
+     - Injects token into question column stream and maps to `question_image_url`.
+  4. **Garbage OCR Suppression & Validation Rules (`text-extractor.ts` & `index.ts`):**
+     - Filters out stray single-character OCR garbage (e.g. `\`) and falls back to clean instruction text or diagram image.
+     - Questions with diagram images and 4 options are validated as `'valid'` without requiring minimum question text length.
+     - Updated batch deduplication in `src/lib/question-parser/index.ts` to index by question text plus option text, ensuring questions sharing an instruction (Q87–92) are never falsely marked duplicates.
+
+- **Verification & Testing:**
+  - **Real PDF Range 85–95 HTTP Upload Test:**
+    - Total questions detected: 11 / 11 (100% valid, 0 invalid, 0 needs review).
+    - Q85: (A) हथेली, (B) शरीर, (C) भुजा, (D) हाथ, Correct Answer: A.
+    - Q86: (A) 81/100, (B) 6 4/120, (C) 100/81, (D) 100/64 (no instruction text in D!).
+    - Q87–92: Options A–D correctly extracted from 2x2 inline layout (e.g. Q87 has A: IKMO, B: ACEG, C: FHJL, D: TVWY; Q88 has A: मौज, B: विशिष्टता, C: सनक, D: दुर्बलता).
+    - Q93: Question text "दिए गए विकल्पों में से लुप्त अंक ज्ञात कीजिए।", circular diagram image extracted (`Has Diagram/Image: true`), options (A) 49, (B) 45, (C) 64, (D) 56, Correct Answer: C.
+    - Q94: Question text "दिए गए विकल्पों में से लुप्त अंक ज्ञात कीजिए।", matrix diagram image extracted (`Has Diagram/Image: true`), options (A) 120, (B) 51, (C) 12, (D) 56, Correct Answer: A.
+    - Q95: Normal question correctly extracted.
+  - **Normal Text MCQ Regression Test (Range 1–60):**
+    - 60/60 questions detected with 100% valid status, zero regression.
+  - **Build & Types:**
+    - `npx tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded (all 41 static/dynamic pages generated).
+
+## Prior Phase (Phase 40)
 
 - **Database & Storage Architecture:**
   - **Migration File (`supabase/migrations/20260927_add_question_images.sql`):**

@@ -34,17 +34,17 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 40)
+## Latest Production Status & Updates (Phase 41)
 
-- **Support for Image/Diagram-Based MCQ Questions:**
-  - **Feature Overview:** Implemented complete end-to-end support for image/diagram-based MCQ questions across database storage, PDF extraction, admin preview & inline editing modals, test-attempt runner, and test results solution view.
-  - **Database & Storage:** Created migration `supabase/migrations/20260927_add_question_images.sql` adding `question_image_url`, `option_a_image_url`, `option_b_image_url`, `option_c_image_url`, `option_d_image_url` and relaxing `NOT NULL` on options A–D. Allowed folder `'questions'` in Supabase Storage (`/api/storage/upload`).
-  - **Parser & Validation:** Updated `text-extractor.ts` to detect diagram marker lines (`प्रश्न आकृतियाँ`, `उत्तर आकृतियाँ`, etc.) and preserve diagram questions as valid. Refactored `extractInlineOptions` from regex lookahead to marker index splitting to support empty text options (diagram-only options) without swallowing neighboring option letters.
-  - **Admin Review & Commit:** Added `🖼️ Diagram MCQ` badge and thumbnail previews for question & options A–D in `ImportQuestionsModal.tsx`, `question-formatter/page.tsx`, and `CreateSeriesFromPdfModal.tsx`. Included image upload/URL fields in the inline edit modal before database commit.
-  - **Student Experience:** Updated `attempt/page.tsx` and `results/page.tsx` to render question and option diagram images.
-  - **Verification:** Tested with real reasoning diagram questions (Q104, Q114) from Disha UP Police Hindi PDF. Verified 60/60 normal text questions still extract cleanly (Q1–Q60). Question Range functions without issue. `npx tsc --noEmit` passed with 0 errors. `npm run build` passed with exit code 0.
+- **Multi-Column Layout & Diagram MCQ Extraction Pipeline Hardening:**
+  - **Feature Overview:** Fixed layout parser and text extraction for mixed-layout Hindi PDFs, resolving inline multi-column options (Q87–92), boundary pollution from instruction blocks (Q86), and diagram question image extraction (Q93 circular number puzzle and Q94 numeric matrix).
+  - **Inline & Multi-Column Option Detection:** Handles 2x2 option grids (`(a) ... (b) ...` on line 1, `(c) ... (d) ...` on line 2) by parsing inline options directly on the question start line (`qMatch`) and assigning options A and B immediately without polluting question text.
+  - **Section Boundary Isolation:** Fixed Devanagari regex boundary failure (replaced `\b` with non-word character classes) for words like `निर्देश` and handled KrutiDev parenthesis encodings (`;` and `द्ध`). Cleanly isolates instructions and prevents them from attaching to preceding options.
+  - **Diagram Extraction & Rendering:** Integrated `@napi-rs/canvas` (configured in `serverExternalPackages` in `next.config.ts`) to crop bounding boxes of question diagrams when vertical gaps `>= 38` are detected between question header and option lines. Emits `[[QUESTION_IMAGE:...]]` tokens which populate `question_image_url`. Suppresses single-character garbage OCR (such as `\`) in diagram questions.
+  - **Validation & Deduplication:** Allowed diagram questions with 4 options to be marked valid regardless of text length. Updated batch deduplication in `src/lib/question-parser/index.ts` to index question text plus options to avoid false duplicate flags on questions sharing an instruction block.
+  - **Verification:** Verified Q85–95 from Disha UP Police Hindi PDF (11/11 valid, Q87–92 options A–D populated, Q93 & Q94 diagram images preserved). Verified Q1–60 normal text questions (60/60 valid, zero regression). `npx tsc --noEmit` passed with 0 errors. `npm run build` passed with exit code 0.
 
-## Prior Phase (Phase 39)
+## Prior Phase (Phase 40)
 
 - **Smart Question Import Question Number Range Selection Feature:**
   - **Feature Overview:** Added dedicated Question Number Range selection directly in the Smart Question Import modal (`ImportQuestionsModal.tsx`) and processing pipeline (`import-parse/route.ts`, `index.ts`, `pdf-parser.ts`, `text-extractor.ts`).
