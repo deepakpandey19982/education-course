@@ -49,6 +49,7 @@ export default function AdminLayout({
   const adminNav = [
     { name: 'Dashboard', href: '/admin' },
     { name: 'Test Series', href: '/admin/test-series' },
+    { name: 'Question Formatter', href: '/admin/question-formatter' },
     { name: 'Courses', href: '/admin/courses' },
     { name: 'Categories', href: '/admin/categories' },
     { name: 'Banners', href: '/admin/homepage' },

@@ -36,6 +36,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     'explanation', 'solution', 'rationale', 'desc', 'description',
     'व्याख्या', 'हल', 'विवरण'
   ],
+  question_number: [
+    'question no', 'question_no', 'question number', 'question_number',
+    'qno', 'q no', 'q_no', 'sl no', 'sr no', 's no', 'क्रमांक', 'प्र. सं.', 'प्रश्न संख्या'
+  ],
   marks: ['marks', 'mark', 'points', 'score', 'अंक'],
   negative_marks: ['negative marks', 'negative_marks', 'neg marks', 'penalty'],
   language: ['language', 'lang', 'भाषा']
@@ -167,6 +171,10 @@ export function parseExcelOrCsv(
     const rowNeg = parseFloat(getVal('negative_marks')) || negMarks;
     const rowLang = getVal('language') || lang;
 
+    const rawQNum = getVal('question_number');
+    const parsedQNum = parseInt(rawQNum, 10);
+    const questionNumber = !isNaN(parsedQNum) ? parsedQNum : rowIdx + 1;
+
     const validationIssues: string[] = [];
     if (!questionText) validationIssues.push('Question text missing');
     if (!optA) validationIssues.push('Missing Option A');
@@ -180,6 +188,7 @@ export function parseExcelOrCsv(
     questions.push({
       id: `excel-q-${rowIdx + 1}-${Date.now().toString(36)}`,
       order: questions.length + 1,
+      question_number: questionNumber,
       question_text: questionText,
       option_a: optA,
       option_b: optB,

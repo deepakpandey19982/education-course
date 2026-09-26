@@ -34,9 +34,20 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 29)
+## Latest Production Status & Updates (Phase 30)
 
-- **High-Performance PDF Question Import Optimization:**
+- **Question File Formatter / Smart Question Import:**
+  - **New Admin Panel Section:** Added universal Question File Formatter at `/admin/question-formatter` accessible from the Admin navigation bar.
+  - **Supported File Types:** PDF (digital text and OCR for scanned), Word (DOCX/DOC), Excel & CSV (XLSX, XLS, CSV), and Images (JPG, JPEG, PNG).
+  - **Multi-Set & Practice Set Boundary Detection:** Isolates sections such as `Practice Set-1`, `Practice Set-2`, `प्रैक्टिस सेट 1`, `Section A`, etc.
+  - **Separate Answer Key Matching:** Parses `1-(a)`, `2-(b)`, `160-(c)`, `1. a`, `1: A`, Hindi characters, and tables. Avoids global matching so Set 1 questions only link to Set 1 answers, and Set 2 questions link to Set 2 answers.
+  - **Arbitrary Question Range Support:** Supports any range (e.g. 1–50, 1–100, 101–200, 501–600).
+  - **Validation & Missing Detection:** Identifies `VALID`, `NEEDS REVIEW`, `INVALID`, and `DUPLICATE` questions. Missing question numbers produce non-dismissive warning banners.
+  - **Dual Import Target:** Choose between "Create New Test Series" and "Import into Existing Test".
+  - **Safe & Non-Destructive:** Retained existing manual question creation and test series flows with zero database schema changes.
+  - **Build & Tests:** `npx tsc --noEmit` code 0, `npm run build` code 0 (41 routes), automated tests passed (`scripts/test-question-formatter.ts`, `scripts/test-smart-parser.ts`).
+
+## Phase 29 — High-Performance PDF Question Import Optimization
   - **Eliminated Unnecessary Full-Document Scans:** Implemented digital text probe (<10ms) that prevents running OCR on embedded images in text PDFs.
   - **Smart Page Prober:** Probes page intervals to pinpoint the start page for `fromQuestion` and reads forward consecutively until `toQuestion` is extracted. Cuts 100-question batch processing time to <100ms (1 → 100 in 36ms, 501 → 600 in 65ms).
   - **In-Memory PDF Buffer Cache:** Added `fileId` session caching (15-min TTL) to prevent re-uploading large 50MB PDFs when processing multiple batches (e.g. 101-200 after 1-100).

@@ -1,18 +1,19 @@
 import Tesseract from 'tesseract.js';
-import { extractQuestionsFromText } from './text-extractor';
-import { ParsedQuestion } from './types';
+import { extractQuestionsWithRangeFromText, TextExtractOptions, TextExtractRangeResult } from './text-extractor';
 
 export async function parseImageOcr(
   buffer: Buffer,
-  options: {
-    defaultMarks?: number;
-    defaultNegativeMarks?: number;
-    defaultLanguage?: string;
-  } = {}
+  options: TextExtractOptions = {}
 ): Promise<{
-  questions: ParsedQuestion[];
+  questions: TextExtractRangeResult['questions'];
   rawText: string;
   confidence: number;
+  sections?: TextExtractRangeResult['sections'];
+  requested_range?: TextExtractRangeResult['requested_range'];
+  found_question_numbers?: TextExtractRangeResult['found_question_numbers'];
+  missing_question_numbers?: TextExtractRangeResult['missing_question_numbers'];
+  is_range_complete?: boolean;
+  total_requested?: number;
 }> {
   let worker: any = null;
   try {
@@ -33,13 +34,21 @@ export async function parseImageOcr(
     worker = null;
 
     if (!rawText.trim()) {
-      return { questions: [], rawText: '', confidence: 0 };
+      return {
+        questions: [],
+        rawText: '',
+        confidence: 0,
+        found_question_numbers: [],
+        missing_question_numbers: [],
+        is_range_complete: false,
+        total_requested: 0,
+      };
     }
 
-    const extracted = extractQuestionsFromText(rawText, options);
+    const rangeResult = extractQuestionsWithRangeFromText(rawText, options);
 
     // If OCR confidence is low (< 70) or text looks suspicious, mark questions as needs_review
-    const parsedQuestions = extracted.map((q) => {
+    const parsedQuestions = rangeResult.questions.map((q) => {
       const issues = [...q.validation_issues];
       if (confidence < 70) {
         issues.push(`Low OCR confidence (${Math.round(confidence)}%). Please review carefully.`);
@@ -47,7 +56,7 @@ export async function parseImageOcr(
       return {
         ...q,
         validation_issues: issues,
-        status: (issues.length > 0 ? 'needs_review' : q.status) as any,
+        status: (issues.length > 0 && q.status === 'valid' ? 'needs_review' : q.status) as any,
       };
     });
 
@@ -55,6 +64,12 @@ export async function parseImageOcr(
       questions: parsedQuestions,
       rawText,
       confidence,
+      sections: rangeResult.sections,
+      requested_range: rangeResult.requested_range,
+      found_question_numbers: rangeResult.found_question_numbers,
+      missing_question_numbers: rangeResult.missing_question_numbers,
+      is_range_complete: rangeResult.is_range_complete,
+      total_requested: rangeResult.total_requested,
     };
   } catch (error) {
     if (worker) {

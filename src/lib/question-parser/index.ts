@@ -73,6 +73,7 @@ export async function parseQuestionFile(
   options: {
     fromQuestion?: number;
     toQuestion?: number;
+    sectionId?: string;
     seriesSubjects?: Array<{ id: string; name: string }>;
     existingQuestions?: Array<{ id?: string; question_text: string }>;
     defaultSubjectId?: string;
@@ -94,6 +95,7 @@ export async function parseQuestionFile(
   let parsingMethod: 'text' | 'ocr' | 'excel' | 'docx' = 'text';
   let isScanned = false;
   let detectedColumnMapping: Record<string, string> | undefined;
+  let detectedSections: import('./types').DetectedSection[] = [];
   let rangeInfo: {
     requested_range?: { from: number; to: number };
     found_question_numbers: number[];
@@ -121,26 +123,32 @@ export async function parseQuestionFile(
           (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
         );
       }
-    } else if (ext === 'docx') {
+    } else if (ext === 'docx' || ext === 'doc') {
       parsingMethod = 'docx';
       const parsed = await parseDocx(buffer, {
+        fromQuestion: options.fromQuestion,
+        toQuestion: options.toQuestion,
+        sectionId: options.sectionId,
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
         defaultLanguage: options.defaultLanguage,
       });
       rawQuestions = parsed.questions;
-
-      if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
-        const fromQ = Math.min(options.fromQuestion, options.toQuestion);
-        const toQ = Math.max(options.fromQuestion, options.toQuestion);
-        rawQuestions = rawQuestions.filter(
-          (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
-        );
+      detectedSections = parsed.sections || [];
+      if (parsed.requested_range) {
+        rangeInfo = {
+          requested_range: parsed.requested_range,
+          found_question_numbers: parsed.found_question_numbers || [],
+          missing_question_numbers: parsed.missing_question_numbers || [],
+          is_range_complete: Boolean(parsed.is_range_complete),
+          total_requested: parsed.total_requested || 0,
+        };
       }
     } else if (ext === 'pdf') {
       const parsed = await parsePdf(buffer, {
         fromQuestion: options.fromQuestion,
         toQuestion: options.toQuestion,
+        sectionId: options.sectionId,
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
         defaultLanguage: options.defaultLanguage,
@@ -151,28 +159,35 @@ export async function parseQuestionFile(
       parsingMethod = parsed.parsingMethod;
       isScanned = parsed.isScanned;
       rangeInfo = parsed.rangeInfo;
+      detectedSections = parsed.sections || [];
     } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
       parsingMethod = 'ocr';
       isScanned = true;
       const parsed = await parseImageOcr(buffer, {
+        fromQuestion: options.fromQuestion,
+        toQuestion: options.toQuestion,
+        sectionId: options.sectionId,
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
         defaultLanguage: options.defaultLanguage,
       });
       rawQuestions = parsed.questions;
-
-      if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
-        const fromQ = Math.min(options.fromQuestion, options.toQuestion);
-        const toQ = Math.max(options.fromQuestion, options.toQuestion);
-        rawQuestions = rawQuestions.filter(
-          (q) => (q.question_number ?? q.order) >= fromQ && (q.question_number ?? q.order) <= toQ
-        );
+      detectedSections = parsed.sections || [];
+      if (parsed.requested_range) {
+        rangeInfo = {
+          requested_range: parsed.requested_range,
+          found_question_numbers: parsed.found_question_numbers || [],
+          missing_question_numbers: parsed.missing_question_numbers || [],
+          is_range_complete: Boolean(parsed.is_range_complete),
+          total_requested: parsed.total_requested || 0,
+        };
       }
     } else {
       // Fallback: try raw text parse
       const text = buffer.toString('utf-8');
       const textRes = extractQuestionsWithRangeFromText(text, options);
       rawQuestions = textRes.questions;
+      detectedSections = textRes.sections || [];
       rangeInfo = {
         requested_range: textRes.requested_range,
         found_question_numbers: textRes.found_question_numbers,
@@ -280,10 +295,12 @@ export async function parseQuestionFile(
     }
 
     // Determine final status
-    let status: 'valid' | 'needs_review' | 'duplicate' = 'valid';
-    if (isDuplicate) {
+    let status: import('./types').QuestionValidationStatus = 'valid';
+    if (!q.question_text || (!q.option_a && !q.option_b && !q.option_c && !q.option_d)) {
+      status = 'invalid';
+    } else if (isDuplicate) {
       status = 'duplicate';
-    } else if (issues.length > 0) {
+    } else if (issues.length > 0 || q.status === 'needs_review') {
       status = 'needs_review';
     }
 
@@ -301,6 +318,7 @@ export async function parseQuestionFile(
   const validCount = finalQuestions.filter((q) => q.status === 'valid').length;
   const duplicateCount = finalQuestions.filter((q) => q.status === 'duplicate').length;
   const reviewCount = finalQuestions.filter((q) => q.status === 'needs_review').length;
+  const invalidCount = finalQuestions.filter((q) => q.status === 'invalid').length;
 
   let finalRangeInfo = rangeInfo;
   if (!finalRangeInfo && options.fromQuestion !== undefined && options.toQuestion !== undefined) {
@@ -328,6 +346,13 @@ export async function parseQuestionFile(
     };
   }
 
+  const warnings: string[] = [];
+  if (finalRangeInfo && !finalRangeInfo.is_range_complete && finalRangeInfo.missing_question_numbers.length > 0) {
+    warnings.push(
+      `Warning: Detected ${finalQuestions.length} of ${finalRangeInfo.total_requested} requested questions (${finalRangeInfo.requested_range?.from} to ${finalRangeInfo.requested_range?.to}). Missing question number(s): ${finalRangeInfo.missing_question_numbers.slice(0, 10).join(', ')}${finalRangeInfo.missing_question_numbers.length > 10 ? '...' : ''}.`
+    );
+  }
+
   return {
     success: true,
     file_name: fileName,
@@ -337,8 +362,11 @@ export async function parseQuestionFile(
     questions_detected: finalQuestions.length,
     valid_questions_count: validCount,
     needs_review_count: reviewCount,
+    invalid_count: invalidCount,
     duplicate_count: duplicateCount,
     detected_subjects: Array.from(detectedSubjectSet),
+    sections: detectedSections,
+    selected_section_id: options.sectionId,
     detected_column_mapping: detectedColumnMapping,
     requested_range: finalRangeInfo?.requested_range,
     total_requested: finalRangeInfo?.total_requested,
@@ -346,6 +374,7 @@ export async function parseQuestionFile(
     missing_question_numbers: finalRangeInfo?.missing_question_numbers,
     is_range_complete: finalRangeInfo?.is_range_complete,
     is_scanned: isScanned,
+    warnings,
     questions: finalQuestions,
   };
 }

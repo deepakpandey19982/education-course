@@ -1,12 +1,45 @@
-import { ParsedQuestion } from './types';
+import { ParsedQuestion, DetectedSection, QuestionValidationStatus } from './types';
 
-// Map Hindi option identifiers to standard A, B, C, D
-function normalizeOptionKey(key: string): 'A' | 'B' | 'C' | 'D' | null {
+// Map option identifiers (letters, numbers, Hindi characters) to standard A, B, C, D
+export function normalizeOptionKey(key: string): 'A' | 'B' | 'C' | 'D' | null {
   const clean = key.trim().toUpperCase();
   if (['A', '1', 'क'].includes(clean)) return 'A';
   if (['B', '2', 'ख'].includes(clean)) return 'B';
   if (['C', '3', 'ग'].includes(clean)) return 'C';
   if (['D', '4', 'घ'].includes(clean)) return 'D';
+  return null;
+}
+
+// Check if a line appears to be a Practice Set or Exam Section header
+export function detectPracticeSetHeader(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 80) return null;
+
+  // 1. Practice Set / Model Paper / Mock Test variations:
+  // "Practice Set - 1", "Practice Set 1", "Practice Set-1", "प्रैक्टिस सेट - 1", "प्रैक्टिस सेट 1"
+  // "Model Paper - 1", "Model Paper 1", "मॉडल पेपर 1", "Mock Test 1"
+  const psMatch = trimmed.match(
+    /^(?:practice\s*set|प्रैक्टिस\s*सेट|मॉडल\s*पेपर|model\s*(?:test\s*)?paper|sample\s*paper|mock\s*test|अभ्यास\s*प्रश्न\s*पत्र)\s*[:\-\—]?\s*(\d{1,4})/i
+  );
+  if (psMatch) {
+    return `Practice Set-${parseInt(psMatch[1], 10)}`;
+  }
+
+  // 2. Set / सेट / Test / टेस्ट patterns:
+  // "Set - 1", "Set 1", "Set-1", "सेट 1", "सेट - 1", "Test 1"
+  const setMatch = trimmed.match(/^(?:set|सेट|test|टेस्ट)\s*[:\-\—]?\s*(\d{1,4})$/i);
+  if (setMatch) {
+    return `Set ${parseInt(setMatch[1], 10)}`;
+  }
+
+  // 3. Section / Part / खंड / भाग:
+  // "Section A", "Section 1", "Part A", "Part 1", "खंड क", "भाग 1"
+  const partMatch = trimmed.match(/^(?:section|part|खंड|भाग)\s*[:\-\—]?\s*([a-zA-Z0-9\u0900-\u097F]+)$/i);
+  if (partMatch) {
+    const val = partMatch[1].toUpperCase();
+    return `Section ${val}`;
+  }
+
   return null;
 }
 
@@ -16,7 +49,9 @@ export function detectSubjectHeader(line: string): string | null {
   if (!trimmed || trimmed.length > 60) return null;
 
   // Patterns like: "Subject: Computer", "Section A: Reasoning", "विषय: सामान्य ज्ञान"
-  const explicitMatch = trimmed.match(/^(?:subject|section|part|topic|खंड|भाग|विषय)\s*[:\-\—]\s*([a-zA-Z0-9\u0900-\u097F\s&/]+)$/i);
+  const explicitMatch = trimmed.match(
+    /^(?:subject|section|part|topic|खंड|भाग|विषय)\s*[:\-\—]\s*([a-zA-Z0-9\u0900-\u097F\s&/]+)$/i
+  );
   if (explicitMatch && explicitMatch[1].trim()) {
     return explicitMatch[1].trim();
   }
@@ -25,7 +60,7 @@ export function detectSubjectHeader(line: string): string | null {
   const commonSubjects = [
     'COMPUTER', 'COMPUTER KNOWLEDGE', 'COMPUTER OPERATOR', 'GENERAL KNOWLEDGE', 'GENERAL AWARENESS',
     'REASONING', 'MENTAL APTITUDE', 'QUANTITATIVE APTITUDE', 'MATHEMATICS', 'MATHS', 'HINDI', 'ENGLISH',
-    'CURRENT AFFAIRS', 'SCIENCE', 'HISTORY', 'GEOGRAPHY', 'POLITY', 'ECONOMICS', 'LEGAL APTITUDE'
+    'CURRENT AFFAIRS', 'SCIENCE', 'HISTORY', 'GEOGRAPHY', 'POLITY', 'ECONOMICS', 'LEGAL APTITUDE',
   ];
 
   const upper = trimmed.toUpperCase();
@@ -35,9 +70,15 @@ export function detectSubjectHeader(line: string): string | null {
     }
   }
 
-  // All caps standalone heading of 3-30 chars without punctuation that isn't a question or answer
-  if (/^[A-Z\s&/]{3,35}$/.test(trimmed) && !trimmed.startsWith('Q') && !trimmed.startsWith('ANSWER') && !trimmed.startsWith('ANS')) {
-    // Avoid single option lines like "A"
+  // All caps standalone heading of 3-35 chars without punctuation that isn't a question, answer, or practice set
+  if (
+    /^[A-Z\s&/]{3,35}$/.test(trimmed) &&
+    !trimmed.startsWith('Q') &&
+    !trimmed.startsWith('ANSWER') &&
+    !trimmed.startsWith('ANS') &&
+    !trimmed.startsWith('PRACTICE') &&
+    !trimmed.startsWith('SET')
+  ) {
     if (trimmed.length > 4 && !/^[A-D]$/.test(trimmed)) {
       return trimmed;
     }
@@ -46,9 +87,47 @@ export function detectSubjectHeader(line: string): string | null {
   return null;
 }
 
+// Parse answer key section into a Map<questionNumber, 'A'|'B'|'C'|'D'>
+export function parseAnswerKey(text: string): Map<number, 'A' | 'B' | 'C' | 'D'> {
+  const answerMap = new Map<number, 'A' | 'B' | 'C' | 'D'>();
+  if (!text || !text.trim()) return answerMap;
+
+  // Pattern 1: Delimited pairs like:
+  // "1-(a)", "2-(b)", "3-(b)", "160-(c)"
+  // "1 - a", "1-a", "1-A", "1-b"
+  // "1.(a)", "1. a", "1.A"
+  // "1) (a)", "1) a", "1) A"
+  // "1: a", "1: A", "1 = a"
+  // "Q1. B", "Q. 1 - C", "प्रश्न 1 - ख"
+  const pairRegex = /(?:(?:Q(?:uestion|\.)?|प्रश्न|प्र\.?)?\s*(\d{1,5}))\s*(?:[-–—.:=)]\s*|\s+)\(?([A-Da-d1-4क-घ])\)?(?=[\s,;\n\)\/\|]|$)/gi;
+
+  const matches = text.matchAll(pairRegex);
+  for (const match of matches) {
+    const qNum = parseInt(match[1], 10);
+    const opt = normalizeOptionKey(match[2]);
+    if (!isNaN(qNum) && opt) {
+      answerMap.set(qNum, opt);
+    }
+  }
+
+  return answerMap;
+}
+
+// Check if a line is a document page header/footer line to avoid polluting questions
+function isHeaderOrFooterLine(line: string): boolean {
+  const clean = line.trim();
+  if (!clean) return false;
+  if (/^page\s*\d+(?:\s*(?:of|\/)\s*\d+)?$/i.test(clean)) return true;
+  if (/^\d+\s*(?:of|\/)\s*\d+$/i.test(clean)) return true;
+  if (/^[-–—]{1,3}\s*\d+\s*[-–—]{1,3}$/.test(clean)) return true;
+  if (/^---+.*---+$/.test(clean) && !clean.includes('=')) return true;
+  return false;
+}
+
 export interface TextExtractOptions {
   fromQuestion?: number;
   toQuestion?: number;
+  sectionId?: string;
   defaultMarks?: number;
   defaultNegativeMarks?: number;
   defaultLanguage?: string;
@@ -61,20 +140,31 @@ export interface TextExtractRangeResult {
   missing_question_numbers: number[];
   is_range_complete: boolean;
   total_requested: number;
+  sections?: DetectedSection[];
+  selected_section_id?: string;
 }
 
-// Check if a line is a document page header/footer line to avoid polluting questions
-function isHeaderOrFooterLine(line: string): boolean {
-  const clean = line.trim();
-  if (!clean) return false;
-  // Match lines like: Page 1, Page 1 of 400, 1 of 50, -- 1 --, - 1 -, --- Page 1 ---
-  if (/^page\s*\d+(?:\s*(?:of|\/)\s*\d+)?$/i.test(clean)) return true;
-  if (/^\d+\s*(?:of|\/)\s*\d+$/i.test(clean)) return true;
-  if (/^[-–—]{1,3}\s*\d+\s*[-–—]{1,3}$/.test(clean)) return true;
-  if (/^---+.*---+$/.test(clean) && !clean.includes('=')) return true;
-  return false;
+interface RawBlock {
+  qNum: number;
+  subjectName: string;
+  sectionId: string;
+  sectionName: string;
+  questionLines: string[];
+  options: {
+    A?: string;
+    B?: string;
+    C?: string;
+    D?: string;
+  };
+  answer?: 'A' | 'B' | 'C' | 'D' | null;
+  explanation?: string;
+  rawSnippet: string;
 }
 
+/**
+ * Extracts questions and detects Practice Sets / Sections.
+ * Understands multi-set PDFs (e.g. Practice Set-1 with Answers 1-160, then Practice Set-2 with Answers 1-160).
+ */
 export function extractQuestionsWithRangeFromText(
   rawText: string,
   options: TextExtractOptions = {}
@@ -90,6 +180,7 @@ export function extractQuestionsWithRangeFromText(
       missing_question_numbers: [],
       is_range_complete: false,
       total_requested: 0,
+      sections: [],
     };
   }
 
@@ -103,220 +194,266 @@ export function extractQuestionsWithRangeFromText(
 
   const lines = normalized.split('\n');
 
-  // Check if an Answer Key exists at the end of the text
-  const answerKeyMap = new Map<number, 'A' | 'B' | 'C' | 'D'>();
-  const answerKeyRegex = /(?:answer\s*key|answers|उत्तर\s*कुंजी)[\s\S]*$/i;
-  const answerKeySection = normalized.match(answerKeyRegex);
-  if (answerKeySection) {
-    const akText = answerKeySection[0];
-    const pairMatches = akText.matchAll(/(?:(?:Q(?:uestion|\.)?|प्रश्न\s*)?(\d{1,5}))\s*[:\.\-\)]\s*\(?([A-Da-d1-4क-घ])\)?/gi);
-    for (const match of pairMatches) {
-      const qNum = parseInt(match[1], 10);
-      const opt = normalizeOptionKey(match[2]);
-      if (opt && !isNaN(qNum)) {
-        answerKeyMap.set(qNum, opt);
-      }
-    }
-  }
-
-  // Regex for question starters:
-  // Q1. / Q.1 / Q-1 / Q. 1 / Q 1 / Question 1 / Question No. 1 / Que. 1 / प्रश्न 1 / प्र. 1 / 1. / 1) / (1) / [1]
-  // Group 1: Q / Question / Que / प्रश्न / प्र followed by number
-  // Group 2: (123)
-  // Group 3: [123]
-  // Group 4: 123. or 123) or 123:
-  // Group 5: Trailing question text
+  // Regex patterns:
+  // Question starters: Q1. / Q.1 / Question 1 / प्रश्न 1 / 1. / 1) / (1) / [1]
   const questionStartRegex = /^(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)])(?:\s+|$)))\s*(.*)$/i;
 
-
-  // Regex for option starters:
-  // (A) / A. / A) / [A] / (क) / क.
+  // Single Option starters: (A) / A. / A) / [A] / (क) / क. / 1. / (1)
   const optionStartRegex = /^(?:\(([A-Da-dक-घ1-4])\)|([A-Da-dक-घ1-4])\s*[\.\)\-\]]|\[([A-Da-dक-घ1-4])\])\s*(.*)$/;
 
-  // Regex for answer indicators:
-  // Answer: B / Ans: B / उत्तर: B / Answer - B / Ans. B / Option B / Correct: B
-  const answerLineRegex = /^(?:(?:correct\s*)?(?:answer|ans|उत्तर|option|विकल्प)\s*[:\.\-\—]\s*\(?([A-Da-dक-घ1-4])\)?|(?:उत्तर|ans|answer)\s+([A-Da-dक-घ1-4]))\s*(.*)$/i;
+  // Inline multiple options: e.g. "(A) Apple (B) Banana (C) Cherry (D) Date"
+  const inlineOptionsRegex = /(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])\s*([^\(\[\nA-Da-dक-घ1-4]+?)(?=(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])|$)/g;
 
-  // Regex for explanation:
-  // Explanation: ... / व्याख्या: ... / Solution: ... / हल: ...
+  // Answer indicators: Answer: B / Ans: B / उत्तर: B / Answer - B / Ans. B / Option B / Correct: B
+  const answerLineRegex = /^(?:(?:correct\s*)?(?:answer|ans|उत्तर|option|विकल्प)\s*[:\.\-\—]\s*\(?([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F])))\)?|(?:उत्तर|ans|answer)\s+([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F]))))\s*(.*)$/i;
+
+  // Explanation indicators: Explanation: ... / व्याख्या: ... / Solution: ... / हल: ...
   const explanationLineRegex = /^(?:explanation|व्याख्या|solution|हल|नोट|note)\s*[:\.\-\—]\s*(.*)$/i;
 
-  interface RawBlock {
-    qNum: number;
-    subjectName: string;
-    questionLines: string[];
-    options: {
-      A?: string;
-      B?: string;
-      C?: string;
-      D?: string;
-    };
-    answer?: 'A' | 'B' | 'C' | 'D' | null;
-    explanation?: string;
-    rawSnippet: string;
+  // Answer key section header indicator (must be a standalone section header, NOT an individual answer line)
+  const answerKeyHeaderRegex = /^(?:answer\s*key|answers\s*(?:key|sheet|table)?|answer-key|उत्तर\s*कुंजी|उत्तर\s*माला|उत्तरमाला|उत्तर-कुंजी|उत्तर\s*तालिका|key\s*answers?)(?:\s*[:\-]|\s*$)/i;
+
+  // -------------------------------------------------------------------------
+  // PHASE 1: Scan for Practice Sets / Sections across lines
+  // -------------------------------------------------------------------------
+  interface SectionDraft {
+    id: string;
+    name: string;
+    startLine: number;
+    endLine: number;
   }
 
-  const rawBlocks: RawBlock[] = [];
-  let currentSubject = '';
-  let activeBlock: RawBlock | null = null;
-  let currentTargetOption: 'A' | 'B' | 'C' | 'D' | null = null;
-  let inExplanation = false;
-  let runningAutoQNum = 1;
-
-  const pushActiveBlock = () => {
-    if (activeBlock) {
-      // Check answer key map if answer was not in block
-      if (!activeBlock.answer && activeBlock.qNum && answerKeyMap.has(activeBlock.qNum)) {
-        activeBlock.answer = answerKeyMap.get(activeBlock.qNum) || null;
-      }
-      rawBlocks.push(activeBlock);
-      activeBlock = null;
-      currentTargetOption = null;
-      inExplanation = false;
-    }
-  };
-
+  const detectedSectionDrafts: SectionDraft[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const line = rawLine.trim();
+    const l = lines[i].trim();
+    if (!l) continue;
+    const psName = detectPracticeSetHeader(l);
+    if (psName) {
+      if (detectedSectionDrafts.length > 0) {
+        detectedSectionDrafts[detectedSectionDrafts.length - 1].endLine = i - 1;
+      }
+      detectedSectionDrafts.push({
+        id: `sec-${detectedSectionDrafts.length + 1}`,
+        name: psName,
+        startLine: i,
+        endLine: lines.length - 1,
+      });
+    }
+  }
 
-    if (!line) {
-      continue;
+  // If no practice sets detected, treat whole document as single section
+  if (detectedSectionDrafts.length === 0) {
+    detectedSectionDrafts.push({
+      id: 'sec-all',
+      name: 'Full Document',
+      startLine: 0,
+      endLine: lines.length - 1,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // PHASE 2: Process each section independently to prevent cross-contamination
+  // -------------------------------------------------------------------------
+  const allRawBlocks: RawBlock[] = [];
+  const sectionSummaryList: DetectedSection[] = [];
+
+  for (const draft of detectedSectionDrafts) {
+    const sectionLines = lines.slice(draft.startLine, draft.endLine + 1);
+
+    // Locate answer key block within this section
+    const sectionAnswerKeyMap = new Map<number, 'A' | 'B' | 'C' | 'D'>();
+    let answerKeyStartIndex = -1;
+
+    for (let j = 0; j < sectionLines.length; j++) {
+      const trimmed = sectionLines[j].trim();
+      if (answerKeyHeaderRegex.test(trimmed)) {
+        answerKeyStartIndex = j;
+        break;
+      }
     }
 
-    // Ignore page headers/footers
-    if (isHeaderOrFooterLine(line)) {
-      continue;
+    if (answerKeyStartIndex !== -1) {
+      const akText = sectionLines.slice(answerKeyStartIndex).join('\n');
+      const parsedAk = parseAnswerKey(akText);
+      for (const [k, v] of parsedAk.entries()) {
+        sectionAnswerKeyMap.set(k, v);
+      }
     }
 
-    // Check for Subject header
-    const subjectHeader = detectSubjectHeader(line);
-    if (subjectHeader) {
-      currentSubject = subjectHeader;
-      continue;
-    }
+    // Now extract questions for this section (only lines before the answer key if answer key exists)
+    const contentLines = answerKeyStartIndex !== -1
+      ? sectionLines.slice(0, answerKeyStartIndex)
+      : sectionLines;
 
-    // Check for Question start
-    const qMatch = line.match(questionStartRegex);
-    if (qMatch) {
-      const qNumStr = qMatch[1] || qMatch[2] || qMatch[3] || qMatch[4];
-      const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
-      const initialText = (qMatch[5] || '').trim();
+    let currentSubject = '';
+    let activeBlock: RawBlock | null = null;
+    let currentTargetOption: 'A' | 'B' | 'C' | 'D' | null = null;
+    let inExplanation = false;
+    let runningAutoQNum = 1;
 
-      // Guard against false positive option numbers:
-      // If we are currently inside a question with question number > 4 (e.g. Q5, Q101),
-      // and a line like "1." or "(1)" appears with NO options A populated yet,
-      // it could be Option 1 of this question rather than restarting Question 1.
-      const isLikelyOption1 =
-        activeBlock &&
-        activeBlock.qNum > 4 &&
-        parsedQNum <= 4 &&
-        !activeBlock.options.A &&
-        !qMatch[1]; // Only if it was plain "1." or "(1)", not explicit "Q1." or "Question 1"
+    const pushSectionBlock = () => {
+      if (activeBlock) {
+        // If answer was not in block itself, try section's answer key map
+        if (!activeBlock.answer && activeBlock.qNum && sectionAnswerKeyMap.has(activeBlock.qNum)) {
+          activeBlock.answer = sectionAnswerKeyMap.get(activeBlock.qNum) || null;
+        }
+        allRawBlocks.push(activeBlock);
+        activeBlock = null;
+        currentTargetOption = null;
+        inExplanation = false;
+      }
+    };
 
-      if (!isLikelyOption1) {
-        pushActiveBlock();
+    for (let k = 0; k < contentLines.length; k++) {
+      const rawLine = contentLines[k];
+      const line = rawLine.trim();
+      if (!line || isHeaderOrFooterLine(line)) continue;
 
-        runningAutoQNum = parsedQNum + 1;
+      // Skip practice set title line itself if it matches
+      if (detectPracticeSetHeader(line)) continue;
 
-        activeBlock = {
-          qNum: parsedQNum,
-          subjectName: currentSubject,
-          questionLines: initialText ? [initialText] : [],
-          options: {},
-          answer: null,
-          explanation: '',
-          rawSnippet: line,
-        };
+      // Check for Subject header
+      const subjectHeader = detectSubjectHeader(line);
+      if (subjectHeader) {
+        currentSubject = subjectHeader;
         continue;
       }
-    }
 
-    if (!activeBlock) {
-      // Line before first question started (e.g. title/instruction), ignore
-      continue;
-    }
+      // Check for Question start
+      const qMatch = line.match(questionStartRegex);
+      if (qMatch) {
+        const qNumStr = qMatch[1] || qMatch[2] || qMatch[3] || qMatch[4];
+        const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
+        const initialText = (qMatch[5] || '').trim();
 
-    activeBlock.rawSnippet += '\n' + line;
+        // False-positive option number guard
+        const isLikelyOption1 =
+          activeBlock &&
+          activeBlock.qNum > 4 &&
+          parsedQNum <= 4 &&
+          !activeBlock.options.A &&
+          !qMatch[1];
 
-    // Check for Answer line
-    const ansMatch = line.match(answerLineRegex);
-    if (ansMatch) {
-      const optKey = normalizeOptionKey(ansMatch[1] || ansMatch[2]);
-      if (optKey) {
-        activeBlock.answer = optKey;
-      }
-      currentTargetOption = null;
-      inExplanation = false;
-
-      // Rest of line could be explanation
-      const trailing = (ansMatch[3] || '').trim();
-      if (trailing) {
-        activeBlock.explanation = trailing;
-      }
-      continue;
-    }
-
-    // Check for Explanation line
-    const expMatch = line.match(explanationLineRegex);
-    if (expMatch) {
-      inExplanation = true;
-      currentTargetOption = null;
-      const expText = expMatch[1].trim();
-      activeBlock.explanation = activeBlock.explanation
-        ? activeBlock.explanation + '\n' + expText
-        : expText;
-      continue;
-    }
-
-    if (inExplanation) {
-      activeBlock.explanation += '\n' + line;
-      continue;
-    }
-
-    // Check if line contains inline multiple options, e.g. "(A) Apple (B) Banana (C) Cherry (D) Date"
-    const inlineOptionsRegex = /(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])\s*([^\(\[\nA-Da-dक-घ1-4]+?)(?=(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])|$)/g;
-    const inlineMatches = Array.from(line.matchAll(inlineOptionsRegex));
-
-    if (inlineMatches.length >= 2) {
-      // Process inline options
-      for (const m of inlineMatches) {
-        const optKey = normalizeOptionKey(m[1] || m[2]);
-        const optText = (m[3] || '').trim();
-        if (optKey && optText) {
-          activeBlock.options[optKey] = optText;
+        if (!isLikelyOption1) {
+          pushSectionBlock();
+          runningAutoQNum = parsedQNum + 1;
+          activeBlock = {
+            qNum: parsedQNum,
+            subjectName: currentSubject,
+            sectionId: draft.id,
+            sectionName: draft.name,
+            questionLines: initialText ? [initialText] : [],
+            options: {},
+            answer: null,
+            explanation: '',
+            rawSnippet: line,
+          };
+          continue;
         }
       }
-      currentTargetOption = null;
-      continue;
-    }
 
-    // Check for single Option start: e.g. "A. शेर" or "(A) Tiger"
-    const optMatch = line.match(optionStartRegex);
-    if (optMatch) {
-      const optKey = normalizeOptionKey(optMatch[1] || optMatch[2] || optMatch[3]);
-      if (optKey) {
-        currentTargetOption = optKey;
-        activeBlock.options[optKey] = (optMatch[4] || '').trim();
+      if (!activeBlock) continue;
+
+      activeBlock.rawSnippet += '\n' + line;
+
+      // Check for Answer line
+      const ansMatch = line.match(answerLineRegex);
+      if (ansMatch) {
+        const optKey = normalizeOptionKey(ansMatch[1] || ansMatch[2]);
+        if (optKey) {
+          activeBlock.answer = optKey;
+        }
+        currentTargetOption = null;
+        inExplanation = false;
+
+        const trailing = (ansMatch[3] || '').trim();
+        if (trailing) {
+          activeBlock.explanation = trailing;
+        }
         continue;
       }
+
+      // Check for Explanation line
+      const expMatch = line.match(explanationLineRegex);
+      if (expMatch) {
+        inExplanation = true;
+        currentTargetOption = null;
+        const expText = expMatch[1].trim();
+        activeBlock.explanation = activeBlock.explanation
+          ? activeBlock.explanation + '\n' + expText
+          : expText;
+        continue;
+      }
+
+      if (inExplanation) {
+        activeBlock.explanation += '\n' + line;
+        continue;
+      }
+
+      // Check for inline multiple options
+      const inlineMatches = Array.from(line.matchAll(inlineOptionsRegex));
+      if (inlineMatches.length >= 2) {
+        for (const m of inlineMatches) {
+          const optKey = normalizeOptionKey(m[1] || m[2]);
+          const optText = (m[3] || '').trim();
+          if (optKey && optText) {
+            activeBlock.options[optKey] = optText;
+          }
+        }
+        currentTargetOption = null;
+        continue;
+      }
+
+      // Check for single Option start
+      const optMatch = line.match(optionStartRegex);
+      if (optMatch) {
+        const optKey = normalizeOptionKey(optMatch[1] || optMatch[2] || optMatch[3]);
+        if (optKey) {
+          currentTargetOption = optKey;
+          activeBlock.options[optKey] = (optMatch[4] || '').trim();
+          continue;
+        }
+      }
+
+      // Option continuation
+      if (currentTargetOption && activeBlock.options[currentTargetOption] !== undefined) {
+        activeBlock.options[currentTargetOption] += ' ' + line;
+        continue;
+      }
+
+      // Question text continuation
+      activeBlock.questionLines.push(line);
     }
 
-    // If we are currently inside an option, this line is a continuation of that option
-    if (currentTargetOption && activeBlock.options[currentTargetOption] !== undefined) {
-      activeBlock.options[currentTargetOption] += ' ' + line;
-      continue;
-    }
+    pushSectionBlock();
 
-    // Otherwise, this line is a continuation of question text
-    activeBlock.questionLines.push(line);
+    // Calculate section summary stats
+    const sectionBlocks = allRawBlocks.filter((b) => b.sectionId === draft.id);
+    const qNums = sectionBlocks.map((b) => b.qNum).filter((n) => !isNaN(n));
+    const minQ = qNums.length > 0 ? Math.min(...qNums) : 1;
+    const maxQ = qNums.length > 0 ? Math.max(...qNums) : sectionBlocks.length;
+
+    sectionSummaryList.push({
+      id: draft.id,
+      name: draft.name,
+      total_questions: sectionBlocks.length,
+      from_question: minQ,
+      to_question: maxQ,
+      has_answer_key: sectionAnswerKeyMap.size > 0,
+    });
   }
 
-  // Push final block
-  pushActiveBlock();
+  // -------------------------------------------------------------------------
+  // PHASE 3: Convert Raw Blocks to ParsedQuestion with Strict Validation
+  // -------------------------------------------------------------------------
+  // Check for duplicate question numbers per section
+  const sectionQNumCount = new Map<string, number>();
+  for (const block of allRawBlocks) {
+    const key = `${block.sectionId}:${block.qNum}`;
+    sectionQNumCount.set(key, (sectionQNumCount.get(key) || 0) + 1);
+  }
 
-  // Convert raw blocks to ParsedQuestion objects with validation
-  const allParsedQuestions: ParsedQuestion[] = rawBlocks.map((block, idx) => {
+  const allParsedQuestions: ParsedQuestion[] = allRawBlocks.map((block, idx) => {
     const questionText = block.questionLines.join('\n').trim();
     const optA = (block.options.A || '').trim();
     const optB = (block.options.B || '').trim();
@@ -325,19 +462,39 @@ export function extractQuestionsWithRangeFromText(
     const correctOption = block.answer || null;
 
     const validationIssues: string[] = [];
+
+    // Critical failures (Invalid)
     if (!questionText) {
       validationIssues.push('Question text missing or incomplete');
     }
+    const hasAnyOption = optA || optB || optC || optD;
+    if (!hasAnyOption) {
+      validationIssues.push('No options found for this question');
+    }
+
+    // Warnings / Review required
     if (!optA) validationIssues.push('Missing Option A');
     if (!optB) validationIssues.push('Missing Option B');
     if (!optC) validationIssues.push('Missing Option C');
     if (!optD) validationIssues.push('Missing Option D');
     if (!correctOption) validationIssues.push('Missing Correct Answer');
 
-    const isValid = validationIssues.length === 0;
+    // Duplicate question number within the same section
+    const dupCount = sectionQNumCount.get(`${block.sectionId}:${block.qNum}`) || 1;
+    const isDup = dupCount > 1;
+    if (isDup) {
+      validationIssues.push(`Duplicate Question #${block.qNum} in ${block.sectionName}`);
+    }
+
+    let status: QuestionValidationStatus = 'valid';
+    if (!questionText || !hasAnyOption) {
+      status = 'invalid';
+    } else if (validationIssues.length > 0) {
+      status = 'needs_review';
+    }
 
     return {
-      id: `parsed-q-${block.qNum || idx + 1}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `parsed-q-${block.sectionId}-${block.qNum || idx + 1}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
       order: idx + 1,
       question_number: block.qNum || idx + 1,
       question_text: questionText,
@@ -352,33 +509,41 @@ export function extractQuestionsWithRangeFromText(
       language: lang,
       subject_id: null,
       subject_name: block.subjectName || '',
-      status: isValid ? 'valid' : 'needs_review',
+      section_id: block.sectionId,
+      section_name: block.sectionName,
+      status,
       validation_issues: validationIssues,
-      is_duplicate: false,
+      is_duplicate: isDup,
       raw_snippet: block.rawSnippet,
     };
   });
 
-  // If question range is specified (fromQuestion and toQuestion)
+  // -------------------------------------------------------------------------
+  // PHASE 4: Filter by Section and/or Question Range if specified
+  // -------------------------------------------------------------------------
+  let targetQuestions = allParsedQuestions;
+
+  // Filter by sectionId if requested
+  const activeSectionId = options.sectionId;
+  if (activeSectionId && activeSectionId !== 'all') {
+    targetQuestions = targetQuestions.filter((q) => q.section_id === activeSectionId);
+  }
+
+  // Filter by fromQuestion and toQuestion range if requested
   if (options.fromQuestion !== undefined && options.toQuestion !== undefined) {
     const fromQ = Math.min(options.fromQuestion, options.toQuestion);
     const toQ = Math.max(options.fromQuestion, options.toQuestion);
     const totalRequested = toQ - fromQ + 1;
 
-    // Filter questions whose detected question_number falls within the requested range
-    const inRange = allParsedQuestions.filter(
+    const inRange = targetQuestions.filter(
       (q) => q.question_number !== undefined && q.question_number >= fromQ && q.question_number <= toQ
     );
 
-    // Sort in ascending order of question_number
     inRange.sort((a, b) => (a.question_number ?? 0) - (b.question_number ?? 0));
-
-    // Reset sequential order for test
     inRange.forEach((q, idx) => {
       q.order = idx + 1;
     });
 
-    // Detect missing question numbers
     const foundNumSet = new Set(inRange.map((q) => q.question_number!));
     const missingQuestionNumbers: number[] = [];
     const foundQuestionNumbers: number[] = [];
@@ -398,17 +563,21 @@ export function extractQuestionsWithRangeFromText(
       missing_question_numbers: missingQuestionNumbers,
       is_range_complete: missingQuestionNumbers.length === 0,
       total_requested: totalRequested,
+      sections: sectionSummaryList,
+      selected_section_id: activeSectionId,
     };
   }
 
-  // No range specified: return all questions
-  const allNumbers = allParsedQuestions.map((q) => q.question_number ?? q.order);
+  // No question range specified
+  const allNumbers = targetQuestions.map((q) => q.question_number ?? q.order);
   return {
-    questions: allParsedQuestions,
+    questions: targetQuestions,
     found_question_numbers: allNumbers,
     missing_question_numbers: [],
     is_range_complete: true,
-    total_requested: allParsedQuestions.length,
+    total_requested: targetQuestions.length,
+    sections: sectionSummaryList,
+    selected_section_id: activeSectionId,
   };
 }
 
@@ -418,4 +587,3 @@ export function extractQuestionsFromText(
 ): ParsedQuestion[] {
   return extractQuestionsWithRangeFromText(rawText, options).questions;
 }
-

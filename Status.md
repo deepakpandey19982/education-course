@@ -2,7 +2,36 @@
 
 ## Current Phase
 
-Phase 29 — High-Performance PDF Question Import Optimization
+Phase 30 — Question File Formatter / Smart Question Import
+
+- **New Admin Panel Section: "Question File Formatter":**
+  - Added dedicated Admin section at `/admin/question-formatter` and linked in admin navigation menu (`src/app/admin/layout.tsx`).
+  - Simple 6-step guided wizard:
+    1. **Upload File:** Universal file ingest supporting PDF (digital & OCR), Word (DOCX/DOC), Excel/CSV (XLSX, XLS, CSV), and Images (JPG, JPEG, PNG).
+    2. **Practice Set / Section Selection:** Automatically detects multi-set structures (`Practice Set-1`, `Practice Set-2`, `प्रैक्टिस सेट 1`, `Section A`, etc.) and isolates their questions and answer keys.
+    3. **Question Range & Target Selection:** Configurable range extraction (e.g. 1 → 50, 1 → 100, 101 → 200, 501 → 600) with choice between "Create New Test Series" or "Import into Existing Test".
+    4. **Preview & Live Validation:** Categorizes questions into `VALID`, `NEEDS REVIEW`, `INVALID`, and `DUPLICATE`. Flags missing question numbers with explicit warning banners.
+    5. **Inline Editor:** Edit question text, options A-D, answer, and explanation before database commit.
+    6. **Confirm & Commit:** Direct database insertion reusing existing `test_series`, `test_series_subjects`, `tests`, and `questions` tables.
+- **Isolated Practice-Set & Answer-Key Engine:**
+  - Implemented multi-phase section boundary extraction in `src/lib/question-parser/text-extractor.ts`.
+  - Supports answer key formats `1-(a)`, `2-(b)`, `160-(c)`, `1. a`, `1: A`, `1-A`, `1=A`, Hindi characters (`क`, `ख`, `ग`, `घ`), and multi-column answer tables.
+  - Zero cross-contamination: Question 1 in Practice Set-1 receives Answer 1 of Practice Set-1; Question 1 in Practice Set-2 receives Answer 1 of Practice Set-2.
+  - Separate Hindi word boundary protection prevents words like `उत्तर कुंजी` or `उत्तर तालिका` from colliding with individual question answer lines.
+- **System Safety & Zero Breaking Changes:**
+  - Manual question creation (`+ Add Question`), manual test series creation, and existing `ImportQuestionsModal` continue working without any changes.
+  - Student test-taking engine, timer, palette, scoring, negative marks, review, payments, and auth remain 100% untouched.
+  - Reused existing database tables with zero migrations required.
+  - Strict React Hook order compliance across all modals and components.
+- **Verification & Test Results:**
+  - `scripts/test-question-formatter.ts`: 100% passed across all 4 test scenarios (multi-set isolation, range extraction, validation tags, Excel range).
+  - `scripts/test-smart-parser.ts`: 100% passed across all 3 regression scenarios.
+  - `npx tsc --noEmit`: Code 0 (clean, 0 type errors).
+  - `npm run build`: Code 0 (clean, 41 static/dynamic routes compiled).
+
+---
+
+## Phase 29 — High-Performance PDF Question Import Optimization
 
 - **Root Causes Solved & Engine Optimizations:**
   - **Eliminated Unnecessary OCR Scans:** Previously, digital PDFs with embedded logos or image elements triggered sequential Tesseract OCR on dozens/hundreds of image blocks, causing multi-minute CPU execution and timeouts. Added instant digital-text probing (<10ms) that skips OCR completely whenever selectable text is present.

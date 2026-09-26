@@ -38,6 +38,7 @@ export interface PdfProgressEvent {
 export interface PdfParseOptions {
   fromQuestion?: number;
   toQuestion?: number;
+  sectionId?: string;
   defaultMarks?: number;
   defaultNegativeMarks?: number;
   defaultLanguage?: string;
@@ -87,6 +88,7 @@ export async function parsePdf(
   parsingMethod: 'text' | 'ocr';
   rawText: string;
   isScanned: boolean;
+  sections?: import('./types').DetectedSection[];
   rangeInfo?: {
     requested_range?: { from: number; to: number };
     found_question_numbers: number[];
@@ -251,6 +253,7 @@ export async function parsePdf(
       parsingMethod: 'text',
       rawText: accumulatedText,
       isScanned: false,
+      sections: rangeResult.sections,
       rangeInfo: {
         requested_range: rangeResult.requested_range,
         found_question_numbers: rangeResult.found_question_numbers,
@@ -327,6 +330,7 @@ export async function parsePdf(
       parsingMethod: 'ocr',
       rawText: combinedOcrText,
       isScanned: true,
+      sections: rangeResult.sections,
       rangeInfo: {
         requested_range: rangeResult.requested_range,
         found_question_numbers: rangeResult.found_question_numbers,

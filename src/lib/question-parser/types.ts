@@ -1,4 +1,13 @@
-export type QuestionValidationStatus = 'valid' | 'needs_review' | 'duplicate';
+export type QuestionValidationStatus = 'valid' | 'needs_review' | 'invalid' | 'duplicate';
+
+export interface DetectedSection {
+  id: string;
+  name: string;
+  total_questions: number;
+  from_question: number;
+  to_question: number;
+  has_answer_key: boolean;
+}
 
 export interface ParsedQuestion {
   id: string; // Client/preview unique ID
@@ -16,6 +25,8 @@ export interface ParsedQuestion {
   language: string;
   subject_id: string | null;
   subject_name: string; // Detected subject name (e.g., "Computer", "General Awareness")
+  section_id?: string;
+  section_name?: string; // Detected practice set or section name (e.g., "Practice Set-1")
   status: QuestionValidationStatus;
   validation_issues: string[];
   is_duplicate: boolean;
@@ -32,8 +43,11 @@ export interface ParseResult {
   questions_detected: number;
   valid_questions_count: number;
   needs_review_count: number;
+  invalid_count?: number;
   duplicate_count: number;
   detected_subjects: string[];
+  sections?: DetectedSection[];
+  selected_section_id?: string;
   detected_column_mapping?: Record<string, string>;
   requested_range?: { from: number; to: number };
   total_requested?: number;
@@ -42,6 +56,7 @@ export interface ParseResult {
   is_range_complete?: boolean;
   file_id?: string;
   is_scanned?: boolean;
+  warnings?: string[];
   questions: ParsedQuestion[];
 }
 
