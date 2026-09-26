@@ -181,6 +181,12 @@ interface RawBlock {
     C?: string;
     D?: string;
   };
+  questionImageUrl?: string | null;
+  optionAImageUrl?: string | null;
+  optionBImageUrl?: string | null;
+  optionCImageUrl?: string | null;
+  optionDImageUrl?: string | null;
+  isDiagramQuestion?: boolean;
   answer?: 'A' | 'B' | 'C' | 'D' | null;
   explanation?: string;
   rawSnippet: string;
@@ -190,22 +196,27 @@ interface RawBlock {
  * Extracts questions and detects Practice Sets / Sections.
  * Understands multi-set PDFs (e.g. Practice Set-1 with Answers 1-160, then Practice Set-2 with Answers 1-160).
  */
-// Extract inline options from a single line with multiple options (e.g. (a) ... (b) ...)
 function extractInlineOptions(line: string): Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> | null {
-  const regex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])\s*(.*?)(?=(?:(?:\s|\t)(?:\([a-dA-D1-4क-घ]\)|[a-dA-D1-4क-घ][\.\)\-\]])\s*)|$)/g;
-  const matches = Array.from(line.matchAll(regex));
-  if (matches.length >= 2) {
-    const res: Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> = [];
-    for (const m of matches) {
-      const key = normalizeOptionKey(m[1] || m[2]);
-      const text = (m[3] || '').trim();
-      if (key && text) {
-        res.push({ key, text });
-      }
+  const markerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/g;
+  const markers: Array<{ key: 'A' | 'B' | 'C' | 'D'; start: number; end: number }> = [];
+  let match;
+  while ((match = markerRegex.exec(line)) !== null) {
+    const key = normalizeOptionKey(match[1] || match[2]);
+    if (key) {
+      markers.push({ key, start: match.index, end: markerRegex.lastIndex });
     }
-    if (res.length >= 2) return res;
   }
-  return null;
+
+  if (markers.length < 2) return null;
+
+  const res: Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> = [];
+  for (let i = 0; i < markers.length; i++) {
+    const cur = markers[i];
+    const nextStart = i + 1 < markers.length ? markers[i + 1].start : line.length;
+    const text = line.substring(cur.end, nextStart).trim();
+    res.push({ key: cur.key, text });
+  }
+  return res;
 }
 
 export function extractQuestionsWithRangeFromText(
@@ -514,6 +525,9 @@ export function extractQuestionsWithRangeFromText(
 
       // Question text continuation (STRICT GUARD: Only allowed BEFORE any options have started!)
       if (Object.keys(activeBlock.options).length === 0) {
+        if (/प्रश्न\s*आकृतियाँ|iz'u\s*vkÑfr|उत्तर\s*आकृतियाँ|mÙkj\s*vkÑfr/i.test(line)) {
+          activeBlock.isDiagramQuestion = true;
+        }
         activeBlock.questionLines.push(line);
       }
     }
@@ -559,12 +573,28 @@ export function extractQuestionsWithRangeFromText(
     const optD = (block.options.D || '').trim();
     const correctOption = block.answer || null;
 
+    const hasQuestionImage = Boolean(block.questionImageUrl);
+    const hasOptionAImage = Boolean(block.optionAImageUrl);
+    const hasOptionBImage = Boolean(block.optionBImageUrl);
+    const hasOptionCImage = Boolean(block.optionCImageUrl);
+    const hasOptionDImage = Boolean(block.optionDImageUrl);
+
+    const isDiagramQ =
+      block.isDiagramQuestion ||
+      /आकृति|चित्र|दर्पण|प्रतिबिम्ब|लुप्त|वेन|पासा|vkÑfr|प्रश्न\s*आकृति|उत्तर\s*आकृति/i.test(questionText) ||
+      (block.options.A !== undefined && block.options.B !== undefined && !optA && !optB);
+
+    const hasOptA = Boolean(optA || hasOptionAImage || (isDiagramQ && block.options.A !== undefined));
+    const hasOptB = Boolean(optB || hasOptionBImage || (isDiagramQ && block.options.B !== undefined));
+    const hasOptC = Boolean(optC || hasOptionCImage || (isDiagramQ && block.options.C !== undefined));
+    const hasOptD = Boolean(optD || hasOptionDImage || (isDiagramQ && block.options.D !== undefined));
+
     const validationIssues: string[] = [];
 
     // Critical failures (Invalid)
-    if (!questionText) {
-      validationIssues.push('Question text missing or incomplete');
-    } else if (questionText.length < 8) {
+    if (!questionText && !hasQuestionImage) {
+      validationIssues.push('Question text or diagram image missing');
+    } else if (questionText && questionText.length < 8 && !hasQuestionImage && !isDiagramQ) {
       validationIssues.push('Question text is too short (< 8 characters)');
     }
 
@@ -573,19 +603,19 @@ export function extractQuestionsWithRangeFromText(
       validationIssues.push('Contains document instruction text');
     }
 
-    const hasAnyOption = optA || optB || optC || optD;
+    const hasAnyOption = hasOptA || hasOptB || hasOptC || hasOptD;
     if (!hasAnyOption) {
       validationIssues.push('No options found for this question');
     }
 
     // Warnings / Review required
-    if (!optA) validationIssues.push('Missing Option A');
-    if (!optB) validationIssues.push('Missing Option B');
-    if (!optC) validationIssues.push('Missing Option C');
-    if (!optD) validationIssues.push('Missing Option D');
+    if (!hasOptA) validationIssues.push('Missing Option A');
+    if (!hasOptB) validationIssues.push('Missing Option B');
+    if (!hasOptC) validationIssues.push('Missing Option C');
+    if (!hasOptD) validationIssues.push('Missing Option D');
     if (!correctOption) validationIssues.push('Missing Correct Answer');
 
-    // Check for duplicate options (e.g. Option A === Option B)
+    // Check for duplicate options (only among non-empty text options)
     const activeOpts = [optA, optB, optC, optD].filter(Boolean);
     const uniqueOpts = new Set(activeOpts);
     if (activeOpts.length >= 2 && uniqueOpts.size < activeOpts.length) {
@@ -601,11 +631,11 @@ export function extractQuestionsWithRangeFromText(
 
     let status: QuestionValidationStatus = 'valid';
     if (
-      !questionText ||
+      (!questionText && !hasQuestionImage) ||
       !hasAnyOption ||
       validationIssues.includes('Contains document instruction text') ||
       validationIssues.includes('Question text is too short (< 8 characters)') ||
-      (!optA && !optB)
+      (!hasOptA && !hasOptB)
     ) {
       status = 'invalid';
     } else if (validationIssues.length > 0) {
@@ -617,10 +647,16 @@ export function extractQuestionsWithRangeFromText(
       order: idx + 1,
       question_number: block.qNum || idx + 1,
       question_text: questionText,
+      question_image_url: block.questionImageUrl || null,
       option_a: optA,
+      option_a_image_url: block.optionAImageUrl || null,
       option_b: optB,
+      option_b_image_url: block.optionBImageUrl || null,
       option_c: optC,
+      option_c_image_url: block.optionCImageUrl || null,
       option_d: optD,
+      option_d_image_url: block.optionDImageUrl || null,
+      is_image_based: isDiagramQ,
       correct_option: correctOption,
       explanation: block.explanation || '',
       marks,

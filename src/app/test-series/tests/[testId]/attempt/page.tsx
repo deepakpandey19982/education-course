@@ -10,10 +10,15 @@ type Question = {
   id: string;
   subject_id?: string | null;
   question_text: string;
+  question_image_url?: string | null;
   option_a: string;
+  option_a_image_url?: string | null;
   option_b: string;
+  option_b_image_url?: string | null;
   option_c: string;
+  option_c_image_url?: string | null;
   option_d: string;
+  option_d_image_url?: string | null;
   marks: number;
   negative_marks: number;
 };
@@ -360,13 +365,29 @@ export default function TestAttemptPage() {
             </div>
           </div>
 
-          <h1 className="mt-4 text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">
-            {currentQuestion.question_text}
-          </h1>
+          {currentQuestion.question_text && (
+            <h1 className="mt-4 text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">
+              {currentQuestion.question_text}
+            </h1>
+          )}
+
+          {currentQuestion.question_image_url && (
+            <div className="mt-4 flex justify-start">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentQuestion.question_image_url}
+                alt="Question diagram"
+                className="max-h-72 max-w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-2 object-contain shadow-xs"
+              />
+            </div>
+          )}
 
           <div className="mt-7 space-y-3 flex-1">
             {(['A', 'B', 'C', 'D'] as const).map((option) => {
               const isSelected = currentAnswer?.selected_option === option;
+              const optText = currentQuestion[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c' | 'option_d'];
+              const optImage = currentQuestion[`option_${option.toLowerCase()}_image_url` as 'option_a_image_url' | 'option_b_image_url' | 'option_c_image_url' | 'option_d_image_url'];
+
               return (
                 <button
                   key={option}
@@ -387,8 +408,22 @@ export default function TestAttemptPage() {
                       : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100'
                   }`}
                 >
-                  <span className="font-bold mr-3">{option}.</span>
-                  {currentQuestion[`option_${option.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c' | 'option_d']}
+                  <div className="flex items-start gap-3">
+                    <span className="font-bold shrink-0">{option}.</span>
+                    <div className="space-y-2 flex-1">
+                      {optText && <span className="block leading-relaxed">{optText}</span>}
+                      {optImage && (
+                        <div className="mt-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={optImage}
+                            alt={`Option ${option} diagram`}
+                            className="max-h-36 max-w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </button>
               );
             })}

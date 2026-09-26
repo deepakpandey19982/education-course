@@ -321,9 +321,22 @@ export async function parseQuestionFile(
       seenInBatch.add(normText);
     }
 
+    const hasAnyOpt = Boolean(
+      q.option_a ||
+      q.option_b ||
+      q.option_c ||
+      q.option_d ||
+      q.option_a_image_url ||
+      q.option_b_image_url ||
+      q.option_c_image_url ||
+      q.option_d_image_url ||
+      q.is_image_based
+    );
+    const hasQuestion = Boolean(q.question_text || q.question_image_url);
+
     // Determine final status
     let status: import('./types').QuestionValidationStatus = 'valid';
-    if (!q.question_text || (!q.option_a && !q.option_b && !q.option_c && !q.option_d)) {
+    if (!hasQuestion || !hasAnyOpt) {
       status = 'invalid';
     } else if (isDuplicate) {
       status = 'duplicate';

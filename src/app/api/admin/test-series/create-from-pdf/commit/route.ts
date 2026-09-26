@@ -202,10 +202,15 @@ export async function POST(req: Request) {
         test_id: testId,
         subject_id: targetSubjectId,
         question_text: String(q.question_text || '').trim(),
+        question_image_url: q.question_image_url || null,
         option_a: String(q.option_a || '').trim(),
+        option_a_image_url: q.option_a_image_url || null,
         option_b: String(q.option_b || '').trim(),
+        option_b_image_url: q.option_b_image_url || null,
         option_c: String(q.option_c || '').trim(),
+        option_c_image_url: q.option_c_image_url || null,
         option_d: String(q.option_d || '').trim(),
+        option_d_image_url: q.option_d_image_url || null,
         correct_option: q.correct_option as 'A' | 'B' | 'C' | 'D',
         explanation: taggedExplanation || null,
         marks: Number(q.marks) || marksPerCorrect,
@@ -224,10 +229,17 @@ export async function POST(req: Request) {
       const chunk = rowsToInsert.slice(i, i + CHUNK_SIZE);
       let { error: insertErr } = await admin.from('questions').insert(chunk);
 
-      if (insertErr && insertErr.message?.includes('subject_id')) {
-        const fallbackChunk = chunk.map((c) => {
+      if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
+        const fallbackChunk = chunk.map((c: any) => {
           const copy: any = { ...c };
-          delete copy.subject_id;
+          if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
+          if (insertErr?.message?.includes('image_url')) {
+            delete copy.question_image_url;
+            delete copy.option_a_image_url;
+            delete copy.option_b_image_url;
+            delete copy.option_c_image_url;
+            delete copy.option_d_image_url;
+          }
           return copy;
         });
         const retry = await admin.from('questions').insert(fallbackChunk);

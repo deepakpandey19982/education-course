@@ -17,6 +17,7 @@ const ALLOWED_FOLDERS = [
   'series',
   'tests',
   'pdfs',
+  'questions',
 ];
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',

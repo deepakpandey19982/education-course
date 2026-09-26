@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { testSeriesFetch } from '@/lib/test-series-client';
+import { uploadSiteAsset } from '@/lib/supabase';
 import type { ParsedQuestion, ParseResult, DetectedSection } from '@/lib/question-parser/types';
 import type { FormatterJobStatus } from '@/lib/question-parser/job-manager';
 
@@ -83,6 +84,28 @@ export default function QuestionFileFormatterPage() {
 
   // Inline Question editing sub-modal state
   const [editingQuestion, setEditingQuestion] = useState<ParsedQuestion | null>(null);
+  const [uploadingImageField, setUploadingImageField] = useState<string | null>(null);
+
+  const handleUploadImageForQuestion = async (
+    targetField: 'question_image_url' | 'option_a_image_url' | 'option_b_image_url' | 'option_c_image_url' | 'option_d_image_url',
+    file: File
+  ) => {
+    try {
+      setUploadingImageField(targetField);
+      const url = await uploadSiteAsset(file, 'options');
+      if (editingQuestion) {
+        setEditingQuestion({
+          ...editingQuestion,
+          [targetField]: url,
+          is_image_based: true,
+        });
+      }
+    } catch (err: any) {
+      alert(`Image upload failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setUploadingImageField(null);
+    }
+  };
 
   // Success summary state
   const [successSummary, setSuccessSummary] = useState<{
@@ -415,10 +438,15 @@ export default function QuestionFileFormatterPage() {
         questions: questions.map((q, idx) => ({
           question_number: q.question_number,
           question_text: q.question_text,
+          question_image_url: q.question_image_url || null,
           option_a: q.option_a,
+          option_a_image_url: q.option_a_image_url || null,
           option_b: q.option_b,
+          option_b_image_url: q.option_b_image_url || null,
           option_c: q.option_c,
+          option_c_image_url: q.option_c_image_url || null,
           option_d: q.option_d,
+          option_d_image_url: q.option_d_image_url || null,
           correct_option: q.correct_option || 'A',
           explanation: q.explanation,
           marks: q.marks || marksPerCorrect,
@@ -1279,6 +1307,11 @@ export default function QuestionFileFormatterPage() {
                           • {q.section_name}
                         </span>
                       )}
+                      {(q.is_image_based || q.question_image_url || q.option_a_image_url) && (
+                        <span className="text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span>🖼️</span> Diagram MCQ
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -1340,42 +1373,70 @@ export default function QuestionFileFormatterPage() {
                   <div className={`grid gap-4 ${expandedSources[q.id] ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                     <div>
                       {/* Question Text */}
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap mb-3 leading-relaxed">
-                        {q.question_text || <span className="italic text-red-500">[Missing Question Text]</span>}
-                      </p>
+                      {q.question_text && (
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-pre-wrap mb-3 leading-relaxed">
+                          {q.question_text}
+                        </p>
+                      )}
+
+                      {/* Question Diagram Preview if present */}
+                      {q.question_image_url && (
+                        <div className="my-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={q.question_image_url}
+                            alt="Question Diagram"
+                            className="max-h-52 max-w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-2 object-contain shadow-xs"
+                          />
+                        </div>
+                      )}
 
                       {/* Options Grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {(['A', 'B', 'C', 'D'] as const).map((key) => {
                           const optKey = `option_${key.toLowerCase()}` as keyof ParsedQuestion;
+                          const imgKey = `option_${key.toLowerCase()}_image_url` as keyof ParsedQuestion;
                           const optVal = (q[optKey] as string) || '';
+                          const optImg = (q[imgKey] as string) || null;
                           const isCorrect = q.correct_option === key;
 
                           return (
                             <div
                               key={key}
-                              className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                              className={`p-2.5 rounded-lg border flex flex-col justify-between ${
                                 isCorrect
                                   ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
                                   : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300'
                               }`}
                             >
-                              <span
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                                  isCorrect
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                                }`}
-                              >
-                                {key}
-                              </span>
-                              <span className="flex-1 break-words">
-                                {optVal || <span className="italic text-slate-400">Empty</span>}
-                              </span>
-                              {isCorrect && (
-                                <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
-                                  Correct
+                              <div className="flex items-start gap-2">
+                                <span
+                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                    isCorrect
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                >
+                                  {key}
                                 </span>
+                                <span className="flex-1 break-words">
+                                  {optVal || (optImg || q.is_image_based ? <span className="italic text-slate-400">[Diagram]</span> : <span className="italic text-slate-400">Empty</span>)}
+                                </span>
+                                {isCorrect && (
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                                    Correct
+                                  </span>
+                                )}
+                              </div>
+                              {optImg && (
+                                <div className="mt-2 pl-6">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={optImg}
+                                    alt={`Option ${key} diagram`}
+                                    className="max-h-24 max-w-full rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                                  />
+                                </div>
                               )}
                             </div>
                           );
@@ -1563,58 +1624,247 @@ export default function QuestionFileFormatterPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Option A *
+              {/* Question Diagram */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>🖼️</span> Question Diagram (Optional)
                   </label>
+                  <label className="cursor-pointer font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                    {uploadingImageField === 'question_image_url' ? 'Uploading...' : 'Upload Image'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingImageField !== null}
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          void handleUploadImageForQuestion('question_image_url', e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="https://... or upload above"
+                  value={editingQuestion.question_image_url || ''}
+                  onChange={(e) =>
+                    setEditingQuestion({ ...editingQuestion, question_image_url: e.target.value })
+                  }
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                />
+                {editingQuestion.question_image_url && (
+                  <div className="relative inline-block mt-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={editingQuestion.question_image_url}
+                      alt="Question Preview"
+                      className="max-h-32 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditingQuestion({ ...editingQuestion, question_image_url: null })}
+                      className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full h-5 w-5 text-[10px] flex items-center justify-center shadow-xs"
+                      title="Remove image"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 dark:text-slate-300">
+                      Option A
+                    </label>
+                    <label className="cursor-pointer text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      {uploadingImageField === 'option_a_image_url' ? '...' : '+ Diagram'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImageField !== null}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleUploadImageForQuestion('option_a_image_url', e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={editingQuestion.option_a}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, option_a: e.target.value })
                     }
+                    placeholder={editingQuestion.option_a_image_url ? '[Diagram Option]' : 'Option text'}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
                   />
+                  {editingQuestion.option_a_image_url && (
+                    <div className="relative inline-block mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingQuestion.option_a_image_url}
+                        alt="Option A Diagram"
+                        className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, option_a_image_url: null })}
+                        className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Option B *
-                  </label>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 dark:text-slate-300">
+                      Option B
+                    </label>
+                    <label className="cursor-pointer text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      {uploadingImageField === 'option_b_image_url' ? '...' : '+ Diagram'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImageField !== null}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleUploadImageForQuestion('option_b_image_url', e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={editingQuestion.option_b}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, option_b: e.target.value })
                     }
+                    placeholder={editingQuestion.option_b_image_url ? '[Diagram Option]' : 'Option text'}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
                   />
+                  {editingQuestion.option_b_image_url && (
+                    <div className="relative inline-block mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingQuestion.option_b_image_url}
+                        alt="Option B Diagram"
+                        className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, option_b_image_url: null })}
+                        className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Option C *
-                  </label>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 dark:text-slate-300">
+                      Option C
+                    </label>
+                    <label className="cursor-pointer text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      {uploadingImageField === 'option_c_image_url' ? '...' : '+ Diagram'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImageField !== null}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleUploadImageForQuestion('option_c_image_url', e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={editingQuestion.option_c}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, option_c: e.target.value })
                     }
+                    placeholder={editingQuestion.option_c_image_url ? '[Diagram Option]' : 'Option text'}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
                   />
+                  {editingQuestion.option_c_image_url && (
+                    <div className="relative inline-block mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingQuestion.option_c_image_url}
+                        alt="Option C Diagram"
+                        className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, option_c_image_url: null })}
+                        className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Option D *
-                  </label>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 dark:text-slate-300">
+                      Option D
+                    </label>
+                    <label className="cursor-pointer text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      {uploadingImageField === 'option_d_image_url' ? '...' : '+ Diagram'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImageField !== null}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleUploadImageForQuestion('option_d_image_url', e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={editingQuestion.option_d}
                     onChange={(e) =>
                       setEditingQuestion({ ...editingQuestion, option_d: e.target.value })
                     }
+                    placeholder={editingQuestion.option_d_image_url ? '[Diagram Option]' : 'Option text'}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
                   />
+                  {editingQuestion.option_d_image_url && (
+                    <div className="relative inline-block mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingQuestion.option_d_image_url}
+                        alt="Option D Diagram"
+                        className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, option_d_image_url: null })}
+                        className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

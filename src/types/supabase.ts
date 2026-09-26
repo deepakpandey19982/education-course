@@ -146,6 +146,11 @@ export interface Question {
   option_b: string;
   option_c: string;
   option_d: string;
+  question_image_url?: string | null;
+  option_a_image_url?: string | null;
+  option_b_image_url?: string | null;
+  option_c_image_url?: string | null;
+  option_d_image_url?: string | null;
   correct_option: 'A' | 'B' | 'C' | 'D';
   explanation: string | null;
   marks: number;

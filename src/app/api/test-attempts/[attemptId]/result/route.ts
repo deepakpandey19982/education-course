@@ -29,24 +29,34 @@ export async function GET(
       return NextResponse.json({ error: 'Submit the test before viewing solutions' }, { status: 409 });
     }
 
-    const [{ data: questions, error: questionsError }, { data: answers, error: answersError }] = await Promise.all([
-      admin
+    let questionsRes: any = await admin
+      .from('questions')
+      .select('id, question_text, question_image_url, option_a, option_b, option_c, option_d, option_a_image_url, option_b_image_url, option_c_image_url, option_d_image_url, correct_option, explanation, marks, negative_marks, language, order')
+      .eq('test_id', attempt.test_id)
+      .order('order', { ascending: true });
+
+    if (questionsRes.error && questionsRes.error.message?.includes('image_url')) {
+      // Fallback if image_url columns not added yet
+      questionsRes = await admin
         .from('questions')
         .select('id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation, marks, negative_marks, language, order')
         .eq('test_id', attempt.test_id)
-        .order('order', { ascending: true }),
-      admin
-        .from('test_answers')
-        .select('question_id, selected_option, status, is_correct')
-        .eq('attempt_id', attemptId),
-    ]);
+        .order('order', { ascending: true });
+    }
+
+    const { data: questions, error: questionsError } = questionsRes;
+
+    const { data: answers, error: answersError } = await admin
+      .from('test_answers')
+      .select('question_id, selected_option, status, is_correct')
+      .eq('attempt_id', attemptId);
 
     if (questionsError || answersError || !questions) {
       return NextResponse.json({ error: 'Could not load results' }, { status: 500 });
     }
 
     const answersByQuestion = new Map((answers ?? []).map((answer) => [answer.question_id, answer]));
-    const analysis = questions.map((question) => {
+    const analysis = (questions as any[]).map((question: any) => {
       const cleanExplanation = question.explanation
         ? question.explanation.replace(/<!--subj:[a-f0-9-]+-->/gi, '').trim()
         : null;

@@ -18,6 +18,11 @@ export interface ParsedQuestion {
   option_b: string;
   option_c: string;
   option_d: string;
+  question_image_url?: string | null;
+  option_a_image_url?: string | null;
+  option_b_image_url?: string | null;
+  option_c_image_url?: string | null;
+  option_d_image_url?: string | null;
   correct_option: 'A' | 'B' | 'C' | 'D' | null;
   explanation: string;
   marks: number;
@@ -30,6 +35,7 @@ export interface ParsedQuestion {
   status: QuestionValidationStatus;
   validation_issues: string[];
   is_duplicate: boolean;
+  is_image_based?: boolean;
   raw_snippet?: string;
 }
 
@@ -67,10 +73,15 @@ export interface QuestionImportCommitPayload {
   questions: Array<{
     subject_id?: string | null;
     question_text: string;
+    question_image_url?: string | null;
     option_a: string;
+    option_a_image_url?: string | null;
     option_b: string;
+    option_b_image_url?: string | null;
     option_c: string;
+    option_c_image_url?: string | null;
     option_d: string;
+    option_d_image_url?: string | null;
     correct_option: 'A' | 'B' | 'C' | 'D';
     explanation?: string | null;
     marks?: number;
@@ -109,10 +120,15 @@ export interface CreateSeriesFromPdfCommitPayload {
   questions: Array<{
     question_number?: number;
     question_text: string;
+    question_image_url?: string | null;
     option_a: string;
+    option_a_image_url?: string | null;
     option_b: string;
+    option_b_image_url?: string | null;
     option_c: string;
+    option_c_image_url?: string | null;
     option_d: string;
+    option_d_image_url?: string | null;
     correct_option: 'A' | 'B' | 'C' | 'D';
     explanation?: string | null;
     marks?: number;

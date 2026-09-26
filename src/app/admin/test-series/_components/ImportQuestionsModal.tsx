@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { testSeriesFetch } from '@/lib/test-series-client';
+import { uploadSiteAsset } from '@/lib/supabase';
 import type { TestSeriesSubject, Test } from '@/types/supabase';
 import type { ParsedQuestion, ParseResult } from '@/lib/question-parser/types';
 
@@ -49,6 +50,7 @@ export function ImportQuestionsModal({
 
   // Question currently being edited
   const [editingQuestion, setEditingQuestion] = useState<ParsedQuestion | null>(null);
+  const [uploadingImageField, setUploadingImageField] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,11 +150,20 @@ export function ImportQuestionsModal({
   // Re-validate a question after edit
   const revalidateQuestion = (q: ParsedQuestion): ParsedQuestion => {
     const issues: string[] = [];
-    if (!q.question_text.trim()) issues.push('Question text missing');
-    if (!q.option_a.trim()) issues.push('Missing Option A');
-    if (!q.option_b.trim()) issues.push('Missing Option B');
-    if (!q.option_c.trim()) issues.push('Missing Option C');
-    if (!q.option_d.trim()) issues.push('Missing Option D');
+    const hasQText = Boolean(q.question_text?.trim());
+    const hasQImg = Boolean(q.question_image_url?.trim());
+    if (!hasQText && !hasQImg) issues.push('Question text or diagram image missing');
+
+    const isDiag = q.is_image_based || Boolean(q.question_image_url || q.option_a_image_url);
+    const hasOptA = Boolean(q.option_a?.trim() || q.option_a_image_url || isDiag);
+    const hasOptB = Boolean(q.option_b?.trim() || q.option_b_image_url || isDiag);
+    const hasOptC = Boolean(q.option_c?.trim() || q.option_c_image_url || isDiag);
+    const hasOptD = Boolean(q.option_d?.trim() || q.option_d_image_url || isDiag);
+
+    if (!hasOptA) issues.push('Missing Option A');
+    if (!hasOptB) issues.push('Missing Option B');
+    if (!hasOptC) issues.push('Missing Option C');
+    if (!hasOptD) issues.push('Missing Option D');
     if (!q.correct_option) issues.push('Missing Correct Answer');
     if (!q.subject_id) issues.push('Subject not detected (please select subject)');
 
@@ -168,6 +179,27 @@ export function ImportQuestionsModal({
       validation_issues: issues,
       status,
     };
+  };
+
+  const handleUploadImageForQuestion = async (
+    targetField: 'question_image_url' | 'option_a_image_url' | 'option_b_image_url' | 'option_c_image_url' | 'option_d_image_url',
+    file: File
+  ) => {
+    try {
+      setUploadingImageField(targetField);
+      const url = await uploadSiteAsset(file, 'options');
+      if (editingQuestion) {
+        setEditingQuestion({
+          ...editingQuestion,
+          [targetField]: url,
+          is_image_based: true,
+        });
+      }
+    } catch (err: any) {
+      alert(`Image upload failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setUploadingImageField(null);
+    }
   };
 
   // Save changes from Question Edit Sub-Modal
@@ -265,7 +297,12 @@ export function ImportQuestionsModal({
     }
 
     // Check if any selected question has critical issues
-    const invalidInSelected = targetList.filter((q) => !q.question_text || !q.correct_option || !q.option_a);
+    const invalidInSelected = targetList.filter(
+      (q) =>
+        (!q.question_text && !q.question_image_url) ||
+        !q.correct_option ||
+        (!q.option_a && !q.option_a_image_url && !q.is_image_based)
+    );
     if (invalidInSelected.length > 0) {
       if (
         !window.confirm(
@@ -289,10 +326,15 @@ export function ImportQuestionsModal({
           questions: targetList.map((q) => ({
             subject_id: q.subject_id,
             question_text: q.question_text,
+            question_image_url: q.question_image_url || null,
             option_a: q.option_a,
+            option_a_image_url: q.option_a_image_url || null,
             option_b: q.option_b,
+            option_b_image_url: q.option_b_image_url || null,
             option_c: q.option_c,
+            option_c_image_url: q.option_c_image_url || null,
             option_d: q.option_d,
+            option_d_image_url: q.option_d_image_url || null,
             correct_option: q.correct_option,
             explanation: q.explanation,
             marks: q.marks,
@@ -794,6 +836,12 @@ export function ImportQuestionsModal({
                                     ⚠️ Needs Review
                                   </span>
                                 )}
+
+                                {(q.is_image_based || q.question_image_url || q.option_a_image_url) && (
+                                  <span className="text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <span>🖼️</span> Diagram MCQ
+                                  </span>
+                                )}
                               </div>
 
                               {/* Issues list if any */}
@@ -804,48 +852,66 @@ export function ImportQuestionsModal({
                               )}
 
                               {/* Question Text */}
-                              <p className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed">
-                                {q.question_text || <span className="text-rose-500 italic">[Empty Question Text]</span>}
-                              </p>
+                              {q.question_text && (
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed">
+                                  {q.question_text}
+                                </p>
+                              )}
+
+                              {/* Question Image if present */}
+                              {q.question_image_url && (
+                                <div className="my-2">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={q.question_image_url}
+                                    alt="Question Diagram"
+                                    className="max-h-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white p-1.5 object-contain shadow-xs"
+                                  />
+                                </div>
+                              )}
 
                               {/* Options */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                                <div
-                                  className={`p-2 rounded border ${
-                                    q.correct_option === 'A'
-                                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
-                                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <span className="font-bold mr-1">A.</span> {q.option_a || '—'}
-                                </div>
-                                <div
-                                  className={`p-2 rounded border ${
-                                    q.correct_option === 'B'
-                                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
-                                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <span className="font-bold mr-1">B.</span> {q.option_b || '—'}
-                                </div>
-                                <div
-                                  className={`p-2 rounded border ${
-                                    q.correct_option === 'C'
-                                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
-                                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <span className="font-bold mr-1">C.</span> {q.option_c || '—'}
-                                </div>
-                                <div
-                                  className={`p-2 rounded border ${
-                                    q.correct_option === 'D'
-                                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
-                                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <span className="font-bold mr-1">D.</span> {q.option_d || '—'}
-                                </div>
+                                {(['A', 'B', 'C', 'D'] as const).map((key) => {
+                                  const textKey = `option_${key.toLowerCase()}` as keyof ParsedQuestion;
+                                  const imgKey = `option_${key.toLowerCase()}_image_url` as keyof ParsedQuestion;
+                                  const optVal = (q[textKey] as string) || '';
+                                  const optImg = (q[imgKey] as string) || null;
+                                  const isCorrect = q.correct_option === key;
+
+                                  return (
+                                    <div
+                                      key={key}
+                                      className={`p-2 rounded border flex flex-col justify-between ${
+                                        isCorrect
+                                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold'
+                                          : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-1">
+                                        <div>
+                                          <span className="font-bold mr-1">{key}.</span>
+                                          {optVal || (optImg || q.is_image_based ? <span className="italic text-slate-400">[Diagram]</span> : '—')}
+                                        </div>
+                                        {isCorrect && (
+                                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-black uppercase">
+                                            Correct
+                                          </span>
+                                        )}
+                                      </div>
+                                      {optImg && (
+                                        <div className="mt-1">
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={optImg}
+                                            alt={`Option ${key} Diagram`}
+                                            className="max-h-24 max-w-full rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
 
                               {/* Explanation if present */}
@@ -1012,63 +1078,251 @@ export function ImportQuestionsModal({
                   />
                 </div>
 
+                {/* Question Diagram / Image */}
+                <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <span>🖼️</span> Question Diagram (Optional)
+                    </label>
+                    <label className="cursor-pointer text-xs font-bold text-brand-primary dark:text-blue-400 hover:underline">
+                      {uploadingImageField === 'question_image_url' ? 'Uploading...' : 'Upload Image'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImageField !== null}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            void handleUploadImageForQuestion('question_image_url', e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://... or upload above"
+                    value={editingQuestion.question_image_url || ''}
+                    onChange={(e) =>
+                      setEditingQuestion({ ...editingQuestion, question_image_url: e.target.value })
+                    }
+                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  />
+                  {editingQuestion.question_image_url && (
+                    <div className="relative inline-block mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingQuestion.question_image_url}
+                        alt="Question Preview"
+                        className="max-h-32 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestion({ ...editingQuestion, question_image_url: null })}
+                        className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full h-5 w-5 text-[10px] flex items-center justify-center shadow-xs"
+                        title="Remove image"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Options A & B */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Option A *
-                    </label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Option A Text
+                      </label>
+                      <label className="cursor-pointer text-[11px] font-bold text-brand-primary dark:text-blue-400 hover:underline">
+                        {uploadingImageField === 'option_a_image_url' ? '...' : '+ Diagram'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImageField !== null}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              void handleUploadImageForQuestion('option_a_image_url', e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={editingQuestion.option_a}
                       onChange={(e) =>
                         setEditingQuestion({ ...editingQuestion, option_a: e.target.value })
                       }
+                      placeholder={editingQuestion.option_a_image_url ? '[Diagram Option]' : 'Option text'}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
+                    {editingQuestion.option_a_image_url && (
+                      <div className="relative inline-block mt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={editingQuestion.option_a_image_url}
+                          alt="Option A Diagram"
+                          className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuestion({ ...editingQuestion, option_a_image_url: null })}
+                          className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Option B *
-                    </label>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Option B Text
+                      </label>
+                      <label className="cursor-pointer text-[11px] font-bold text-brand-primary dark:text-blue-400 hover:underline">
+                        {uploadingImageField === 'option_b_image_url' ? '...' : '+ Diagram'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImageField !== null}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              void handleUploadImageForQuestion('option_b_image_url', e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={editingQuestion.option_b}
                       onChange={(e) =>
                         setEditingQuestion({ ...editingQuestion, option_b: e.target.value })
                       }
+                      placeholder={editingQuestion.option_b_image_url ? '[Diagram Option]' : 'Option text'}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
+                    {editingQuestion.option_b_image_url && (
+                      <div className="relative inline-block mt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={editingQuestion.option_b_image_url}
+                          alt="Option B Diagram"
+                          className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuestion({ ...editingQuestion, option_b_image_url: null })}
+                          className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Options C & D */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Option C *
-                    </label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Option C Text
+                      </label>
+                      <label className="cursor-pointer text-[11px] font-bold text-brand-primary dark:text-blue-400 hover:underline">
+                        {uploadingImageField === 'option_c_image_url' ? '...' : '+ Diagram'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImageField !== null}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              void handleUploadImageForQuestion('option_c_image_url', e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={editingQuestion.option_c}
                       onChange={(e) =>
                         setEditingQuestion({ ...editingQuestion, option_c: e.target.value })
                       }
+                      placeholder={editingQuestion.option_c_image_url ? '[Diagram Option]' : 'Option text'}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
+                    {editingQuestion.option_c_image_url && (
+                      <div className="relative inline-block mt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={editingQuestion.option_c_image_url}
+                          alt="Option C Diagram"
+                          className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuestion({ ...editingQuestion, option_c_image_url: null })}
+                          className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Option D *
-                    </label>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Option D Text
+                      </label>
+                      <label className="cursor-pointer text-[11px] font-bold text-brand-primary dark:text-blue-400 hover:underline">
+                        {uploadingImageField === 'option_d_image_url' ? '...' : '+ Diagram'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImageField !== null}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              void handleUploadImageForQuestion('option_d_image_url', e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={editingQuestion.option_d}
                       onChange={(e) =>
                         setEditingQuestion({ ...editingQuestion, option_d: e.target.value })
                       }
+                      placeholder={editingQuestion.option_d_image_url ? '[Diagram Option]' : 'Option text'}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                     />
+                    {editingQuestion.option_d_image_url && (
+                      <div className="relative inline-block mt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={editingQuestion.option_d_image_url}
+                          alt="Option D Diagram"
+                          className="max-h-20 rounded border border-slate-200 dark:border-slate-700 bg-white p-1 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuestion({ ...editingQuestion, option_d_image_url: null })}
+                          className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full h-4 w-4 text-[9px] flex items-center justify-center"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

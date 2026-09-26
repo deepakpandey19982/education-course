@@ -86,10 +86,15 @@ export async function POST(req: Request) {
           return {
             test_id: testId,
             question_text: cleanText,
+            question_image_url: q.question_image_url || null,
             option_a: q.option_a?.trim() || '',
+            option_a_image_url: q.option_a_image_url || null,
             option_b: q.option_b?.trim() || '',
+            option_b_image_url: q.option_b_image_url || null,
             option_c: q.option_c?.trim() || '',
+            option_c_image_url: q.option_c_image_url || null,
             option_d: q.option_d?.trim() || '',
+            option_d_image_url: q.option_d_image_url || null,
             correct_option: q.correct_option || 'A',
             explanation: taggedExplanation || null,
             marks: Number(q.marks) || Number(targetTest.marks_per_correct) || 1,
@@ -106,10 +111,17 @@ export async function POST(req: Request) {
           .insert(rows)
           .select('id');
 
-        if (insertErr && insertErr.message?.includes('subject_id')) {
+        if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
           const fallbackRows = rows.map((r: any) => {
             const copy = { ...r };
-            delete copy.subject_id;
+            if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
+            if (insertErr?.message?.includes('image_url')) {
+              delete copy.question_image_url;
+              delete copy.option_a_image_url;
+              delete copy.option_b_image_url;
+              delete copy.option_c_image_url;
+              delete copy.option_d_image_url;
+            }
             return copy;
           });
           const retry = await admin.from('questions').insert(fallbackRows).select('id');
@@ -317,10 +329,15 @@ export async function POST(req: Request) {
         return {
           test_id: createdTestId,
           question_text: cleanText,
+          question_image_url: q.question_image_url || null,
           option_a: q.option_a?.trim() || '',
+          option_a_image_url: q.option_a_image_url || null,
           option_b: q.option_b?.trim() || '',
+          option_b_image_url: q.option_b_image_url || null,
           option_c: q.option_c?.trim() || '',
+          option_c_image_url: q.option_c_image_url || null,
           option_d: q.option_d?.trim() || '',
+          option_d_image_url: q.option_d_image_url || null,
           correct_option: q.correct_option || 'A',
           explanation: taggedExplanation || null,
           marks: Number(q.marks) || marksPerCorrect,
@@ -337,10 +354,17 @@ export async function POST(req: Request) {
         .insert(rows)
         .select('id');
 
-      if (insertErr && insertErr.message?.includes('subject_id')) {
+      if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
         const fallbackRows = rows.map((r: any) => {
           const copy = { ...r };
-          delete copy.subject_id;
+          if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
+          if (insertErr?.message?.includes('image_url')) {
+            delete copy.question_image_url;
+            delete copy.option_a_image_url;
+            delete copy.option_b_image_url;
+            delete copy.option_c_image_url;
+            delete copy.option_d_image_url;
+          }
           return copy;
         });
         const retry = await admin.from('questions').insert(fallbackRows).select('id');

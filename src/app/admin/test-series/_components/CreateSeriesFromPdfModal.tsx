@@ -255,11 +255,12 @@ export function CreateSeriesFromPdfModal({
   const handleSaveEditedQuestion = (updated: ParsedQuestion) => {
     // Recheck validation issues
     const issues: string[] = [];
-    if (!updated.question_text.trim()) issues.push('Question text missing or incomplete');
-    if (!updated.option_a.trim()) issues.push('Missing Option A');
-    if (!updated.option_b.trim()) issues.push('Missing Option B');
-    if (!updated.option_c.trim()) issues.push('Missing Option C');
-    if (!updated.option_d.trim()) issues.push('Missing Option D');
+    const isDiag = updated.is_image_based || Boolean(updated.question_image_url || updated.option_a_image_url);
+    if (!updated.question_text.trim() && !updated.question_image_url) issues.push('Question text missing or incomplete');
+    if (!updated.option_a.trim() && !updated.option_a_image_url && !isDiag) issues.push('Missing Option A');
+    if (!updated.option_b.trim() && !updated.option_b_image_url && !isDiag) issues.push('Missing Option B');
+    if (!updated.option_c.trim() && !updated.option_c_image_url && !isDiag) issues.push('Missing Option C');
+    if (!updated.option_d.trim() && !updated.option_d_image_url && !isDiag) issues.push('Missing Option D');
     if (!updated.correct_option) issues.push('Missing Correct Answer');
 
     const isValid = issues.length === 0;
@@ -318,10 +319,15 @@ export function CreateSeriesFromPdfModal({
         questions: questions.map((q, idx) => ({
           question_number: q.question_number,
           question_text: q.question_text,
+          question_image_url: q.question_image_url || null,
           option_a: q.option_a,
+          option_a_image_url: q.option_a_image_url || null,
           option_b: q.option_b,
+          option_b_image_url: q.option_b_image_url || null,
           option_c: q.option_c,
+          option_c_image_url: q.option_c_image_url || null,
           option_d: q.option_d,
+          option_d_image_url: q.option_d_image_url || null,
           correct_option: q.correct_option || 'A',
           explanation: q.explanation,
           marks: q.marks || marksPerCorrect,

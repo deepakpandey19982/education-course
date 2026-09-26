@@ -2,6 +2,70 @@
 
 ## Current Phase
 
+Phase 40 — Support for Image/Diagram-Based MCQ Questions
+
+- **Feature Scope & Architecture:**
+  - Added full end-to-end support for image/diagram-based MCQ questions across the PDF question import pipeline, database persistence, admin review screens, and student test-taking & result analysis interfaces.
+  - Preserved 100% of existing normal text MCQ parser and extraction logic. Existing text MCQs and Question Range functionality work with zero disruption.
+  - Implemented non-breaking database schema extension (`supabase/migrations/20260927_add_question_images.sql`) adding image URL fields (`question_image_url`, `option_a_image_url`, `option_b_image_url`, `option_c_image_url`, `option_d_image_url`) and relaxing `NOT NULL` constraints on `option_a..option_d` to allow options to be text, image, or both.
+  - Maintained zero changes to Razorpay, payments, authentication, courses, or unrelated tables.
+
+- **Database & Storage Architecture:**
+  - **Migration File (`supabase/migrations/20260927_add_question_images.sql`):**
+    - `ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_image_url TEXT;`
+    - `ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_a_image_url TEXT;`
+    - `ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_b_image_url TEXT;`
+    - `ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_c_image_url TEXT;`
+    - `ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_d_image_url TEXT;`
+    - `ALTER TABLE questions ALTER COLUMN option_a DROP NOT NULL;`
+    - `ALTER TABLE questions ALTER COLUMN option_b DROP NOT NULL;`
+    - `ALTER TABLE questions ALTER COLUMN option_c DROP NOT NULL;`
+    - `ALTER TABLE questions ALTER COLUMN option_d DROP NOT NULL;`
+  - **Supabase Storage Integration (`src/app/api/storage/upload/route.ts`):**
+    - Safely added `'questions'` to `ALLOWED_FOLDERS` alongside existing `'avatars'`, `'courses'`, `'site'`, `'options'`.
+    - Leverages existing `site-assets` bucket and `uploadSiteAsset` helper without introducing redundant storage services.
+
+- **Parser & Extraction Hardening (`src/lib/question-parser/`):**
+  - **Diagram Detection (`text-extractor.ts`):**
+    - Detects diagram marker patterns in Hindi/English/KrutiDev: `प्रश्न आकृतियाँ`, `iz'u vkÑfr`, `उत्तर आकृतियाँ`, `mÙkj vkÑfr`, `उत्तर आकृति`, `प्रश्न आकृति`, `आकृतियों`, `चित्रों`.
+    - Sets `activeBlock.isDiagramQuestion = true` and `q.is_image_based = true`.
+  - **Marker-Based Option Extraction (`extractInlineOptions`):**
+    - Replaced regex lookaheads with marker-based index segmentation. Accurately segments options even when option text is empty between markers (e.g. `(a) \t(b)` -> `A: ''`, `B: ''`), preventing adjacent options from being merged.
+  - **Validation Logic (`index.ts` & `text-extractor.ts`):**
+    - Questions with diagram markers or image options are NOT marked invalid when option text is empty.
+    - Status is accurately determined as `'valid'` when options or images are present and subject is assigned.
+
+- **Admin Review & Commit Pipeline:**
+  - **Review Screens (`ImportQuestionsModal.tsx`, `question-formatter/page.tsx`, `CreateSeriesFromPdfModal.tsx`):**
+    - Render `🖼️ Diagram MCQ` badge for image/diagram-based questions.
+    - Display Question diagram thumbnail if present.
+    - Display Option A, B, C, D thumbnails alongside or in place of text options.
+    - Inline edit sub-modal allows admins to review, upload images directly via file picker, or paste image URLs for question diagrams and options A–D before database commit.
+    - Explicit admin review workflow is strictly maintained — no questions are auto-committed prior to review.
+  - **Commit Routes (`import-commit`, `question-formatter/commit`, `create-from-pdf/commit`):**
+    - Inserts `question_image_url` and `option_a..d_image_url` with column-safety fallback for zero downtime.
+
+- **Student Test Engine & Result Solution Analysis:**
+  - **Test Attempt (`src/app/test-series/tests/[testId]/attempt/page.tsx`):**
+    - Renders question diagram image with zoom/expand capability.
+    - Renders diagram images within option radio cards A, B, C, D seamlessly supporting text, image, or text+image options.
+  - **Result & Solution Review (`src/app/test-series/tests/[testId]/results/page.tsx`):**
+    - Displays question diagrams and option diagrams in student solution analysis and review cards.
+  - **Backend Solution API (`src/app/api/test-attempts/[attemptId]/result/route.ts`):**
+    - Selects `question_image_url` and `option_a..d_image_url` with fallback for backwards compatibility.
+
+- **Verification & Testing:**
+  - **Real PDF Diagram Extraction Test:** Tested against Disha UP Police Hindi PDF (`UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf`).
+    - Q104, Q114, Q115 correctly identified with diagram markers (`प्रश्न आकृतियाँ` / `उत्तर आकृतियाँ`), parsed with status `valid`, option markers A-D segmented, correct answer B preserved.
+  - **Normal Text MCQ Regression:** Q1 to Q60 extracted 60/60 questions with 100% fidelity, zero regression.
+  - **Question Range Feature:** Tested range 1 to 60 and sub-ranges; works identically for both normal text and diagram MCQs based on printed question numbers.
+  - **TypeScript Verification:** `npx tsc --noEmit` passed with 0 errors (exit code 0).
+  - **Production Build:** `npm run build` passed with exit code 0 (all 41 static/dynamic routes compiled).
+
+---
+
+## Prior Phase
+
 Phase 39 — Smart Question Import Question Number Range Selection Feature
 
 - **Feature Scope & Architecture:**
