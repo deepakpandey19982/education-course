@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
+import { testSeriesFetch } from '@/lib/test-series-client';
 import type { TestSeriesSubject, Test } from '@/types/supabase';
 import type { ParsedQuestion, ParseResult } from '@/lib/question-parser/types';
 
@@ -91,7 +92,7 @@ export function ImportQuestionsModal({
     }
 
     try {
-      const res = await fetch('/api/admin/test-series/import-parse', {
+      const res = await testSeriesFetch('/api/admin/test-series/import-parse', {
         method: 'POST',
         body: formData,
       });
@@ -257,7 +258,7 @@ export function ImportQuestionsModal({
     setErrorMsg(null);
 
     try {
-      const res = await fetch('/api/admin/test-series/import-commit', {
+      const res = await testSeriesFetch('/api/admin/test-series/import-commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

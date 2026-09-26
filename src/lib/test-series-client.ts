@@ -3,12 +3,30 @@ import { TestSeries } from '@/types/supabase';
 import { getApiUrl } from '@/lib/api-config';
 
 export async function testSeriesFetch(path: string, init: RequestInit = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers = new Headers(init.headers);
-  if (session?.access_token) {
-    headers.set('Authorization', `Bearer ${session.access_token}`);
+  let token: string | null = null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token || null;
+    if (token && typeof document !== 'undefined') {
+      document.cookie = `sb-access-token=${token}; path=/; max-age=604800; SameSite=Lax`;
+    }
+  } catch (e) {
+    console.warn('Could not retrieve Supabase session for testSeriesFetch:', e);
   }
-  return fetch(getApiUrl(path), {
+
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  // Add token query parameter fallback if token is available
+  let resolvedPath = path;
+  if (token && !resolvedPath.includes('token=')) {
+    const separator = resolvedPath.includes('?') ? '&' : '?';
+    resolvedPath = `${resolvedPath}${separator}token=${encodeURIComponent(token)}`;
+  }
+
+  return fetch(getApiUrl(resolvedPath), {
     credentials: 'include',
     ...init,
     headers,

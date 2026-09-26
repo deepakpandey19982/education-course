@@ -34,9 +34,16 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 31)
+## Latest Production Status & Updates (Phase 32)
 
-- **Asynchronous Question Formatter Processing & Real PDF Architecture:**
+- **Question File Formatter Authentication & Polling Authorization:**
+  - **Root Cause Fixed:** Frontend polling requests in `src/app/admin/question-formatter/page.tsx` were issued using raw `fetch` without `Authorization: Bearer <token>`, without credentials, and without query parameter token fallback, causing `401 {"error":"Authentication required"}` when called in periodic intervals.
+  - **Client Token Delivery:** Upgraded `testSeriesFetch` in `src/lib/test-series-client.ts` to actively retrieve `supabase.auth.getSession()`, inject Bearer authorization, set `sb-access-token` cookie, append query fallback `?token=...`, and pass `credentials: 'include'`.
+  - **Multi-Layer Server Token Verification:** `getRequestUser` in `src/lib/test-series-server.ts` now inspects Bearer header (with anon and admin client fallback), query params (`?token=`), direct `Cookie` header (`sb-access-token` and `sb-*-auth-token`), and Next.js `cookies()` store.
+  - **Security Retained:** Unauthenticated requests strictly return 401; student accounts return 403; service role keys and payment secrets never leaked to client; no database changes without explicit admin confirmation.
+  - **Verification:** `npx tsc --noEmit` passed (0 errors), `npm run build` passed (41 routes), real 3.66 MB PDF job flow tested across all ranges (1-10, 1-60, 1-100, 101-160) passing 100%.
+
+## Phase 31 — Asynchronous Job Processing & Real PDF Architecture
   - **Eliminated 60s Timeout:** Removed single long-running HTTP streaming connection and 60-second client-side `AbortController` timeout that previously aborted with `BodyStreamBuffer was aborted`.
   - **Asynchronous Job & Status Polling Engine:**
     - `POST /api/admin/question-formatter/jobs/create`: Admin endpoint returning `{ success: true, jobId, fileId, status: 'QUEUED' }` in <100ms.

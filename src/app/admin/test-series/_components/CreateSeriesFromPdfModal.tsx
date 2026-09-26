@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { testSeriesFetch } from '@/lib/test-series-client';
 import type { ParsedQuestion, ParseResult } from '@/lib/question-parser/types';
 
 interface CreateSeriesFromPdfModalProps {
@@ -161,7 +162,7 @@ export function CreateSeriesFromPdfModal({
       formData.append('defaultNegativeMarks', String(negativeMarks));
       formData.append('defaultLanguage', language);
 
-      const res = await fetch('/api/admin/test-series/create-from-pdf/parse-stream', {
+      const res = await testSeriesFetch('/api/admin/test-series/create-from-pdf/parse-stream', {
         method: 'POST',
         body: formData,
         signal: abortController.signal,
@@ -335,7 +336,7 @@ export function CreateSeriesFromPdfModal({
         },
       };
 
-      const res = await fetch('/api/admin/test-series/create-from-pdf/commit', {
+      const res = await testSeriesFetch('/api/admin/test-series/create-from-pdf/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

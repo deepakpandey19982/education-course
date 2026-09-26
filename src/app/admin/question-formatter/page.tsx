@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { testSeriesFetch } from '@/lib/test-series-client';
 import type { ParsedQuestion, ParseResult, DetectedSection } from '@/lib/question-parser/types';
 import type { FormatterJobStatus } from '@/lib/question-parser/job-manager';
 
@@ -205,8 +206,8 @@ export default function QuestionFileFormatterPage() {
       formData.append('defaultNegativeMarks', String(negativeMarks));
       formData.append('defaultLanguage', language);
 
-      // STEP 1 & 2: Initiate background processing job (returns immediately in <100ms)
-      const res = await fetch('/api/admin/question-formatter/jobs/create', {
+      // STEP 1 & 2: Initiate background processing job (returns immediately in <100ms) with active admin auth
+      const res = await testSeriesFetch('/api/admin/question-formatter/jobs/create', {
         method: 'POST',
         body: formData,
       });
@@ -225,7 +226,7 @@ export default function QuestionFileFormatterPage() {
       setJobProgressPercent(25);
       setJobStageStatus('QUEUED');
 
-      // STEP 3 & 4: Continuously poll job status without holding any long-running HTTP connection
+      // STEP 3 & 4: Continuously poll job status with active admin session without holding long HTTP connection
       pollingRef.current = setInterval(async () => {
         if (isCancelledRef.current) {
           if (pollingRef.current) {
@@ -236,7 +237,12 @@ export default function QuestionFileFormatterPage() {
         }
 
         try {
-          const pollRes = await fetch(`/api/admin/question-formatter/jobs/${jobId}`);
+          const pollRes = await testSeriesFetch(`/api/admin/question-formatter/jobs/${jobId}`, {
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+            },
+          });
           if (!pollRes.ok) {
             const errJson = await pollRes.json().catch(() => ({}));
             throw new Error(errJson.error || 'Failed to poll job status.');
@@ -429,7 +435,7 @@ export default function QuestionFileFormatterPage() {
         },
       };
 
-      const res = await fetch('/api/admin/question-formatter/commit', {
+      const res = await testSeriesFetch('/api/admin/question-formatter/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

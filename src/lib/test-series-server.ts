@@ -120,7 +120,7 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
     }
   }
 
-  // 3. If token found from header or query param, verify with Supabase
+  // 3. If token found from header or query param, verify with Supabase (try anon client, then admin service client fallback)
   if (token) {
     try {
       const supabaseAuth = getSupabaseAnon();
@@ -129,11 +129,65 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
         return data.user;
       }
     } catch (tokenErr) {
-      console.warn('Bearer token verification failed:', tokenErr);
+      console.warn('Bearer token verification with anon client failed:', tokenErr);
+    }
+
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data?.user) {
+        return data.user;
+      }
+    } catch (adminTokenErr) {
+      console.warn('Bearer token verification with admin client failed:', adminTokenErr);
     }
   }
 
-  // 4. Check cookies via Next.js cookieStore
+  // 4. Check raw cookie header on the Request object directly if present
+  if (request) {
+    const rawCookie = request.headers.get('cookie') || '';
+    if (rawCookie) {
+      // Check direct sb-access-token cookie
+      const directMatch = rawCookie.match(/(?:^|;\s*)sb-access-token=([^;]+)/);
+      const cookieVal = directMatch ? decodeURIComponent(directMatch[1].trim()) : null;
+      if (cookieVal) {
+        try {
+          const supabaseAuth = getSupabaseAnon();
+          const { data, error } = await supabaseAuth.auth.getUser(cookieVal);
+          if (!error && data?.user) return data.user;
+        } catch {}
+        try {
+          const supabaseAdmin = getSupabaseAdmin();
+          const { data, error } = await supabaseAdmin.auth.getUser(cookieVal);
+          if (!error && data?.user) return data.user;
+        } catch {}
+      }
+
+      // Check standard sb-<ref>-auth-token cookie
+      const authCookieMatch = rawCookie.match(/(?:^|;\s*)sb-[^=]+-auth-token(?:\.\d+)?=([^;]+)/);
+      if (authCookieMatch) {
+        try {
+          const rawVal = decodeURIComponent(authCookieMatch[1]);
+          let parsedToken: string | null = null;
+          if (rawVal.startsWith('base64-')) {
+            const decoded = Buffer.from(rawVal.slice(7), 'base64').toString('utf-8');
+            const json = JSON.parse(decoded);
+            parsedToken = json?.access_token || (Array.isArray(json) ? json[0] : null);
+          } else if (rawVal.startsWith('{') || rawVal.startsWith('[')) {
+            const json = JSON.parse(rawVal);
+            parsedToken = json?.access_token || (Array.isArray(json) ? json[0] : null);
+          }
+          if (parsedToken) {
+            const supabaseAdmin = getSupabaseAdmin();
+            const { data, error } = await supabaseAdmin.auth.getUser(parsedToken);
+            if (!error && data?.user) return data.user;
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // 5. Check cookies via Next.js cookieStore
   try {
     const cookieStore = await cookies();
 
@@ -149,6 +203,15 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
       } catch (cookieErr) {
         console.warn('Direct cookie verification failed:', cookieErr);
       }
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data, error } = await supabaseAdmin.auth.getUser(directToken);
+        if (!error && data?.user) {
+          return data.user;
+        }
+      } catch (adminCookieErr) {
+        console.warn('Admin direct cookie verification failed:', adminCookieErr);
+      }
     }
 
     // Check @supabase/ssr structured cookies
@@ -156,18 +219,26 @@ export async function getRequestUser(request?: Request): Promise<User | null> {
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Safe ignore when called in contexts where setting cookies is disallowed
+          }
         },
       },
     });
 
     const { data, error } = await supabaseAuth.auth.getUser();
-    return error ? null : data.user;
+    if (!error && data?.user) {
+      return data.user;
+    }
   } catch {
     return null;
   }
+
+  return null;
 }
 
 export async function getAccessibleTest(

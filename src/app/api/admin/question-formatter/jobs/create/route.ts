@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'jpg', 'jpeg', 'png'];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+// Trigger dev server recompilation of parser modules
+
 
 export async function POST(req: Request) {
   try {

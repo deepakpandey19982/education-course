@@ -111,32 +111,32 @@ export async function parsePdf(
   const onProgress = options.onProgress;
   onProgress?.({ stage: 'reading', message: 'Reading PDF document...' });
 
-  const parser = new PDFParse({ data: buffer });
+  const uint8Data = new Uint8Array(buffer);
+  const parser = new PDFParse({ data: uint8Data });
   let totalPages = 1;
-
-  try {
-    const info = await parser.getInfo();
-    totalPages = info.total || 1;
-  } catch (loadErr) {
-    console.warn('Could not load PDF document metadata:', loadErr);
-  }
 
   // -------------------------------------------------------------------------
   // STEP 1: Fast Extraction to Check if PDF has Selectable Digital Text
   // -------------------------------------------------------------------------
   let isDigitalText = false;
   let accumulatedText = '';
-  let pagesRead = totalPages;
+  let pagesRead = 1;
 
   try {
     const fullTextResult = await parser.getText();
     accumulatedText = fullTextResult?.text || '';
-    pagesRead = fullTextResult?.total || totalPages;
+    pagesRead = fullTextResult?.total || 1;
+    totalPages = pagesRead;
     if (accumulatedText.trim().length > 50) {
       isDigitalText = true;
     }
-  } catch (probeErr) {
-    console.warn('Text extraction warning:', probeErr);
+  } catch (probeErr: any) {
+    const errMsg = probeErr?.message || String(probeErr);
+    console.error('Text extraction error in parsePdf:', errMsg);
+    onProgress?.({
+      stage: 'reading',
+      message: `PDF text probe notice: ${errMsg.slice(0, 100)}`,
+    });
   }
 
   // -------------------------------------------------------------------------

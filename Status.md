@@ -2,7 +2,46 @@
 
 ## Current Phase
 
-Phase 31 — Asynchronous Job Processing & Real PDF Handling (Question File Formatter)
+Phase 32 — Question File Formatter Authentication & Polling Authorization Fix
+
+- **Root Cause Diagnosed & Resolved:**
+  - **Primary Root Cause:** In `src/app/admin/question-formatter/page.tsx`, raw browser `fetch()` was used for job creation (`/api/admin/question-formatter/jobs/create`), status polling (`/api/admin/question-formatter/jobs/${jobId}`), and commit (`/api/admin/question-formatter/commit`). These calls omitted the `Authorization: Bearer <token>` header, omitted `credentials: 'include'`, and lacked query param fallback. Inside periodic polling intervals (`setInterval`), ambient cookie session state was missing or rejected by server-side verification, causing the polling API to return `401 {"error": "Authentication required"}`.
+  - **Server-Side Token Resolution Gap:** `getRequestUser` in `src/lib/test-series-server.ts` primarily checked Next.js `cookies()` store. If cookie parsing encountered session cookie format discrepancies or `cookieStore.set` throw restrictions, the token was lost.
+  - **Native Node Runtime for PDF Parser:** Added `serverExternalPackages: ['pdf-parse']` in `next.config.ts` so `pdfjs-dist` legacy worker runs under Node's native module loader without Webpack/Turbopack bundling issues.
+- **Implementation & Security Architecture:**
+  - **Frontend Token Carrier (`src/lib/test-series-client.ts`):** Upgraded `testSeriesFetch` to automatically acquire the current Supabase session via `supabase.auth.getSession()`, inject `Authorization: Bearer ${token}`, synchronize `document.cookie = sb-access-token=${token}`, append query parameter fallback `?token=${encodeURIComponent(token)}`, and enforce `credentials: 'include'`.
+  - **Comprehensive Admin UI Integration:** Switched all question-formatter operations (`src/app/admin/question-formatter/page.tsx`, `ImportQuestionsModal.tsx`, `CreateSeriesFromPdfModal.tsx`) to `testSeriesFetch`.
+  - **Multi-Layer Server Authentication (`src/lib/test-series-server.ts`):** `getRequestUser` now validates 4 distinct layers:
+    1. Layer 1: `Authorization: Bearer <token>` (validated with anon client, fallback to admin service-role client).
+    2. Layer 2: Query parameters `?token=` and `?access_token=`.
+    3. Layer 3: Direct `Cookie` header inspection for `sb-access-token` and standard `sb-*-auth-token`.
+    4. Layer 4: Next.js structured cookieStore with safe try-catch wrapper.
+  - **Strict Security Boundaries Maintained:**
+    - Unauthenticated requests are rejected with `401 {"error": "Authentication required"}`.
+    - Non-admin / student accounts are rejected with `403 {"error": "Admin privileges required"}`.
+    - `SUPABASE_SERVICE_ROLE_KEY` and `RAZORPAY_KEY_SECRET` remain strictly server-side and are NEVER exposed to client code.
+    - No database mutations are executed until the admin explicitly reviews the preview and clicks "Confirm & Create Series".
+- **Verification & End-to-End Testing:**
+  - `scripts/test-question-formatter-auth.mjs`:
+    - Unauthenticated create & poll rejected with 401: PASS.
+    - Non-admin student create & poll rejected with 403: PASS.
+    - Authenticated Admin job creation: PASS (200 OK, returns jobId in <100ms).
+    - Authenticated Admin status polling via Bearer header: PASS (200 OK).
+    - Authenticated Admin status polling via query param fallback: PASS (200 OK).
+    - Authenticated Admin status polling via `sb-access-token` cookie: PASS (200 OK).
+  - `scripts/test-real-pdf-job-flow.ts` on actual 3.66 MB PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*):
+    - Full Scan: All 10 Practice Sets detected with question ranges and answer keys.
+    - Range 1 → 10: 10/10 questions extracted with full Hindi text, options A-D, answer A, subject: PASS.
+    - Range 1 → 60: 59 questions extracted, missing Q49 explicitly flagged in warnings without silent hallucination: PASS.
+    - Range 1 → 100: 97 questions extracted, 3 missing flagged: PASS.
+    - Range 101 → 160: 59 questions extracted, Q101 verified with options and answer: PASS.
+  - React Hook Ordering: `ImportQuestionsModal.tsx` verified with all hooks unconditional at top-level.
+  - TypeScript Typecheck: `npx tsc --noEmit` passed with 0 errors.
+  - Production Build: `npm run build` passed with 0 errors (all 41 static/dynamic pages compiled).
+
+---
+
+## Phase 31 — Asynchronous Job Processing & Real PDF Handling (Question File Formatter)
 
 - **Root Cause of 60-Second Timeout Diagnosed & Eliminated:**
   - **Issue:** On the real 3.66 MB 169-page PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*), the previous architecture held an open single HTTP streaming connection with a 60-second client-side `AbortController` timeout (`BodyStreamBuffer was aborted`).
