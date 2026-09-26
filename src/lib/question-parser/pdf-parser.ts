@@ -28,7 +28,18 @@ export function getCachedPdfBuffer(id: string): Buffer | null {
 }
 
 export interface PdfProgressEvent {
-  stage: 'reading' | 'probing' | 'extracting' | 'found_question' | 'preparing' | 'ocr_scanned';
+  stage:
+    | 'reading'
+    | 'probing'
+    | 'extracting'
+    | 'detecting_sections'
+    | 'detecting_questions'
+    | 'detecting_answer_key'
+    | 'matching_answers'
+    | 'validating'
+    | 'found_question'
+    | 'preparing'
+    | 'ocr_scanned';
   message: string;
   currentQuestion?: number;
   totalPages?: number;
@@ -111,138 +122,38 @@ export async function parsePdf(
   }
 
   // -------------------------------------------------------------------------
-  // STEP 1: Fast Probe to Check if PDF has Selectable Digital Text
+  // STEP 1: Fast Extraction to Check if PDF has Selectable Digital Text
   // -------------------------------------------------------------------------
   let isDigitalText = false;
-  let samplePageText = '';
+  let accumulatedText = '';
+  let pagesRead = totalPages;
 
   try {
-    const p1 = await parser.getText({ partial: [1] });
-    samplePageText = p1?.text || '';
-    if (samplePageText.trim().length > 30) {
+    const fullTextResult = await parser.getText();
+    accumulatedText = fullTextResult?.text || '';
+    pagesRead = fullTextResult?.total || totalPages;
+    if (accumulatedText.trim().length > 50) {
       isDigitalText = true;
-    } else if (totalPages > 1) {
-      // Check page 2 in case page 1 was a cover image
-      const p2 = await parser.getText({ partial: [2] });
-      if ((p2?.text || '').trim().length > 30) {
-        isDigitalText = true;
-      }
     }
   } catch (probeErr) {
-    console.warn('Sample page text extraction warning:', probeErr);
+    console.warn('Text extraction warning:', probeErr);
   }
 
   // -------------------------------------------------------------------------
   // STEP 2: Digital Text PDF Path (No OCR, 100% Blazing Fast)
   // -------------------------------------------------------------------------
   if (isDigitalText) {
-    const hasRange = options.fromQuestion !== undefined && options.toQuestion !== undefined;
-    const fromQ = hasRange ? Math.min(options.fromQuestion!, options.toQuestion!) : 1;
-    const toQ = hasRange ? Math.max(options.fromQuestion!, options.toQuestion!) : 100;
-
-    let accumulatedText = '';
-    let pagesRead = 0;
-    const reportedNumbers = new Set<number>();
-
     onProgress?.({
-      stage: 'probing',
-      message: hasRange
-        ? `Locating Question ${fromQ} to ${toQ} in PDF (${totalPages} pages)...`
-        : `Reading PDF text (${totalPages} pages)...`,
-      totalPages,
+      stage: 'reading',
+      message: `Extracting text from PDF (${pagesRead} pages)...`,
+      totalPages: pagesRead,
     });
 
-    if (hasRange && totalPages > 12) {
-      // ---------------------------------------------------------------------
-      // Smart Page Prober: Find which page range contains fromQ → toQ
-      // ---------------------------------------------------------------------
-      let startPage = 1;
-      const stepSize = Math.max(3, Math.min(15, Math.floor(totalPages / 20)));
-      const probePoints: number[] = [];
-      for (let p = 1; p <= totalPages; p += stepSize) {
-        probePoints.push(p);
-      }
-      if (probePoints[probePoints.length - 1] !== totalPages) {
-        probePoints.push(totalPages);
-      }
-
-      // Probe sample pages to find where question numbers cross fromQ
-      for (const p of probePoints) {
-        try {
-          const probeText = await parser.getText({ partial: [p] });
-          const qNums = scanQuestionNumbers(probeText?.text || '');
-          if (qNums.length > 0) {
-            const maxQOnPage = Math.max(...qNums);
-            if (maxQOnPage < fromQ) {
-              startPage = p;
-            } else {
-              break;
-            }
-          }
-        } catch {
-          // Continue probing next point
-        }
-      }
-
-      // Add a 1-page safety buffer before startPage to avoid clipping question starts
-      const safeStartPage = Math.max(1, startPage > 1 ? startPage - 1 : 1);
-
-      // Now read forward from safeStartPage until toQ is found
-      for (let p = safeStartPage; p <= totalPages; p++) {
-        try {
-          const pageRes = await parser.getText({ partial: [p] });
-          const pageText = pageRes?.text || '';
-          accumulatedText += '\n' + pageText;
-          pagesRead++;
-
-          // Scan for question numbers to emit live progress
-          const pageNums = scanQuestionNumbers(pageText);
-          for (const qNum of pageNums) {
-            if (qNum >= fromQ && qNum <= toQ && !reportedNumbers.has(qNum)) {
-              reportedNumbers.add(qNum);
-              // Report progress on key milestones (1, 10, 25, 50, 75, 100...)
-              if (
-                qNum === fromQ ||
-                qNum === toQ ||
-                qNum % 10 === 0 ||
-                qNum % 25 === 0 ||
-                reportedNumbers.size <= 5
-              ) {
-                onProgress?.({
-                  stage: 'found_question',
-                  message: `Found question ${qNum}...`,
-                  currentQuestion: qNum,
-                  currentPage: p,
-                  totalPages,
-                });
-              }
-            }
-          }
-
-          // If we have encountered questions beyond toQ, stop reading!
-          if (pageNums.length > 0) {
-            const maxFound = Math.max(...pageNums);
-            if (maxFound > toQ + 2) {
-              break;
-            }
-          }
-        } catch (pageErr) {
-          console.warn(`Error reading page ${p}:`, pageErr);
-        }
-      }
-    } else {
-      // Small document or no range: read pages directly
-      try {
-        const fullTextResult = await parser.getText();
-        accumulatedText = fullTextResult?.text || samplePageText;
-        pagesRead = fullTextResult?.total || totalPages;
-      } catch {
-        accumulatedText = samplePageText;
-        pagesRead = 1;
-      }
-    }
-
-    onProgress?.({ stage: 'preparing', message: 'Preparing preview...' });
+    onProgress?.({
+      stage: 'preparing',
+      message: 'Analyzing sections, questions and answer keys...',
+      totalPages,
+    });
 
     // Extract questions strictly with boundary and validation checks
     const rangeResult = extractQuestionsWithRangeFromText(accumulatedText, options);

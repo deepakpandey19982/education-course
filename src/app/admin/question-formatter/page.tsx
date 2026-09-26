@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import type { ParsedQuestion, ParseResult, DetectedSection } from '@/lib/question-parser/types';
+import type { FormatterJobStatus } from '@/lib/question-parser/job-manager';
 
 type FormatterStep = 'upload' | 'processing' | 'preview' | 'committing' | 'success';
 
@@ -64,6 +65,20 @@ export default function QuestionFileFormatterPage() {
   const [previewFilter, setPreviewFilter] = useState<'all' | 'valid' | 'needs_review' | 'invalid' | 'duplicate'>('all');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string>('Reading source document...');
+
+  // Asynchronous Background Job Polling state
+  const [jobProgressPercent, setJobProgressPercent] = useState<number>(0);
+  const [jobStageStatus, setJobStageStatus] = useState<FormatterJobStatus>('QUEUED');
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isCancelledRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
 
   // Inline Question editing sub-modal state
   const [editingQuestion, setEditingQuestion] = useState<ParsedQuestion | null>(null);
@@ -133,8 +148,18 @@ export default function QuestionFileFormatterPage() {
   };
 
   // ---------------------------------------------------------------------------
-  // PROCESS & EXTRACT QUESTIONS (With NDJSON Streaming & Timeout Handling)
+  // PROCESS & EXTRACT QUESTIONS (Asynchronous Background Job & Status Polling)
   // ---------------------------------------------------------------------------
+  const handleCancelProcessing = () => {
+    isCancelledRef.current = true;
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setStep('upload');
+    setErrorMsg('Processing was cancelled by admin.');
+  };
+
   const handleStartProcessing = async () => {
     if (!file && !cachedFileId) {
       setErrorMsg('Please select a question source file first.');
@@ -152,12 +177,15 @@ export default function QuestionFileFormatterPage() {
     setStep('processing');
     setErrorMsg(null);
     setIsScannedPdf(false);
-    setProgressMsg('Reading question document...');
+    setProgressMsg('Uploading document and initiating background job...');
+    setJobProgressPercent(10);
+    setJobStageStatus('UPLOADING');
+    isCancelledRef.current = false;
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      abortController.abort();
-    }, 60000); // 60-second safety timeout
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
 
     try {
       const formData = new FormData();
@@ -177,111 +205,118 @@ export default function QuestionFileFormatterPage() {
       formData.append('defaultNegativeMarks', String(negativeMarks));
       formData.append('defaultLanguage', language);
 
-      const res = await fetch('/api/admin/question-formatter/parse-stream', {
+      // STEP 1 & 2: Initiate background processing job (returns immediately in <100ms)
+      const res = await fetch('/api/admin/question-formatter/jobs/create', {
         method: 'POST',
         body: formData,
-        signal: abortController.signal,
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        let message = 'Failed to process file.';
-        try {
-          const json = JSON.parse(errorText);
-          message = json.error || message;
-        } catch {
-          message = errorText || message;
-        }
-        throw new Error(message);
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to initiate processing job.');
       }
 
-      if (!res.body) {
-        throw new Error('Streaming response not supported by browser.');
+      const { jobId, fileId } = await res.json();
+      if (fileId) {
+        setCachedFileId(fileId);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let streamBuffer = '';
-      let receivedResult: (ParseResult & {
-        existing_series_list?: ExistingSeriesItem[];
-        existing_tests_list?: ExistingTestItem[];
-      }) | null = null;
+      setProgressMsg('Extracting text and analyzing question structures...');
+      setJobProgressPercent(25);
+      setJobStageStatus('QUEUED');
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        streamBuffer += decoder.decode(value, { stream: true });
-        const lines = streamBuffer.split('\n');
-        streamBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          try {
-            const event = JSON.parse(trimmed);
-            if (event.type === 'progress') {
-              if (event.message) {
-                setProgressMsg(event.message);
-              }
-              if (event.stage === 'ocr_scanned') {
-                setIsScannedPdf(true);
-              }
-            } else if (event.type === 'result') {
-              receivedResult = event.data;
-              if (event.data?.file_id) {
-                setCachedFileId(event.data.file_id);
-              }
-              if (event.data?.is_scanned) {
-                setIsScannedPdf(true);
-              }
-              if (event.data?.sections && event.data.sections.length > 0) {
-                setDetectedSections(event.data.sections);
-                if (!selectedSectionId || selectedSectionId === 'sec-1') {
-                  setSelectedSectionId(event.data.sections[0].id);
-                }
-              }
-              if (event.data?.existing_series_list) {
-                setExistingSeriesList(event.data.existing_series_list);
-                if (event.data.existing_series_list.length > 0 && !selectedExistingSeriesId) {
-                  setSelectedExistingSeriesId(event.data.existing_series_list[0].id);
-                }
-              }
-              if (event.data?.existing_tests_list) {
-                setExistingTestsList(event.data.existing_tests_list);
-                if (event.data.existing_tests_list.length > 0 && !selectedExistingTestId) {
-                  setSelectedExistingTestId(event.data.existing_tests_list[0].id);
-                }
-              }
-            } else if (event.type === 'error') {
-              throw new Error(event.error || 'Failed to extract questions from file.');
-            }
-          } catch (jsonErr: any) {
-            if (jsonErr.message && !jsonErr.message.includes('JSON')) {
-              throw jsonErr;
-            }
+      // STEP 3 & 4: Continuously poll job status without holding any long-running HTTP connection
+      pollingRef.current = setInterval(async () => {
+        if (isCancelledRef.current) {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
           }
+          return;
         }
-      }
 
-      clearTimeout(timeoutId);
+        try {
+          const pollRes = await fetch(`/api/admin/question-formatter/jobs/${jobId}`);
+          if (!pollRes.ok) {
+            const errJson = await pollRes.json().catch(() => ({}));
+            throw new Error(errJson.error || 'Failed to poll job status.');
+          }
 
-      if (!receivedResult || !receivedResult.success) {
-        throw new Error(receivedResult?.error || 'Failed to extract questions from file.');
-      }
+          const { job } = await pollRes.json();
+          if (!job) return;
 
-      setParseResult(receivedResult);
-      setQuestions(receivedResult.questions);
-      setStep('preview');
+          setJobStageStatus(job.status);
+          if (job.message) {
+            setProgressMsg(job.message);
+          }
+          if (typeof job.progressPercent === 'number') {
+            setJobProgressPercent(job.progressPercent);
+          }
+
+          if (job.status === 'READY_FOR_PREVIEW') {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+
+            const data = job.result;
+            if (!data || !data.questions) {
+              throw new Error('No question data returned from job.');
+            }
+
+            setParseResult(data);
+            setQuestions(data.questions);
+
+            if (data.file_id) {
+              setCachedFileId(data.file_id);
+            }
+            if (data.is_scanned) {
+              setIsScannedPdf(true);
+            }
+            if (data.sections && data.sections.length > 0) {
+              setDetectedSections(data.sections);
+              if (!selectedSectionId || selectedSectionId === 'sec-1') {
+                setSelectedSectionId(data.sections[0].id);
+              }
+            }
+            if (data.existing_series_list) {
+              setExistingSeriesList(data.existing_series_list);
+              if (data.existing_series_list.length > 0 && !selectedExistingSeriesId) {
+                setSelectedExistingSeriesId(data.existing_series_list[0].id);
+              }
+            }
+            if (data.existing_tests_list) {
+              setExistingTestsList(data.existing_tests_list);
+              if (data.existing_tests_list.length > 0 && !selectedExistingTestId) {
+                setSelectedExistingTestId(data.existing_tests_list[0].id);
+              }
+            }
+
+            setStep('preview');
+          } else if (job.status === 'FAILED') {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            throw new Error(job.error || 'Document processing failed.');
+          }
+        } catch (pollErr: any) {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+          console.error('Job polling error:', pollErr);
+          setErrorMsg(pollErr.message || 'Could not complete processing.');
+          setStep('upload');
+        }
+      }, 1500);
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      console.error('Question formatting error:', err);
-      if (err.name === 'AbortError') {
-        setErrorMsg('Processing timed out after 60 seconds. Please try a smaller question range or verify the file.');
-      } else {
-        setErrorMsg(err.message || 'An unexpected error occurred while processing the file.');
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
+      console.error('Job initiation error:', err);
+      setErrorMsg(err.message || 'Could not start background parsing.');
       setStep('upload');
     }
   };
@@ -966,33 +1001,99 @@ export default function QuestionFileFormatterPage() {
       )}
 
       {/* ===================================================================== */}
-      {/* STEP 2: PROCESSING ANIMATION & LIVE PROGRESS */}
+      {/* STEP 2: PROCESSING ANIMATION & LIVE PROGRESS TRACKER */}
       {/* ===================================================================== */}
       {step === 'processing' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-16 border border-slate-200 dark:border-slate-800 soft-shadow text-center space-y-6">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 sm:p-14 border border-slate-200 dark:border-slate-800 soft-shadow text-center space-y-6 max-w-3xl mx-auto">
           <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-200 dark:border-slate-800 border-t-brand-primary" />
             <span className="absolute text-xl">📄</span>
           </div>
+
           <div className="space-y-3">
-            <h3 className="text-xl font-black text-slate-900 dark:text-white">
-              Formatting & Extracting Questions (Q{fromQuestion} → Q{toQuestion})
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+              Processing Question Document
             </h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              Target Range: <strong className="text-slate-900 dark:text-white">Question {fromQuestion} → {toQuestion}</strong>
+            </p>
+
+            {/* Live Status Pill */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-sm text-blue-700 dark:text-blue-300 font-semibold shadow-xs">
-              <span className="inline-block w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" />
               <span>{progressMsg}</span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="max-w-md mx-auto pt-2 space-y-1.5">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-brand-primary h-2.5 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${Math.max(10, Math.min(100, jobProgressPercent))}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                <span>Status: {jobStageStatus}</span>
+                <span>{jobProgressPercent}%</span>
+              </div>
+            </div>
+
+            {/* Processing Stages Flow */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-4 max-w-xl mx-auto">
+              <div
+                className={`p-2 rounded-lg border text-center font-semibold transition-colors ${
+                  jobProgressPercent >= 15
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                }`}
+              >
+                1. Text Extraction
+              </div>
+              <div
+                className={`p-2 rounded-lg border text-center font-semibold transition-colors ${
+                  jobProgressPercent >= 40
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                }`}
+              >
+                2. Practice Sets
+              </div>
+              <div
+                className={`p-2 rounded-lg border text-center font-semibold transition-colors ${
+                  jobProgressPercent >= 60
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                }`}
+              >
+                3. Questions & Options
+              </div>
+              <div
+                className={`p-2 rounded-lg border text-center font-semibold transition-colors ${
+                  jobProgressPercent >= 85
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                }`}
+              >
+                4. Answer Keys
+              </div>
             </div>
 
             {isScannedPdf && (
               <div className="max-w-md mx-auto p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-900 text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2">
                 <span>⚠️</span>
-                <span>Scanned PDF detected. OCR processing may take longer.</span>
+                <span>Scanned PDF detected. OCR processing is running in background.</span>
               </div>
             )}
 
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Extracting questions, options A-D, practice sets, and matching separate answer keys.
-            </p>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={handleCancelProcessing}
+                className="px-4 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors border border-rose-200 dark:border-rose-900"
+              >
+                ✕ Cancel Processing
+              </button>
+            </div>
           </div>
         </div>
       )}

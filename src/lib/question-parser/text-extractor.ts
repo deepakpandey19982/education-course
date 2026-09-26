@@ -1,4 +1,5 @@
 import { ParsedQuestion, DetectedSection, QuestionValidationStatus } from './types';
+import { normalizeKrutiDevText } from './krutidev-converter';
 
 // Map option identifiers (letters, numbers, Hindi characters) to standard A, B, C, D
 export function normalizeOptionKey(key: string): 'A' | 'B' | 'C' | 'D' | null {
@@ -16,10 +17,10 @@ export function detectPracticeSetHeader(line: string): string | null {
   if (!trimmed || trimmed.length > 80) return null;
 
   // 1. Practice Set / Model Paper / Mock Test variations:
-  // "Practice Set - 1", "Practice Set 1", "Practice Set-1", "प्रैक्टिस सेट - 1", "प्रैक्टिस सेट 1"
+  // "Practice Set - 1", "Practice Set 1", "Practice Set-1", "प्रैक्टिस सेट - 1", "प्रैक्टिस सेट 1", "izSfDVl lsV- 1"
   // "Model Paper - 1", "Model Paper 1", "मॉडल पेपर 1", "Mock Test 1"
   const psMatch = trimmed.match(
-    /^(?:practice\s*set|प्रैक्टिस\s*सेट|मॉडल\s*पेपर|model\s*(?:test\s*)?paper|sample\s*paper|mock\s*test|अभ्यास\s*प्रश्न\s*पत्र)\s*[:\-\—]?\s*(\d{1,4})/i
+    /^(?:practice\s*set|प्रैक्टिस\s*सेट|izSfDVl\s*lsV|मॉडल\s*पेपर|model\s*(?:test\s*)?paper|sample\s*paper|mock\s*test|अभ्यास\s*प्रश्न\s*पत्र)\s*[:\.\-\—]?\s*(\d{1,4})/i
   );
   if (psMatch) {
     return `Practice Set-${parseInt(psMatch[1], 10)}`;
@@ -131,6 +132,7 @@ export interface TextExtractOptions {
   defaultMarks?: number;
   defaultNegativeMarks?: number;
   defaultLanguage?: string;
+  onProgress?: (event: import('./pdf-parser').PdfProgressEvent) => void;
 }
 
 export interface TextExtractRangeResult {
@@ -165,6 +167,24 @@ interface RawBlock {
  * Extracts questions and detects Practice Sets / Sections.
  * Understands multi-set PDFs (e.g. Practice Set-1 with Answers 1-160, then Practice Set-2 with Answers 1-160).
  */
+// Extract inline options from a single line with multiple options (e.g. (a) ... (b) ...)
+function extractInlineOptions(line: string): Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> | null {
+  const regex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])\s*(.*?)(?=(?:(?:\s|\t)(?:\([a-dA-D1-4क-घ]\)|[a-dA-D1-4क-घ][\.\)\-\]])\s*)|$)/g;
+  const matches = Array.from(line.matchAll(regex));
+  if (matches.length >= 2) {
+    const res: Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> = [];
+    for (const m of matches) {
+      const key = normalizeOptionKey(m[1] || m[2]);
+      const text = (m[3] || '').trim();
+      if (key && text) {
+        res.push({ key, text });
+      }
+    }
+    if (res.length >= 2) return res;
+  }
+  return null;
+}
+
 export function extractQuestionsWithRangeFromText(
   rawText: string,
   options: TextExtractOptions = {}
@@ -184,8 +204,9 @@ export function extractQuestionsWithRangeFromText(
     };
   }
 
-  // Pre-process: normalize bullet/dash characters, standardize newlines
-  const normalized = rawText
+  // Pre-process: normalize KrutiDev font encoding if present, standardizing newlines and dashes
+  const cleanedRawText = normalizeKrutiDevText(rawText);
+  const normalized = cleanedRawText
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .replace(/[\u2018\u2019]/g, "'")
@@ -201,9 +222,6 @@ export function extractQuestionsWithRangeFromText(
   // Single Option starters: (A) / A. / A) / [A] / (क) / क. / 1. / (1)
   const optionStartRegex = /^(?:\(([A-Da-dक-घ1-4])\)|([A-Da-dक-घ1-4])\s*[\.\)\-\]]|\[([A-Da-dक-घ1-4])\])\s*(.*)$/;
 
-  // Inline multiple options: e.g. "(A) Apple (B) Banana (C) Cherry (D) Date"
-  const inlineOptionsRegex = /(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])\s*([^\(\[\nA-Da-dक-घ1-4]+?)(?=(?:\(([A-Da-dक-घ1-4])\)|(?:\b|^)([A-Da-dक-घ1-4])\s*[\.\)\-\]])|$)/g;
-
   // Answer indicators: Answer: B / Ans: B / उत्तर: B / Answer - B / Ans. B / Option B / Correct: B
   const answerLineRegex = /^(?:(?:correct\s*)?(?:answer|ans|उत्तर|option|विकल्प)\s*[:\.\-\—]\s*\(?([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F])))\)?|(?:उत्तर|ans|answer)\s+([A-Da-d1-4]|(?:[क-घ](?![\u0900-\u097F]))))\s*(.*)$/i;
 
@@ -216,6 +234,11 @@ export function extractQuestionsWithRangeFromText(
   // -------------------------------------------------------------------------
   // PHASE 1: Scan for Practice Sets / Sections across lines
   // -------------------------------------------------------------------------
+  options.onProgress?.({
+    stage: 'detecting_sections',
+    message: 'Finding Practice Sets...',
+  });
+
   interface SectionDraft {
     id: string;
     name: string;
@@ -229,15 +252,18 @@ export function extractQuestionsWithRangeFromText(
     if (!l) continue;
     const psName = detectPracticeSetHeader(l);
     if (psName) {
-      if (detectedSectionDrafts.length > 0) {
-        detectedSectionDrafts[detectedSectionDrafts.length - 1].endLine = i - 1;
+      const lastSection = detectedSectionDrafts[detectedSectionDrafts.length - 1];
+      if (!lastSection || lastSection.name !== psName) {
+        if (lastSection) {
+          lastSection.endLine = i - 1;
+        }
+        detectedSectionDrafts.push({
+          id: `sec-${detectedSectionDrafts.length + 1}`,
+          name: psName,
+          startLine: detectedSectionDrafts.length === 0 ? 0 : i,
+          endLine: lines.length - 1,
+        });
       }
-      detectedSectionDrafts.push({
-        id: `sec-${detectedSectionDrafts.length + 1}`,
-        name: psName,
-        startLine: i,
-        endLine: lines.length - 1,
-      });
     }
   }
 
@@ -254,6 +280,11 @@ export function extractQuestionsWithRangeFromText(
   // -------------------------------------------------------------------------
   // PHASE 2: Process each section independently to prevent cross-contamination
   // -------------------------------------------------------------------------
+  options.onProgress?.({
+    stage: 'detecting_questions',
+    message: 'Finding Questions...',
+  });
+
   const allRawBlocks: RawBlock[] = [];
   const sectionSummaryList: DetectedSection[] = [];
 
@@ -273,6 +304,10 @@ export function extractQuestionsWithRangeFromText(
     }
 
     if (answerKeyStartIndex !== -1) {
+      options.onProgress?.({
+        stage: 'detecting_answer_key',
+        message: 'Detecting Answer Key...',
+      });
       const akText = sectionLines.slice(answerKeyStartIndex).join('\n');
       const parsedAk = parseAnswerKey(akText);
       for (const [k, v] of parsedAk.entries()) {
@@ -295,6 +330,10 @@ export function extractQuestionsWithRangeFromText(
       if (activeBlock) {
         // If answer was not in block itself, try section's answer key map
         if (!activeBlock.answer && activeBlock.qNum && sectionAnswerKeyMap.has(activeBlock.qNum)) {
+          options.onProgress?.({
+            stage: 'matching_answers',
+            message: 'Matching Answer Key...',
+          });
           activeBlock.answer = sectionAnswerKeyMap.get(activeBlock.qNum) || null;
         }
         allRawBlocks.push(activeBlock);
@@ -326,15 +365,17 @@ export function extractQuestionsWithRangeFromText(
         const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
         const initialText = (qMatch[5] || '').trim();
 
-        // False-positive option number guard
-        const isLikelyOption1 =
-          activeBlock &&
-          activeBlock.qNum > 4 &&
-          parsedQNum <= 4 &&
-          !activeBlock.options.A &&
-          !qMatch[1];
+        const isExplicit = Boolean(qMatch[1]);
+        // False-positive sub-list or option guard:
+        // Inside a question or after question 1:
+        // If it lacks explicit prefix (Q./Question/प्रश्न) and parsedQNum is backwards (< runningAutoQNum - 1)
+        // or parsedQNum leaps forward by more than 10 (e.g. 1990., 2014.),
+        // it is a numbered point inside the question body or explanation!
+        const isInternalNumberedItem =
+          !isExplicit &&
+          (parsedQNum < runningAutoQNum - 1 || (runningAutoQNum > 1 && parsedQNum > runningAutoQNum + 10));
 
-        if (!isLikelyOption1) {
+        if (!isInternalNumberedItem) {
           pushSectionBlock();
           runningAutoQNum = parsedQNum + 1;
           activeBlock = {
@@ -390,15 +431,11 @@ export function extractQuestionsWithRangeFromText(
         continue;
       }
 
-      // Check for inline multiple options
-      const inlineMatches = Array.from(line.matchAll(inlineOptionsRegex));
-      if (inlineMatches.length >= 2) {
-        for (const m of inlineMatches) {
-          const optKey = normalizeOptionKey(m[1] || m[2]);
-          const optText = (m[3] || '').trim();
-          if (optKey && optText) {
-            activeBlock.options[optKey] = optText;
-          }
+      // Check for inline multiple options (e.g. (a) ... (b) ... or (c) ... (d) ...)
+      const inlineOpts = extractInlineOptions(line);
+      if (inlineOpts && inlineOpts.length >= 2) {
+        for (const opt of inlineOpts) {
+          activeBlock.options[opt.key] = opt.text;
         }
         currentTargetOption = null;
         continue;
@@ -446,6 +483,11 @@ export function extractQuestionsWithRangeFromText(
   // -------------------------------------------------------------------------
   // PHASE 3: Convert Raw Blocks to ParsedQuestion with Strict Validation
   // -------------------------------------------------------------------------
+  options.onProgress?.({
+    stage: 'validating',
+    message: 'Validating Questions...',
+  });
+
   // Check for duplicate question numbers per section
   const sectionQNumCount = new Map<string, number>();
   for (const block of allRawBlocks) {

@@ -2,7 +2,52 @@
 
 ## Current Phase
 
-Phase 30 — Question File Formatter / Smart Question Import
+Phase 31 — Asynchronous Job Processing & Real PDF Handling (Question File Formatter)
+
+- **Root Cause of 60-Second Timeout Diagnosed & Eliminated:**
+  - **Issue:** On the real 3.66 MB 169-page PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*), the previous architecture held an open single HTTP streaming connection with a 60-second client-side `AbortController` timeout (`BodyStreamBuffer was aborted`).
+  - **Font Encoding Resolution:** The PDF uses legacy KrutiDev 010 font encoding (`izSfDVl lsV`, `mÙkjekyk`). Integrated `@bharattype/hindi-transliteration` via `src/lib/question-parser/krutidev-converter.ts` to convert legacy glyphs into genuine Unicode Devanagari Hindi while preserving `(a)`, `(b)`, `(c)`, `(d)` option structures and `उत्तरमाला`.
+  - **Sub-list Numbering Guard:** Questions with nested numbered points (e.g. `1. विज्ञापन 2. आवेदन...` or `1. ... 2. वियतनाम युद्ध 3. क्यूबा मिसाइल संकट...`) were previously misidentified as separate questions. Added strict monotonic sequence and question-gap guards so internal numbered points remain inside the question body.
+- **Asynchronous Background Job & Status Polling Architecture:**
+  - Replaced single long-running HTTP connection with decoupled asynchronous background jobs:
+    1. **Step 1 (Upload & Job Creation):** `POST /api/admin/question-formatter/jobs/create` validates file, creates background job in `src/lib/question-parser/job-manager.ts`, starts parsing asynchronously in the background, and returns `{ success: true, jobId, fileId, status: 'QUEUED' }` in **<100ms**.
+    2. **Step 2 (Polling & Progress):** Frontend polls `GET /api/admin/question-formatter/jobs/[jobId]` every 1.5 seconds. Job statuses track granular milestones:
+       - `UPLOADING`
+       - `QUEUED`
+       - `EXTRACTING_TEXT` ("Extracting PDF text...")
+       - `DETECTING_SECTIONS` ("Finding Practice Sets...")
+       - `DETECTING_QUESTIONS` ("Finding Questions...")
+       - `DETECTING_ANSWER_KEY` ("Detecting Answer Key...")
+       - `MATCHING_ANSWERS` ("Matching Answer Key...")
+       - `VALIDATING` ("Validating Questions...")
+       - `READY_FOR_PREVIEW` ("Ready for preview!")
+       - `FAILED`
+    3. **Step 3 (Preview & Editing):** Returns complete question dataset, options A-D, matched answers, practice set sections, and validation tags. Admin can review, edit inline, or commit to database.
+    4. **Step 4 (Safe Cancellation):** Added graceful "Cancel Processing" button that cleans up polling intervals and resets state cleanly.
+- **Security & Integrity:**
+  - Server-side validation of file extension, MIME type, and size.
+  - Safe in-memory buffers with 1-hour TTL auto-cleanup; never executes any files.
+  - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`) strictly protected server-side and never sent to browser.
+- **Real PDF Verification Across Requested Ranges:**
+  - Tested on actual 3.66 MB, 169-page PDF:
+    - **Full Scan:** Detected all **10 Practice Sets** (`sec-1` to `sec-10`) with isolated answer keys in ~6.5 seconds.
+    - **Range 1 → 10 (Set 1):** 10 questions found, 100% complete, Question text in clean Hindi, options A-D, Ans A, Subject, Section: Practice Set-1, Status: `valid`.
+    - **Range 1 → 60 (Set 1):** 59 questions found, 1 missing (`[49]`), `is_range_complete = false`, non-silent warning banner displayed (`Warning: Detected 59 of 60 requested questions (1 to 60). Missing question number(s): 49.`).
+    - **Range 1 → 100 (Set 1):** 97 questions found, 3 missing (`[49, 84, 91]`).
+    - **Range 101 → 160 (Set 1):** 59 questions found, 1 missing (`[111]`), Q101 verified with options A-D, answer A, subject: 3ः तार्किक क्षमता.
+- **Zero Regressions on Existing Systems:**
+  - Existing student tests, manual question creation, payment flows, and database tables remain untouched.
+  - Verified `ImportQuestionsModal.tsx`: zero React hook ordering violations (all hooks unconditional at top of component).
+- **Verification & Test Suite:**
+  - `scripts/test-real-pdf-job-flow.ts`: 100% passed on the real 3.66 MB PDF across all ranges.
+  - `scripts/test-question-formatter.ts`: 100% passed across all 4 regression scenarios.
+  - `scripts/test-smart-parser.ts`: 100% passed across all 3 regression scenarios.
+  - `npx tsc --noEmit`: Code 0 (clean, 0 type errors).
+  - `npm run build`: Code 0 (Next.js Turbopack production build compiled cleanly with all dynamic/static routes).
+
+---
+
+## Phase 30 — Question File Formatter / Smart Question Import
 
 - **New Admin Panel Section: "Question File Formatter":**
   - Added dedicated Admin section at `/admin/question-formatter` and linked in admin navigation menu (`src/app/admin/layout.tsx`).

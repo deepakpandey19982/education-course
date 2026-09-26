@@ -34,18 +34,24 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 30)
+## Latest Production Status & Updates (Phase 31)
 
-- **Question File Formatter / Smart Question Import:**
-  - **New Admin Panel Section:** Added universal Question File Formatter at `/admin/question-formatter` accessible from the Admin navigation bar.
-  - **Supported File Types:** PDF (digital text and OCR for scanned), Word (DOCX/DOC), Excel & CSV (XLSX, XLS, CSV), and Images (JPG, JPEG, PNG).
-  - **Multi-Set & Practice Set Boundary Detection:** Isolates sections such as `Practice Set-1`, `Practice Set-2`, `प्रैक्टिस सेट 1`, `Section A`, etc.
-  - **Separate Answer Key Matching:** Parses `1-(a)`, `2-(b)`, `160-(c)`, `1. a`, `1: A`, Hindi characters, and tables. Avoids global matching so Set 1 questions only link to Set 1 answers, and Set 2 questions link to Set 2 answers.
-  - **Arbitrary Question Range Support:** Supports any range (e.g. 1–50, 1–100, 101–200, 501–600).
-  - **Validation & Missing Detection:** Identifies `VALID`, `NEEDS REVIEW`, `INVALID`, and `DUPLICATE` questions. Missing question numbers produce non-dismissive warning banners.
-  - **Dual Import Target:** Choose between "Create New Test Series" and "Import into Existing Test".
-  - **Safe & Non-Destructive:** Retained existing manual question creation and test series flows with zero database schema changes.
-  - **Build & Tests:** `npx tsc --noEmit` code 0, `npm run build` code 0 (41 routes), automated tests passed (`scripts/test-question-formatter.ts`, `scripts/test-smart-parser.ts`).
+- **Asynchronous Question Formatter Processing & Real PDF Architecture:**
+  - **Eliminated 60s Timeout:** Removed single long-running HTTP streaming connection and 60-second client-side `AbortController` timeout that previously aborted with `BodyStreamBuffer was aborted`.
+  - **Asynchronous Job & Status Polling Engine:**
+    - `POST /api/admin/question-formatter/jobs/create`: Admin endpoint returning `{ success: true, jobId, fileId, status: 'QUEUED' }` in <100ms.
+    - `GET /api/admin/question-formatter/jobs/[jobId]`: Status polling endpoint returning progress percentages (0-100%) and states: `UPLOADING`, `QUEUED`, `EXTRACTING_TEXT`, `DETECTING_SECTIONS`, `DETECTING_QUESTIONS`, `DETECTING_ANSWER_KEY`, `MATCHING_ANSWERS`, `VALIDATING`, `READY_FOR_PREVIEW`, `FAILED`.
+    - `src/lib/question-parser/job-manager.ts`: Decoupled background processor managing execution, state transitions, and 1-hour in-memory job cleanup.
+  - **KrutiDev 010 Unicode Conversion:** Integrated `@bharattype/hindi-transliteration` (`src/lib/question-parser/krutidev-converter.ts`) to reliably convert legacy Indian competitive exam PDF glyphs (`izSfDVl lsV`) to clean Unicode Hindi text while preserving option tokens `(a)`, `(b)`, `(c)`, `(d)` and `उत्तरमाला`.
+  - **Internal Sub-list Numbering Guard:** Fixed issue where multi-item question text (e.g. `1. विज्ञापन 2. आवेदन...` or `2. वियतनाम युद्ध`) triggered false-positive question splits.
+  - **Real PDF Verification:**
+    - Tested actual 3.66 MB 169-page PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*).
+    - Detected all 10 Practice Sets with independent answer key tables in ~6.5 seconds.
+    - Ranges verified: 1-10 (10 found, complete), 1-60 (59 found, 1 missing [49], flagged with warning), 1-100 (97 found), 101-160 (59 found).
+  - **Verified Clean React Hook Order:** `ImportQuestionsModal.tsx` has zero hook order violations.
+  - **Build & Quality:** `npx tsc --noEmit` code 0, `npm run build` code 0 (41 routes), all test suites passing.
+
+## Phase 30 — Question File Formatter / Smart Question Import
 
 ## Phase 29 — High-Performance PDF Question Import Optimization
   - **Eliminated Unnecessary Full-Document Scans:** Implemented digital text probe (<10ms) that prevents running OCR on embedded images in text PDFs.
