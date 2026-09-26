@@ -39,8 +39,17 @@ export function normalizeKrutiDevText(rawText: string): string {
     return rawText;
   }
 
+  // Pre-process known KrutiDev font conjuncts and anomalies before transliteration:
+  // 1. In KrutiDev 010, 'fpÉ' represents 'चिह्न' (chihna). The transliteration library
+  //    replaces 'É' with 'र्fa' (short-i + anusvara), which across newlines leaks a stray 'िं'
+  //    onto the following line, turning e.g. "49." into "िं49.", breaking question detection.
+  const pre = rawText
+    .replace(/fpÉ/g, 'चिह्न')
+    .replace(/ÉLo/g, 'ह्रस्व')
+    .replace(/É/g, 'ह्न');
+
   // Run standard KrutiDev to Unicode conversion
-  let text = krutiDevToUnicode(rawText);
+  let text = krutiDevToUnicode(pre);
 
   // Map converted option brackets:
   // In KrutiDev font:
@@ -57,7 +66,13 @@ export function normalizeKrutiDevText(rawText: string): string {
     .replace(/[;\(]\s*d\s*[\)द्ध]/gi, '(d)')
     .replace(/mÙkjekyk/g, 'उत्तरमाला')
     .replace(/mÙkj/g, 'उत्तर')
-    .replace(/izSfDVl\s*lsV/g, 'प्रैक्टिस सेट');
+    .replace(/izSfDVl\s*lsV/g, 'प्रैक्टिस सेट')
+    // In KrutiDev, period '.' typed on English keyboard converts to 'ण्'.
+    // Restore question numbering like "84ण्", "91ण्", "111ण्" to "84.", "91.", "111."
+    .replace(/(\d{1,5})ण्/g, '$1.')
+    // Clean any stray combining marks / vowel signs that precede a question number at line start
+    .replace(/(?:^|\n)[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963]+(\d{1,5})/g, '\n$1');
 
   return text;
 }
+

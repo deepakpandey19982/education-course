@@ -101,11 +101,36 @@ async function main() {
   console.log(`Valid: ${valid1_60}, Needs Review: ${review1_60}`);
   console.log(`Missing count: ${r1_60.missing_question_numbers?.length || 0}`, r1_60.missing_question_numbers);
   console.log(`Warnings:`, r1_60.warnings);
-  if (r1_60.questions.length !== 59) {
-    throw new Error(`Expected 59 questions for range 1-60, got ${r1_60.questions.length}`);
+  if (r1_60.questions.length !== 60) {
+    throw new Error(`Expected exactly 60 questions for range 1-60, got ${r1_60.questions.length}`);
   }
-  if (r1_60.is_range_complete !== false) {
-    throw new Error('Expected range 1-60 to be flagged as incomplete because Q49 is missing in PDF');
+  if (r1_60.is_range_complete !== true) {
+    throw new Error('Expected range 1-60 to be complete with 0 missing questions');
+  }
+  if (r1_60.missing_question_numbers?.length !== 0) {
+    throw new Error(`Expected 0 missing questions, got: ${r1_60.missing_question_numbers.join(', ')}`);
+  }
+
+  // Specifically verify Question 49
+  const q49 = r1_60.questions.find((q: any) => q.question_number === 49);
+  if (!q49) {
+    throw new Error('Question 49 was not found in parsed questions!');
+  }
+  console.log('\nVerified Q49 in Preview:');
+  console.log(`  Number: ${q49.question_number}`);
+  console.log(`  Text: ${q49.question_text}`);
+  console.log(`  Option A: ${q49.option_a}`);
+  console.log(`  Option B: ${q49.option_b}`);
+  console.log(`  Option C: ${q49.option_c}`);
+  console.log(`  Option D: ${q49.option_d}`);
+  console.log(`  Correct Option: ${q49.correct_option}`);
+  console.log(`  Status: ${q49.status}`);
+
+  if (!q49.option_a || !q49.option_b || !q49.option_c || !q49.option_d) {
+    throw new Error('Question 49 is missing one or more options!');
+  }
+  if (!q49.correct_option) {
+    throw new Error('Question 49 is missing correct_option answer key match!');
   }
 
   // 4. Test Range 1 → 100
@@ -120,8 +145,8 @@ async function main() {
   const review1_100 = r1_100.questions.filter((q: any) => q.status === 'needs_review').length;
   console.log(`Valid: ${valid1_100}, Needs Review: ${review1_100}`);
   console.log(`Missing count: ${r1_100.missing_question_numbers?.length || 0}`, r1_100.missing_question_numbers);
-  if (r1_100.questions.length !== 97) {
-    throw new Error(`Expected 97 questions for range 1-100, got ${r1_100.questions.length}`);
+  if (r1_100.questions.length !== 100) {
+    throw new Error(`Expected 100 questions for range 1-100, got ${r1_100.questions.length}`);
   }
 
   // 5. Test Range 101 → 160
@@ -136,8 +161,8 @@ async function main() {
   const review101_160 = r101_160.questions.filter((q: any) => q.status === 'needs_review').length;
   console.log(`Valid: ${valid101_160}, Needs Review: ${review101_160}`);
   console.log(`Missing count: ${r101_160.missing_question_numbers?.length || 0}`, r101_160.missing_question_numbers);
-  if (r101_160.questions.length !== 59) {
-    throw new Error(`Expected 59 questions for range 101-160, got ${r101_160.questions.length}`);
+  if (r101_160.questions.length !== 60) {
+    throw new Error(`Expected 60 questions for range 101-160, got ${r101_160.questions.length}`);
   }
 
   const q101 = r101_160.questions[0];

@@ -2,6 +2,53 @@
 
 ## Current Phase
 
+Phase 33 — Question 49 & Generic Two-Column PDF Question Extraction Fix
+
+- **Root Cause Diagnosed & Resolved:**
+  - **Font Transliteration Ligature Bleed (Root Cause of Missing Q49):**
+    - The PDF uses KrutiDev 010 font where Question 48 option (d) ended with `yk?ko fpÉ` (`लाघव चिह्न`).
+    - The character `É` represents the Devanagari conjunct `ह्न`. In `@bharattype/hindi-transliteration`, `É` was mapped to `र्fa` (an i-matra + anusvara token).
+    - When `fpÉ\n49-` was transliterated, the library's `positionOfFa` loop shifted the short-i matra across the newline `\n`, swapping `fa\n` into `\nिं`.
+    - This caused the following line to begin with `िं49.` instead of `49.`.
+    - The question start regular expression strictly expected `^(\d{1,5})` or `^(?:Q|प्रश्न)`. The leading vowel sign `िं` (U+093F U+0902) prevented the regex from matching.
+    - Question 49 was consequently treated as continuation text of Question 48 option (d), and its options (a)-(d) overwrote Question 48's options, leaving Question 49 missing from the parsed dataset.
+  - **KrutiDev Period Mapping (`.` to `ण्`):**
+    - In KrutiDev keyboard mapping, English `.` converts to Devanagari `ण्`. Numbers typed as `84.`, `91.`, `111.` became `84ण्`, `91ण्`, `111ण्`.
+    - Added normalization to convert `(\d{1,5})ण्` to `$1.` and expanded question delimiters to include `ण्`, `|`, `।`, and `]`.
+  - **Table of Contents List Guard:**
+    - On Page 4, the Table of Contents contained entries like `1. Practice Set - 1 1-12`.
+    - Added `isTableOfContentsLine()` to explicitly exclude TOC index entries from generating phantom question items.
+  - **Generic Two-Column PDF Page Layout Engine:**
+    - Added `extractPageTextColumnAware()` in `src/lib/question-parser/pdf-parser.ts`.
+    - Detects two-column layouts across pages based on coordinate clusters and viewport midpoint gutter.
+    - Sequences top headers first, then Left Column (top-to-bottom), then Right Column (top-to-bottom), then footers, ensuring reliable multi-column extraction across arbitrary PDFs.
+  - **In-Range Question Deduplication:**
+    - When questions are gathered for requested ranges, questions with duplicate numbers are deduplicated prioritizing valid questions with options over unparsed/empty blocks.
+- **Verification & End-to-End Testing:**
+  - Tested directly against the real 3.66 MB PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*):
+    - **Full Scan:** All 10 Practice Sets detected; Set 1 has exactly 160 questions (1-160) with answer key.
+    - **Range 1 → 10:** 10/10 questions extracted with full Hindi text, options A-D, answer A, subject: PASS.
+    - **Range 1 → 60:** **Exactly 60 questions extracted (100% complete, 0 missing, 0 warnings)**:
+      - Question 49 successfully extracted and visually verified:
+        - Question text: `मिश्रित तथा संयुक्त वाक्यों में विरोध् का भाव प्रकट करने के लिए किस विराम चिह्न का प्रयोग किया जाता है?`
+        - Option A: `अर्( विराम`
+        - Option B: `उपविराम`
+        - Option C: `योजक चिह्न`
+        - Option D: `कोष्ठक`
+        - Correct Option: `A`
+        - Status: `valid`
+    - **Range 1 → 100:** **Exactly 100 questions extracted (100% complete, 0 missing)**: PASS.
+    - **Range 101 → 160:** **Exactly 60 questions extracted (100% complete, 0 missing)**: PASS.
+  - `scripts/test-real-pdf-job-flow.ts`: 100% PASS across all 5 test scenarios.
+  - `scripts/test-question-formatter.ts`: 100% PASS across all regression scenarios.
+  - `scripts/test-smart-parser.ts`: 100% PASS across all regression scenarios.
+  - TypeScript Typecheck: `npx tsc --noEmit` passed with 0 errors.
+  - Production Build: `npm run build` passed with 0 errors (all 41 static/dynamic pages compiled).
+
+---
+
+## Prior Phase
+
 Phase 32 — Question File Formatter Authentication & Polling Authorization Fix
 
 - **Root Cause Diagnosed & Resolved:**

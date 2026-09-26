@@ -125,6 +125,16 @@ function isHeaderOrFooterLine(line: string): boolean {
   return false;
 }
 
+// Check if a line belongs to Table of Contents / Index to avoid false question detections
+function isTableOfContentsLine(line: string): boolean {
+  const clean = line.trim();
+  if (!clean) return false;
+  if (/^(?:content|contents|index|table\s*of\s*contents|विषय\s*सूची|ब्व्छज्म्छज्)$/i.test(clean)) return true;
+  // Matches "1. Practice Set - 1 1-12", "1. izSfDVl lsV - 1 1-12", "1. प्रैक्टिस सेट - 1 1-12"
+  if (/^(?:\d{1,3}[\.\)\-]\s*)?(?:practice\s*set|प्रैक्टिस\s*सेट|izSfDVl\s*lsV|मॉडल\s*पेपर|model\s*paper|set|सेट)\s*[:\.\-\—]?\s*\d{1,4}\s+\d{1,4}\s*[-–—.]\s*\d{1,4}$/i.test(clean)) return true;
+  return false;
+}
+
 export interface TextExtractOptions {
   fromQuestion?: number;
   toQuestion?: number;
@@ -211,13 +221,16 @@ export function extractQuestionsWithRangeFromText(
     .replace(/\r/g, '\n')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-');
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/(\d{1,5})ण्/g, '$1.')
+    .replace(/(?:^|\n)[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963]+(\d{1,5})/g, '\n$1');
 
   const lines = normalized.split('\n');
 
   // Regex patterns:
   // Question starters: Q1. / Q.1 / Question 1 / प्रश्न 1 / 1. / 1) / (1) / [1]
-  const questionStartRegex = /^(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)])(?:\s+|$)))\s*(.*)$/i;
+  // Handles leading combining marks, stray bullets, and delimiters (., -, :, ), ], |, ण्, ।)
+  const questionStartRegex = /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)\]\|ण्।]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)\]\|ण्।])(?:\s+|$)))\s*(.*)$/i;
 
   // Single Option starters: (A) / A. / A) / [A] / (क) / क. / 1. / (1)
   const optionStartRegex = /^(?:\(([A-Da-dक-घ1-4])\)|([A-Da-dक-घ1-4])\s*[\.\)\-\]]|\[([A-Da-dक-घ1-4])\])\s*(.*)$/;
@@ -346,10 +359,13 @@ export function extractQuestionsWithRangeFromText(
     for (let k = 0; k < contentLines.length; k++) {
       const rawLine = contentLines[k];
       const line = rawLine.trim();
-      if (!line || isHeaderOrFooterLine(line)) continue;
+      if (!line || isHeaderOrFooterLine(line) || isTableOfContentsLine(line)) continue;
 
       // Skip practice set title line itself if it matches
       if (detectPracticeSetHeader(line)) continue;
+
+      // Clean leading combining marks/vowel signs/bullets from start of line
+      const cleanLine = line.replace(/^[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]+/, '');
 
       // Check for Subject header
       const subjectHeader = detectSubjectHeader(line);
@@ -359,7 +375,7 @@ export function extractQuestionsWithRangeFromText(
       }
 
       // Check for Question start
-      const qMatch = line.match(questionStartRegex);
+      const qMatch = line.match(questionStartRegex) || (cleanLine ? cleanLine.match(questionStartRegex) : null);
       if (qMatch) {
         const qNumStr = qMatch[1] || qMatch[2] || qMatch[3] || qMatch[4];
         const parsedQNum = qNumStr ? parseInt(qNumStr, 10) : runningAutoQNum;
@@ -581,12 +597,31 @@ export function extractQuestionsWithRangeFromText(
       (q) => q.question_number !== undefined && q.question_number >= fromQ && q.question_number <= toQ
     );
 
-    inRange.sort((a, b) => (a.question_number ?? 0) - (b.question_number ?? 0));
-    inRange.forEach((q, idx) => {
+    // Deduplicate questions by question_number, preferring question with more options / valid status
+    const dedupedQuestionsMap = new Map<number, ParsedQuestion>();
+    for (const q of inRange) {
+      const qNum = q.question_number!;
+      const existing = dedupedQuestionsMap.get(qNum);
+      if (!existing) {
+        dedupedQuestionsMap.set(qNum, q);
+      } else {
+        const optCount = (o: ParsedQuestion) =>
+          [o.option_a, o.option_b, o.option_c, o.option_d].filter(Boolean).length;
+        if (
+          optCount(q) > optCount(existing) ||
+          (q.status === 'valid' && existing.status !== 'valid')
+        ) {
+          dedupedQuestionsMap.set(qNum, q);
+        }
+      }
+    }
+    const finalInRange = Array.from(dedupedQuestionsMap.values());
+    finalInRange.sort((a, b) => (a.question_number ?? 0) - (b.question_number ?? 0));
+    finalInRange.forEach((q, idx) => {
       q.order = idx + 1;
     });
 
-    const foundNumSet = new Set(inRange.map((q) => q.question_number!));
+    const foundNumSet = new Set(finalInRange.map((q) => q.question_number!));
     const missingQuestionNumbers: number[] = [];
     const foundQuestionNumbers: number[] = [];
 
@@ -599,7 +634,7 @@ export function extractQuestionsWithRangeFromText(
     }
 
     return {
-      questions: inRange,
+      questions: finalInRange,
       requested_range: { from: fromQ, to: toQ },
       found_question_numbers: foundQuestionNumbers,
       missing_question_numbers: missingQuestionNumbers,

@@ -90,6 +90,103 @@ function scanQuestionNumbers(text: string): number[] {
   return nums;
 }
 
+/**
+ * Generic column-aware text extractor for a PDF page.
+ * Detects whether a page has two columns (left and right) separated by a gutter.
+ * If two columns are detected, items are ordered Column 1 (top to bottom),
+ * followed by Column 2 (top to bottom), preserving top headers and bottom footers.
+ */
+export function extractPageTextColumnAware(items: any[], viewportWidth: number, viewportHeight: number): string {
+  if (!items || items.length === 0) return '';
+  const textItems = items.filter((it: any) => typeof it.str === 'string' && it.str.length > 0);
+  if (textItems.length === 0) return '';
+
+  const midX = viewportWidth / 2;
+  const topHeaderThreshold = viewportHeight * 0.92;
+  const bottomFooterThreshold = viewportHeight * 0.06;
+
+  const topItems: any[] = [];
+  const bottomItems: any[] = [];
+  const colLeftItems: any[] = [];
+  const colRightItems: any[] = [];
+
+  for (const it of textItems) {
+    const x = it.transform[4];
+    const y = it.transform[5];
+    const w = it.width || 0;
+    const centerX = x + w / 2;
+
+    if (y > topHeaderThreshold) {
+      topItems.push(it);
+    } else if (y < bottomFooterThreshold) {
+      bottomItems.push(it);
+    } else {
+      if (centerX < midX) {
+        colLeftItems.push(it);
+      } else {
+        colRightItems.push(it);
+      }
+    }
+  }
+
+  const isTwoColumn = colLeftItems.length >= 8 && colRightItems.length >= 8;
+
+  const formatCluster = (clusterItems: any[]) => {
+    const sorted = [...clusterItems].sort((a, b) => {
+      const yA = a.transform[5];
+      const yB = b.transform[5];
+      const xA = a.transform[4];
+      const xB = b.transform[4];
+      if (Math.abs(yA - yB) > 3.5) {
+        return yB - yA;
+      }
+      return xA - xB;
+    });
+
+    const lines: string[] = [];
+    let currentLine: string[] = [];
+    let currentY: number | null = null;
+    let lastX = 0;
+
+    for (const it of sorted) {
+      const y = it.transform[5];
+      const x = it.transform[4];
+      if (currentY === null || Math.abs(currentY - y) > 3.5) {
+        if (currentLine.length > 0) {
+          lines.push(currentLine.join(' '));
+        }
+        currentLine = [it.str];
+        currentY = y;
+        lastX = x + (it.width || 0);
+      } else {
+        if (x - lastX > 15) {
+          currentLine.push('\t' + it.str);
+        } else {
+          currentLine.push(it.str);
+        }
+        lastX = x + (it.width || 0);
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push(currentLine.join(' '));
+    }
+    return lines.join('\n');
+  };
+
+  const parts: string[] = [];
+  if (topItems.length > 0) parts.push(formatCluster(topItems));
+  if (isTwoColumn) {
+    parts.push(formatCluster(colLeftItems));
+    parts.push(formatCluster(colRightItems));
+  } else {
+    parts.push(formatCluster([...colLeftItems, ...colRightItems]));
+  }
+  if (bottomItems.length > 0) parts.push(formatCluster(bottomItems));
+
+  return parts.join('\n');
+}
+
+
 export async function parsePdf(
   buffer: Buffer,
   options: PdfParseOptions = {}

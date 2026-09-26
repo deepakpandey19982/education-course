@@ -34,14 +34,23 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 32)
+## Latest Production Status & Updates (Phase 33)
 
-- **Question File Formatter Authentication & Polling Authorization:**
-  - **Root Cause Fixed:** Frontend polling requests in `src/app/admin/question-formatter/page.tsx` were issued using raw `fetch` without `Authorization: Bearer <token>`, without credentials, and without query parameter token fallback, causing `401 {"error":"Authentication required"}` when called in periodic intervals.
-  - **Client Token Delivery:** Upgraded `testSeriesFetch` in `src/lib/test-series-client.ts` to actively retrieve `supabase.auth.getSession()`, inject Bearer authorization, set `sb-access-token` cookie, append query fallback `?token=...`, and pass `credentials: 'include'`.
-  - **Multi-Layer Server Token Verification:** `getRequestUser` in `src/lib/test-series-server.ts` now inspects Bearer header (with anon and admin client fallback), query params (`?token=`), direct `Cookie` header (`sb-access-token` and `sb-*-auth-token`), and Next.js `cookies()` store.
-  - **Security Retained:** Unauthenticated requests strictly return 401; student accounts return 403; service role keys and payment secrets never leaked to client; no database changes without explicit admin confirmation.
-  - **Verification:** `npx tsc --noEmit` passed (0 errors), `npm run build` passed (41 routes), real 3.66 MB PDF job flow tested across all ranges (1-10, 1-60, 1-100, 101-160) passing 100%.
+- **Question 49 & Generic Two-Column PDF Question Extraction Fix:**
+  - **Font Transliteration Ligature Bleed Fixed:** Question 48 option (d) in KrutiDev 010 font contained `fpÉ` (`चिह्न`). Transliteration library erroneously mapped `É` to `र्fa`, shifting a short-i matra across the newline to bleed `िं` before Question 49's number (`िं49.`). Pre-processed ligatures (`fpÉ` -> `चिह्न`, `É` -> `ह्न`, `ÉLo` -> `ह्रस्व`) and stripped leading non-spacing vowel signs/combining marks.
+  - **KrutiDev Period Character Normalization:** Mapped KrutiDev period artifacts `(\d{1,5})ण्` to `$1.` and added `ण्`, `|`, `।`, and `]` to valid question delimiters, restoring questions `84ण्`, `91ण्`, and `111ण्`.
+  - **Table of Contents Exclusion:** Excluded Table of Contents index lines via `isTableOfContentsLine()`, eliminating phantom question duplicates.
+  - **Two-Column PDF Layout Engine:** Added `extractPageTextColumnAware()` in `src/lib/question-parser/pdf-parser.ts` to detect and sequence two-column layouts cleanly (Header -> Left Column -> Right Column -> Footer).
+  - **In-Range Question Deduplication:** Deduplicated range questions by question number, prioritizing complete questions with valid options.
+  - **Real PDF Verification:**
+    - Range 1 → 60: **Exactly 60 questions located, 0 missing, complete = true, warnings = none**.
+    - Verified Q49 in Preview with full text, all 4 options (A-D), and correct answer A (`status: valid`).
+    - Range 1 → 100: Exactly 100 questions located, 0 missing.
+    - Range 101 → 160: Exactly 60 questions located, 0 missing.
+  - **Build & Quality:** `npx tsc --noEmit` code 0 (0 errors), `npm run build` code 0 (41 routes), all test suites passing 100%.
+
+## Phase 32 — Question File Formatter Authentication & Polling Authorization
+
 
 ## Phase 31 — Asynchronous Job Processing & Real PDF Architecture
   - **Eliminated 60s Timeout:** Removed single long-running HTTP streaming connection and 60-second client-side `AbortController` timeout that previously aborted with `BodyStreamBuffer was aborted`.
