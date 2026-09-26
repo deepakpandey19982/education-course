@@ -34,7 +34,22 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 37)
+## Latest Production Status & Updates (Phase 38)
+
+- **Question File Formatter PDF Question Text Extraction & Visual Header Isolation:**
+  - **Root Cause Diagnosed:** On the UP Police Hindi PDF, Question 8 (`‘विश्व जल दिवस’ तिथि को मनाया जाता है?`) erroneously included `"प्रैक्टिस सेट\nअधिकतम अंक: 300"`. Investigated and identified that: (1) Page 6 top instruction/title block (`y > 500`) with `x > midX` was grouped into `colRight` instead of top header, (2) `colLeft` (ending with Question 8) was concatenated directly before `colRight`, (3) `text-extractor.ts` appended stray non-option lines into `questionLines` even after options A-D were complete, and (4) KrutiDev `vf/dre vad%` converted to `अध्कितम अंकः` (`ध्क` instead of `धिक`), escaping the previous regex.
+  - **Architectural Solution:**
+    1. **Layout-Aware Header Zone Extraction (`pdf-parser.ts`):** Employs question boundary probing to detect `columnTopY` across two-column pages. Isolates text items above `columnTopY` into `topHeaderItems` emitted before `colLeft` and `colRight`.
+    2. **Expanded Spelling & Noise Filters:** Added `(?:अधिकतम|अध्कितम|पूर्णांक)\s*अंक|vf\/dre\s*vad|iw\.kkZad`, standalone `^(?:प्रैक्टिस\s*सेट|izSfDVl\s*lsV)$`, `For More PDF Download`, URLs, and instruction lines.
+    3. **Strict Option Lock Guard (`text-extractor.ts`):** `questionLines` accepts continuation lines only when `Object.keys(activeBlock.options).length === 0`. Stray trailing lines after options A-D can never enter question text.
+    4. **Global Registry Anchoring:** Attached `pdfBufferCache` and `jobRegistry` to `globalThis` to preserve cache across dynamic route compilation boundaries.
+  - **Verification:**
+    - Question 8: 100% clean (`‘विश्व जल दिवस’ तिथि को मनाया जाता है?`, options A-D, correct option B, 0 noise words).
+    - Questions 1 → 60: 60/60 questions extracted, 0 missing, range complete.
+    - Verified Q1-Q20 and Q40-Q60: Zero bleed of header, footer, or marks text.
+    - Regression suite (8/8 passed), real PDF job flow (5/5 passed), `npx tsc --noEmit` (0 errors), `npm run build` (0 errors, 41 routes optimized).
+
+## Prior Phase (Phase 37)
 
 - **Question File Formatter PDF.js Server-Side Worker Resolution:**
   - **Root Cause Diagnosed:** Under Next.js 16 + Turbopack, `pdfjs-dist/legacy/build/pdf.mjs` was bundled into `.next/dev/server/chunks/` because `pdfjs-dist` was omitted from `serverExternalPackages` in `next.config.ts`. In Node.js, `pdfjs` defaulted `GlobalWorkerOptions.workerSrc` to `"./pdf.worker.mjs"`, and `#setupFakeWorker()` attempted dynamic `await import(this.workerSrc)`. Node evaluated the relative path from the server chunks directory (`.next/dev/server/chunks/pdf.worker.mjs`), which did not exist, triggering `Cannot find module ... pdf.worker.mjs`.

@@ -13,8 +13,10 @@ import { parseImageOcr } from './ocr-parser';
 import { convertKrutiDevToUnicode, isKrutiDevEncoded } from './krutidev-converter';
 import { ParsedQuestion } from './types';
 
-// In-memory cache for large PDF buffers (15-minute TTL) to avoid repeated uploads over the wire
-const pdfBufferCache = new Map<string, { buffer: Buffer; timestamp: number }>();
+// In-memory cache for large PDF buffers (15-minute TTL) attached to globalThis
+const pdfBufferCache: Map<string, { buffer: Buffer; timestamp: number }> =
+  (globalThis as any).__pdfBufferCache ||
+  ((globalThis as any).__pdfBufferCache = new Map<string, { buffer: Buffer; timestamp: number }>());
 
 export function cachePdfBuffer(id: string, buffer: Buffer): void {
   const now = Date.now();
@@ -87,11 +89,15 @@ function isInstructionOrNoise(line: string): boolean {
   if (/^(?:\d+[\.\-\s]*)?(?:इस\s*प्रैक्टिस\s*सेट\s*में|bl\s*izSfDVl\s*lsV\s*esa)/i.test(trimmed)) return true;
   if (/^प्रैक्टिस\s*सेट\s*में\s*(?:गणित|xf\.kr)/i.test(trimmed)) return true;
   if (/^प्रैक्टिस\s*सेट\s*को\s*हल\s*करने/i.test(trimmed)) return true;
-  if (/^(?:समय\s*[:रू]|le;\s*[:])/i.test(trimmed) && /(?:घण्टे|\?k\.Vs)/i.test(trimmed)) return true;
-  if (/(?:अधिकतम\s*अंक|vf\/dre\s*vad)/i.test(trimmed)) return true;
+  if (/^(?:समय\s*[:रू]|le;\s*[:])/i.test(trimmed)) return true;
+  if (/(?:अधिकतम|अध्कितम|पूर्णांक)\s*अंक|vf\/dre\s*vad|iw\.kkZad/i.test(trimmed)) return true;
   if (/^(?:भाग|Hkkx)\s*\d+[\s%:रू]/i.test(trimmed)) return true;
   // Solo digits or page numbers
   if (/^\d{1,3}$/.test(trimmed)) return true;
+  // Standalone practice set header without set number (noise artifact from column splitting)
+  if (/^(?:प्रैक्टिस\s*सेट|izSfDVl\s*lsV)$/i.test(trimmed)) return true;
+  // URLs or download links
+  if (/^https?:\/\//i.test(trimmed)) return true;
   return false;
 }
 
@@ -128,7 +134,7 @@ function extractRawJpegsFromPdf(buffer: Buffer): Buffer[] {
 /**
  * Generic column-aware text extractor for a PDF page.
  * Detects fonts, translates KrutiDev items, preserves English and chemical formulas,
- * removes noise/watermarks/instructions, and orders columns left-to-right.
+ * isolates top header banner items across the page, and sequences columns left-to-right.
  */
 export async function extractPageTextColumnAware(page: any): Promise<string> {
   const viewport = page.getViewport({ scale: 1.0 });
@@ -171,23 +177,53 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
       };
     });
 
-  // 3. Separate Columns
+  // 3. Separate Top Header Zone & Two Columns based on geometry
   const midX = viewport.width / 2;
+  const leftItemsRaw = processedItems.filter((it) => (it.transform[4] + (it.width || 0) / 2) < midX);
+  const rightItemsRaw = processedItems.filter((it) => (it.transform[4] + (it.width || 0) / 2) >= midX);
+
+  const isTwoColumn = leftItemsRaw.length >= 8 && rightItemsRaw.length >= 8;
+
+  // If two column, identify Top Header Zone (items above the two-column questions region)
+  let columnTopY = viewport.height;
+  if (isTwoColumn) {
+    const questionStartPattern = /^(?:\d{1,4}\s*[\.\-\—]|Q\d+)/i;
+    const rightQuestionStarts = rightItemsRaw.filter((it) =>
+      questionStartPattern.test((it.str || '').trim())
+    );
+    const leftQuestionStarts = leftItemsRaw.filter((it) =>
+      questionStartPattern.test((it.str || '').trim())
+    );
+
+    if (rightQuestionStarts.length > 0 && leftQuestionStarts.length > 0) {
+      const highestRightQ = Math.max(...rightQuestionStarts.map((it) => it.transform[5]));
+      const highestLeftQ = Math.max(...leftQuestionStarts.map((it) => it.transform[5]));
+      columnTopY = Math.max(highestRightQ, highestLeftQ) + 15;
+    } else if (rightQuestionStarts.length > 0) {
+      const highestRightQ = Math.max(...rightQuestionStarts.map((it) => it.transform[5]));
+      columnTopY = highestRightQ + 15;
+    } else if (leftQuestionStarts.length > 0) {
+      const highestLeftQ = Math.max(...leftQuestionStarts.map((it) => it.transform[5]));
+      columnTopY = highestLeftQ + 15;
+    }
+  }
+
+  const topHeaderItems: any[] = [];
   const colLeft: any[] = [];
   const colRight: any[] = [];
 
   for (const it of processedItems) {
-    const x = it.transform[4];
-    const w = it.width || 0;
-    const centerX = x + w / 2;
-    if (centerX < midX) {
+    const y = it.transform[5];
+    const centerX = it.transform[4] + (it.width || 0) / 2;
+
+    if (isTwoColumn && y > columnTopY) {
+      topHeaderItems.push(it);
+    } else if (centerX < midX) {
       colLeft.push(it);
     } else {
       colRight.push(it);
     }
   }
-
-  const isTwoColumn = colLeft.length >= 8 && colRight.length >= 8;
 
   const formatColumn = (colItems: any[]) => {
     colItems.sort((a, b) => {
@@ -235,14 +271,24 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
     return lines.join('\n');
   };
 
-  const isAnswerKeyPage = processedItems.some(it =>
+  const isAnswerKeyPage = processedItems.some((it) =>
     /mÙkjekyk|उत्तरमाला|उत्तर\s*कुंजी|answer\s*key/i.test(it.str)
   );
 
   if (isTwoColumn && !isAnswerKeyPage) {
-    return formatColumn(colLeft) + '\n' + formatColumn(colRight);
+    const parts: string[] = [];
+    if (topHeaderItems.length > 0) {
+      const hText = formatColumn(topHeaderItems);
+      if (hText.trim()) parts.push(hText);
+    }
+    const lText = formatColumn(colLeft);
+    if (lText.trim()) parts.push(lText);
+    const rText = formatColumn(colRight);
+    if (rText.trim()) parts.push(rText);
+    return parts.join('\n');
   }
-  return formatColumn([...colLeft, ...colRight]);
+
+  return formatColumn(processedItems);
 }
 
 /**

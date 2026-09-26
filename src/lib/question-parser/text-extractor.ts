@@ -127,6 +127,14 @@ function isHeaderOrFooterLine(line: string): boolean {
   if (/^\d+\s*(?:of|\/)\s*\d+$/i.test(clean)) return true;
   if (/^[-–—]{1,3}\s*\d+\s*[-–—]{1,3}$/.test(clean)) return true;
   if (/^---+.*---+$/.test(clean) && !clean.includes('=')) return true;
+  if (/For More PDF Download/i.test(clean)) return true;
+  if (/^EBD_\d+/i.test(clean)) return true;
+  if (/^(?:निर्देश|funsZ'k|instructions?)\b/i.test(clean)) return true;
+  if (/(?:अधिकतम|अध्कितम|पूर्णांक)\s*अंक|vf\/dre\s*vad|iw\.kkZad/i.test(clean)) return true;
+  if (/^(?:समय\s*[:रू]|le;\s*[:])/i.test(clean)) return true;
+  if (/^(?:भाग|Hkkx)\s*\d+[\s%:रू]/i.test(clean)) return true;
+  if (/^(?:प्रैक्टिस\s*सेट|izSfDVl\s*lsV)$/i.test(clean)) return true;
+  if (/^https?:\/\//i.test(clean)) return true;
   return false;
 }
 
@@ -504,8 +512,10 @@ export function extractQuestionsWithRangeFromText(
         continue;
       }
 
-      // Question text continuation
-      activeBlock.questionLines.push(line);
+      // Question text continuation (STRICT GUARD: Only allowed BEFORE any options have started!)
+      if (Object.keys(activeBlock.options).length === 0) {
+        activeBlock.questionLines.push(line);
+      }
     }
 
     pushSectionBlock();

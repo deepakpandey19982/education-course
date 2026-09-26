@@ -33,8 +33,11 @@ export interface FormatterJob {
   };
 }
 
-// In-memory registry for background jobs (1 hour TTL)
-const jobRegistry = new Map<string, FormatterJob>();
+// In-memory registry for background jobs (1 hour TTL) attached to globalThis
+// to ensure persistence across route chunks and hot-reloads in Next.js development
+const jobRegistry: Map<string, FormatterJob> =
+  (globalThis as any).__jobRegistry ||
+  ((globalThis as any).__jobRegistry = new Map<string, FormatterJob>());
 
 function cleanupExpiredJobs(): void {
   const oneHourAgo = Date.now() - 60 * 60 * 1000;

@@ -2,6 +2,47 @@
 
 ## Current Phase
 
+Phase 38 — Question File Formatter PDF Question Text Extraction & Visual Header Isolation
+
+- **Root Cause Diagnosed:**
+  - **Issue Reported:** In the Question Formatter preview for the UP Police Hindi PDF (*"UP Police Practice Set in Hindi PDF Download By Disha Publication (sscstudy.com).pdf"*), Question 8 (`‘विश्व जल दिवस’ तिथि को मनाया जाता है?`) erroneously contained unrelated document header/instruction text:
+    `"प्रैक्टिस सेट\nअधिकतम अंक: 300"`
+  - **Detailed Investigation & Mechanisms:**
+    1. **Two-Column Split Geometry on Page 6:** Page 6 contains an instruction box and title at the top: `y=681: 1`, `y=678: izSfDVl lsV` (`प्रैक्टिस सेट`), `y=509: vf/dre vad% 300` (`अधिकतम अंक: 300`). Because their coordinates (`x=346` and `x=492`) were greater than `midX=324`, standard two-column midpoint splitting assigned them to the top of `colRight`.
+    2. **Sequential Column Concatenation:** `colLeft` (ending with Question 8 at the bottom, `y=68`) was concatenated immediately before `colRight` (starting with `y=678` and `y=509` before Question 9 at `y=467`).
+    3. **Unprotected Question Continuation:** In `text-extractor.ts`, once options (a)-(d) for Question 8 were completed, subsequent lines that were not recognized as options or new questions were appended to `activeBlock.questionLines`.
+    4. **KrutiDev Typographic Spelling Mismatch:** In KrutiDev keyboard layout, `vf/dre vad%` converted to `अध्कितम अंकः` (`ध्क` instead of `धिक`). The existing noise regex `/(?:अधिकतम\s*अंक)/` did not match this alternate conjunct sequence.
+  - **Hardened Architecture & Resolution:**
+    1. **Layout-Aware Top Header Zone Isolation (`pdf-parser.ts`):**
+       - In `extractPageTextColumnAware()`, inspects question starts in both columns to detect `columnTopY` (the top boundary of the two-column questions body).
+       - Any text items located above `columnTopY` are isolated into `topHeaderItems` and emitted at the top of the page before `colLeft` and `colRight`.
+       - Reading order is now strictly: `Top Header Zone -> Column 1 (top-to-bottom) -> Column 2 (top-to-bottom) -> Footers`.
+    2. **Expanded Typographic & Noise Filters (`pdf-parser.ts` & `text-extractor.ts`):**
+       - Updated noise filter regexes to match `(?:अधिकतम|अध्कितम|पूर्णांक)\s*अंक|vf\/dre\s*vad|iw\.kkZad`.
+       - Filtered standalone `^(?:प्रैक्टिस\s*सेट|izSfDVl\s*lsV)$`, `^https?:\/\/`, `For More PDF Download`, `EBD_\d+`, and instruction banners.
+    3. **Strict Option Lock Guard on Question Text (`text-extractor.ts`):**
+       - Enforced `if (Object.keys(activeBlock.options).length === 0)` before accepting any line into `activeBlock.questionLines`. Once options (a)-(d) begin or conclude, no stray subsequent text from page boundaries or adjacent columns can ever bleed into the question text.
+    4. **Global Persistence for In-Memory Registries (`pdf-parser.ts` & `job-manager.ts`):**
+       - Attached `pdfBufferCache` and `jobRegistry` to `globalThis` (`__pdfBufferCache`, `__jobRegistry`), preserving cache across Next.js dynamic route compilation chunks and Turbopack hot-reloads.
+
+- **Verification:**
+  - **Clean Question 8 Verification:** Extracted Question 8 from the real UP Police PDF:
+    - Text: `‘विश्व जल दिवस’ तिथि को मनाया जाता है?` (100% clean, 0 noise words).
+    - Options: A: `21 मार्च`, B: `22 मार्च`, C: `22 अप्रैल`, D: `22 मई`.
+    - Correct Option: `B`, Status: `valid`.
+  - **Automated Test Suite (`scripts/test-clean-extraction-suite.ts`):**
+    - 60/60 questions extracted with complete range coverage and 0 missing.
+    - Verified Q1 → Q20: Zero presence of `"प्रैक्टिस सेट"`, `"अधिकतम अंक"`, or `"अंक: 300"`.
+    - Verified Q40 → Q60: Zero noise, all options present.
+  - **Regression Suite (`scripts/regression-suite.ts`):** 8/8 tests passed.
+  - **Real PDF Job Flow (`scripts/test-real-pdf-job-flow.ts`):** 5/5 tests passed (Full scan, 1-10, 1-60, 1-100, 101-160).
+  - **TypeScript Verification:** `npx tsc --noEmit` exited with code 0 (0 errors).
+  - **Production Build:** `npm run build` completed with code 0 (all 41 routes statically/dynamically generated).
+
+---
+
+## Prior Phase
+
 Phase 37 — Question File Formatter PDF.js Server-Side Worker Resolution
 
 - **Root Cause Diagnosed:**
