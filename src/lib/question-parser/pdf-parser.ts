@@ -3,6 +3,47 @@ import { extractQuestionsFromText, extractQuestionsWithRangeFromText, TextExtrac
 import { parseImageOcr } from './ocr-parser';
 import { ParsedQuestion } from './types';
 
+// In-memory cache for large PDF buffers (15-minute TTL) to avoid repeated uploads over the wire
+const pdfBufferCache = new Map<string, { buffer: Buffer; timestamp: number }>();
+
+export function cachePdfBuffer(id: string, buffer: Buffer): void {
+  const now = Date.now();
+  // Clean expired entries
+  for (const [k, v] of pdfBufferCache.entries()) {
+    if (now - v.timestamp > 15 * 60 * 1000) {
+      pdfBufferCache.delete(k);
+    }
+  }
+  pdfBufferCache.set(id, { buffer, timestamp: now });
+}
+
+export function getCachedPdfBuffer(id: string): Buffer | null {
+  const item = pdfBufferCache.get(id);
+  if (!item) return null;
+  if (Date.now() - item.timestamp > 15 * 60 * 1000) {
+    pdfBufferCache.delete(id);
+    return null;
+  }
+  return item.buffer;
+}
+
+export interface PdfProgressEvent {
+  stage: 'reading' | 'probing' | 'extracting' | 'found_question' | 'preparing' | 'ocr_scanned';
+  message: string;
+  currentQuestion?: number;
+  totalPages?: number;
+  currentPage?: number;
+}
+
+export interface PdfParseOptions {
+  fromQuestion?: number;
+  toQuestion?: number;
+  defaultMarks?: number;
+  defaultNegativeMarks?: number;
+  defaultLanguage?: string;
+  onProgress?: (event: PdfProgressEvent) => void;
+}
+
 // Helper to extract embedded JPEG streams from raw PDF buffer if getImage has canvas restrictions
 function extractRawJpegsFromPdf(buffer: Buffer): Buffer[] {
   const images: Buffer[] = [];
@@ -22,12 +63,19 @@ function extractRawJpegsFromPdf(buffer: Buffer): Buffer[] {
   return images;
 }
 
-export interface PdfParseOptions {
-  fromQuestion?: number;
-  toQuestion?: number;
-  defaultMarks?: number;
-  defaultNegativeMarks?: number;
-  defaultLanguage?: string;
+// Fast scanner to detect question numbers present on a single text string
+function scanQuestionNumbers(text: string): number[] {
+  const nums: number[] = [];
+  // Match Q1., Q.1, Question 1, 1., 1) etc.
+  const regex = /(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})|(?:\b|^)(\d{1,5})\s*[\.\:\-\)])/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const num = parseInt(match[1] || match[2], 10);
+    if (!isNaN(num) && num > 0) {
+      nums.push(num);
+    }
+  }
+  return nums;
 }
 
 export async function parsePdf(
@@ -47,50 +95,185 @@ export async function parsePdf(
     total_requested: number;
   };
 }> {
+  const onProgress = options.onProgress;
+  onProgress?.({ stage: 'reading', message: 'Reading PDF document...' });
+
   const parser = new PDFParse({ data: buffer });
-  let pagesProcessed = 1;
-  let rawText = '';
+  let totalPages = 1;
 
   try {
-    const textResult = await parser.getText();
-    pagesProcessed = textResult?.total || 1;
-    rawText = textResult?.text || '';
-  } catch (err) {
-    console.warn('PDF text extraction warning, falling back to OCR:', err);
+    const info = await parser.getInfo();
+    totalPages = info.total || 1;
+  } catch (loadErr) {
+    console.warn('Could not load PDF document metadata:', loadErr);
   }
 
-  // Check if PDF has meaningful selectable text
-  const cleanText = rawText.replace(/\s+/g, ' ').trim();
-  const textHasContent = cleanText.length > 60;
+  // -------------------------------------------------------------------------
+  // STEP 1: Fast Probe to Check if PDF has Selectable Digital Text
+  // -------------------------------------------------------------------------
+  let isDigitalText = false;
+  let samplePageText = '';
 
-  if (textHasContent) {
-    const rangeResult = extractQuestionsWithRangeFromText(rawText, options);
-    if (rangeResult.questions.length > 0 || (options.fromQuestion !== undefined && rangeResult.found_question_numbers.length >= 0)) {
-      return {
-        questions: rangeResult.questions,
-        pagesProcessed,
-        parsingMethod: 'text',
-        rawText,
-        isScanned: false,
-        rangeInfo: {
-          requested_range: rangeResult.requested_range,
-          found_question_numbers: rangeResult.found_question_numbers,
-          missing_question_numbers: rangeResult.missing_question_numbers,
-          is_range_complete: rangeResult.is_range_complete,
-          total_requested: rangeResult.total_requested,
-        },
-      };
+  try {
+    const p1 = await parser.getText({ partial: [1] });
+    samplePageText = p1?.text || '';
+    if (samplePageText.trim().length > 30) {
+      isDigitalText = true;
+    } else if (totalPages > 1) {
+      // Check page 2 in case page 1 was a cover image
+      const p2 = await parser.getText({ partial: [2] });
+      if ((p2?.text || '').trim().length > 30) {
+        isDigitalText = true;
+      }
     }
+  } catch (probeErr) {
+    console.warn('Sample page text extraction warning:', probeErr);
   }
 
+  // -------------------------------------------------------------------------
+  // STEP 2: Digital Text PDF Path (No OCR, 100% Blazing Fast)
+  // -------------------------------------------------------------------------
+  if (isDigitalText) {
+    const hasRange = options.fromQuestion !== undefined && options.toQuestion !== undefined;
+    const fromQ = hasRange ? Math.min(options.fromQuestion!, options.toQuestion!) : 1;
+    const toQ = hasRange ? Math.max(options.fromQuestion!, options.toQuestion!) : 100;
 
-  // If text is absent or 0 questions were extracted, attempt Scanned / Image PDF OCR
-  console.log('PDF has minimal selectable text or 0 questions. Attempting OCR on scanned pages...');
+    let accumulatedText = '';
+    let pagesRead = 0;
+    const reportedNumbers = new Set<number>();
+
+    onProgress?.({
+      stage: 'probing',
+      message: hasRange
+        ? `Locating Question ${fromQ} to ${toQ} in PDF (${totalPages} pages)...`
+        : `Reading PDF text (${totalPages} pages)...`,
+      totalPages,
+    });
+
+    if (hasRange && totalPages > 12) {
+      // ---------------------------------------------------------------------
+      // Smart Page Prober: Find which page range contains fromQ → toQ
+      // ---------------------------------------------------------------------
+      let startPage = 1;
+      const stepSize = Math.max(3, Math.min(15, Math.floor(totalPages / 20)));
+      const probePoints: number[] = [];
+      for (let p = 1; p <= totalPages; p += stepSize) {
+        probePoints.push(p);
+      }
+      if (probePoints[probePoints.length - 1] !== totalPages) {
+        probePoints.push(totalPages);
+      }
+
+      // Probe sample pages to find where question numbers cross fromQ
+      for (const p of probePoints) {
+        try {
+          const probeText = await parser.getText({ partial: [p] });
+          const qNums = scanQuestionNumbers(probeText?.text || '');
+          if (qNums.length > 0) {
+            const maxQOnPage = Math.max(...qNums);
+            if (maxQOnPage < fromQ) {
+              startPage = p;
+            } else {
+              break;
+            }
+          }
+        } catch {
+          // Continue probing next point
+        }
+      }
+
+      // Add a 1-page safety buffer before startPage to avoid clipping question starts
+      const safeStartPage = Math.max(1, startPage > 1 ? startPage - 1 : 1);
+
+      // Now read forward from safeStartPage until toQ is found
+      for (let p = safeStartPage; p <= totalPages; p++) {
+        try {
+          const pageRes = await parser.getText({ partial: [p] });
+          const pageText = pageRes?.text || '';
+          accumulatedText += '\n' + pageText;
+          pagesRead++;
+
+          // Scan for question numbers to emit live progress
+          const pageNums = scanQuestionNumbers(pageText);
+          for (const qNum of pageNums) {
+            if (qNum >= fromQ && qNum <= toQ && !reportedNumbers.has(qNum)) {
+              reportedNumbers.add(qNum);
+              // Report progress on key milestones (1, 10, 25, 50, 75, 100...)
+              if (
+                qNum === fromQ ||
+                qNum === toQ ||
+                qNum % 10 === 0 ||
+                qNum % 25 === 0 ||
+                reportedNumbers.size <= 5
+              ) {
+                onProgress?.({
+                  stage: 'found_question',
+                  message: `Found question ${qNum}...`,
+                  currentQuestion: qNum,
+                  currentPage: p,
+                  totalPages,
+                });
+              }
+            }
+          }
+
+          // If we have encountered questions beyond toQ, stop reading!
+          if (pageNums.length > 0) {
+            const maxFound = Math.max(...pageNums);
+            if (maxFound > toQ + 2) {
+              break;
+            }
+          }
+        } catch (pageErr) {
+          console.warn(`Error reading page ${p}:`, pageErr);
+        }
+      }
+    } else {
+      // Small document or no range: read pages directly
+      try {
+        const fullTextResult = await parser.getText();
+        accumulatedText = fullTextResult?.text || samplePageText;
+        pagesRead = fullTextResult?.total || totalPages;
+      } catch {
+        accumulatedText = samplePageText;
+        pagesRead = 1;
+      }
+    }
+
+    onProgress?.({ stage: 'preparing', message: 'Preparing preview...' });
+
+    // Extract questions strictly with boundary and validation checks
+    const rangeResult = extractQuestionsWithRangeFromText(accumulatedText, options);
+
+    return {
+      questions: rangeResult.questions,
+      pagesProcessed: pagesRead,
+      parsingMethod: 'text',
+      rawText: accumulatedText,
+      isScanned: false,
+      rangeInfo: {
+        requested_range: rangeResult.requested_range,
+        found_question_numbers: rangeResult.found_question_numbers,
+        missing_question_numbers: rangeResult.missing_question_numbers,
+        is_range_complete: rangeResult.is_range_complete,
+        total_requested: rangeResult.total_requested,
+      },
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // STEP 3: Genuine Scanned / Image PDF Fallback (With Safeguards & Progress)
+  // -------------------------------------------------------------------------
+  onProgress?.({
+    stage: 'ocr_scanned',
+    message: 'Scanned PDF detected. OCR processing may take longer.',
+  });
+
+  console.log('PDF is image-based/scanned. Running controlled OCR...');
   let ocrQuestions: ParsedQuestion[] = [];
   let combinedOcrText = '';
-
-  // 1. Try getImage from PDFParse
   let imageBuffers: Buffer[] = [];
+
   try {
     const imgResult = await parser.getImage({ imageBuffer: true });
     if (imgResult && Array.isArray(imgResult.pages)) {
@@ -105,37 +288,60 @@ export async function parsePdf(
       }
     }
   } catch (imgErr) {
-    console.warn('PDF getImage error, trying direct stream scan:', imgErr);
+    console.warn('PDF getImage error, trying raw jpeg scan:', imgErr);
   }
 
-  // 2. Fallback to extracting direct JPEG streams if PDFParse getImage found none
   if (imageBuffers.length === 0) {
     imageBuffers = extractRawJpegsFromPdf(buffer);
   }
 
-  if (imageBuffers.length > 0) {
-    pagesProcessed = Math.max(pagesProcessed, imageBuffers.length);
-    for (let i = 0; i < imageBuffers.length; i++) {
-      try {
-        const ocrRes = await parseImageOcr(imageBuffers[i], options);
-        if (ocrRes.rawText) {
-          combinedOcrText += `\n--- Page ${i + 1} ---\n` + ocrRes.rawText;
-        }
-      } catch (ocrErr) {
-        console.error(`OCR failed on page image ${i + 1}:`, ocrErr);
-      }
-    }
+  // Cap OCR to first 12 image pages to avoid infinite hang on huge scanned books
+  const MAX_OCR_PAGES = 12;
+  const ocrLimit = Math.min(imageBuffers.length, MAX_OCR_PAGES);
 
-    if (combinedOcrText.trim()) {
-      ocrQuestions = extractQuestionsFromText(combinedOcrText, options);
+  for (let i = 0; i < ocrLimit; i++) {
+    onProgress?.({
+      stage: 'ocr_scanned',
+      message: `Running OCR on page ${i + 1} of ${ocrLimit}...`,
+      currentPage: i + 1,
+      totalPages: ocrLimit,
+    });
+
+    try {
+      const ocrRes = await parseImageOcr(imageBuffers[i], options);
+      if (ocrRes.rawText) {
+        combinedOcrText += `\n--- Page ${i + 1} ---\n` + ocrRes.rawText;
+      }
+    } catch (ocrErr) {
+      console.error(`OCR failed on page image ${i + 1}:`, ocrErr);
     }
   }
 
+  onProgress?.({ stage: 'preparing', message: 'Preparing preview...' });
+
+  if (combinedOcrText.trim()) {
+    const rangeResult = extractQuestionsWithRangeFromText(combinedOcrText, options);
+    return {
+      questions: rangeResult.questions,
+      pagesProcessed: ocrLimit,
+      parsingMethod: 'ocr',
+      rawText: combinedOcrText,
+      isScanned: true,
+      rangeInfo: {
+        requested_range: rangeResult.requested_range,
+        found_question_numbers: rangeResult.found_question_numbers,
+        missing_question_numbers: rangeResult.missing_question_numbers,
+        is_range_complete: rangeResult.is_range_complete,
+        total_requested: rangeResult.total_requested,
+      },
+    };
+  }
+
   return {
-    questions: ocrQuestions,
-    pagesProcessed,
-    parsingMethod: 'ocr',
-    rawText: combinedOcrText || rawText,
+    questions: [],
+    pagesProcessed: totalPages,
+    parsingMethod: 'text',
+    rawText: '',
     isScanned: true,
   };
 }

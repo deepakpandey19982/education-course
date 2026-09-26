@@ -53,7 +53,11 @@ export function CreateSeriesFromPdfModal({
   const [previewFilter, setPreviewFilter] = useState<'all' | 'valid' | 'needs_review'>('all');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Progress message state during parsing
+  // Cached file id for subsequent batch requests without re-uploading
+  const [cachedFileId, setCachedFileId] = useState<string | null>(null);
+  const [isScannedPdf, setIsScannedPdf] = useState<boolean>(false);
+
+  // Real-time progress message state during parsing
   const [progressMsg, setProgressMsg] = useState<string>('Reading PDF document...');
 
   // Question editing sub-modal state
@@ -108,13 +112,15 @@ export function CreateSeriesFromPdfModal({
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const dropped = e.dataTransfer.files[0];
       setFile(dropped);
+      setCachedFileId(null);
+      setIsScannedPdf(false);
       setErrorMsg(null);
     }
   };
 
-  // Step 4: Find Questions in PDF
+  // Step 4: Find Questions in PDF with real-time streaming progress
   const handleFindQuestions = async () => {
-    if (!file) {
+    if (!file && !cachedFileId) {
       setErrorMsg('Please select a PDF file first.');
       return;
     }
@@ -133,23 +139,21 @@ export function CreateSeriesFromPdfModal({
 
     setStep('processing');
     setErrorMsg(null);
-    setProgressMsg('Reading PDF document...');
+    setIsScannedPdf(false);
+    setProgressMsg('Reading PDF...');
 
-    const timer1 = setTimeout(() => {
-      setProgressMsg(`Locating Question ${fromQuestion} to Question ${toQuestion} in PDF...`);
-    }, 1500);
-
-    const timer2 = setTimeout(() => {
-      setProgressMsg('Extracting question text, options A-D, and answers...');
-    }, 4000);
-
-    const timer3 = setTimeout(() => {
-      setProgressMsg('Validating question boundaries and compiling preview...');
-    }, 7000);
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, 60000); // 60-second safety timeout
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      if (cachedFileId) {
+        formData.append('fileId', cachedFileId);
+      } else if (file) {
+        formData.append('file', file);
+      }
       formData.append('fromQuestion', String(fromQuestion));
       formData.append('toQuestion', String(toQuestion));
       formData.append('defaultSubjectName', subjectName.trim());
@@ -157,27 +161,91 @@ export function CreateSeriesFromPdfModal({
       formData.append('defaultNegativeMarks', String(negativeMarks));
       formData.append('defaultLanguage', language);
 
-      const res = await fetch('/api/admin/test-series/create-from-pdf/parse', {
+      const res = await fetch('/api/admin/test-series/create-from-pdf/parse-stream', {
         method: 'POST',
         body: formData,
+        signal: abortController.signal,
       });
 
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-
-      const data: ParseResult & { existing_series_titles?: string[] } = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to extract questions from PDF.');
+      if (!res.ok) {
+        const errorText = await res.text();
+        let message = 'Failed to extract questions from PDF.';
+        try {
+          const json = JSON.parse(errorText);
+          message = json.error || message;
+        } catch {
+          message = errorText || message;
+        }
+        throw new Error(message);
       }
 
-      setParseResult(data);
-      setQuestions(data.questions);
+      if (!res.body) {
+        throw new Error('ReadableStream not supported by browser.');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let streamBuffer = '';
+      let receivedResult: (ParseResult & { existing_series_titles?: string[] }) | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n');
+        // Keep unfinished trailing chunk in buffer
+        streamBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          try {
+            const event = JSON.parse(trimmed);
+            if (event.type === 'progress') {
+              if (event.message) {
+                setProgressMsg(event.message);
+              }
+              if (event.stage === 'ocr_scanned') {
+                setIsScannedPdf(true);
+              }
+            } else if (event.type === 'result') {
+              receivedResult = event.data;
+              if (event.data?.file_id) {
+                setCachedFileId(event.data.file_id);
+              }
+              if (event.data?.is_scanned) {
+                setIsScannedPdf(true);
+              }
+            } else if (event.type === 'error') {
+              throw new Error(event.error || 'Failed to extract questions from PDF.');
+            }
+          } catch (jsonErr: any) {
+            if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+              throw jsonErr;
+            }
+          }
+        }
+      }
+
+      clearTimeout(timeoutId);
+
+      if (!receivedResult || !receivedResult.success) {
+        throw new Error(receivedResult?.error || 'Failed to extract questions from PDF.');
+      }
+
+      setParseResult(receivedResult);
+      setQuestions(receivedResult.questions);
       setStep('preview');
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error('Find questions error:', err);
-      setErrorMsg(err.message || 'An unexpected error occurred while parsing the PDF.');
+      if (err.name === 'AbortError') {
+        setErrorMsg('PDF processing timed out after 60 seconds. The PDF may be very complex or image-heavy. Please try a smaller range.');
+      } else {
+        setErrorMsg(err.message || 'An unexpected error occurred while parsing the PDF.');
+      }
       setStep('config');
     }
   };
@@ -490,7 +558,7 @@ export function CreateSeriesFromPdfModal({
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-                    file
+                    file || cachedFileId
                       ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20'
                       : 'border-slate-300 dark:border-slate-700 hover:border-brand-primary hover:bg-blue-50/30 dark:hover:bg-slate-800'
                   }`}
@@ -503,17 +571,22 @@ export function CreateSeriesFromPdfModal({
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setFile(e.target.files[0]);
+                        setCachedFileId(null);
+                        setIsScannedPdf(false);
                         setErrorMsg(null);
                       }
                     }}
                   />
-                  {file ? (
+                  {file || cachedFileId ? (
                     <div className="flex items-center justify-center gap-3">
                       <span className="text-3xl">📄</span>
                       <div className="text-left">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{file.name}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                          {file?.name || 'Question-Bank PDF'}
+                        </p>
                         <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB • Ready to process
+                          {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB • ` : ''}
+                          {cachedFileId ? 'Cached in Server Memory (Fast Range Parsing)' : 'Ready to process'}
                         </p>
                       </div>
                       <button
@@ -521,6 +594,8 @@ export function CreateSeriesFromPdfModal({
                         onClick={(e) => {
                           e.stopPropagation();
                           setFile(null);
+                          setCachedFileId(null);
+                          setIsScannedPdf(false);
                         }}
                         className="ml-4 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline"
                       >
@@ -818,15 +893,24 @@ export function CreateSeriesFromPdfModal({
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-200 dark:border-slate-800 border-t-brand-primary" />
                 <span className="absolute text-xl">📄</span>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Extracting Question Range: {fromQuestion} → {toQuestion}
                 </h3>
-                <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold animate-pulse">
-                  {progressMsg}
-                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-sm text-blue-700 dark:text-blue-300 font-semibold shadow-xs">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                  <span>{progressMsg}</span>
+                </div>
+
+                {isScannedPdf && (
+                  <div className="max-w-md mx-auto p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-900 text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2">
+                    <span>⚠️</span>
+                    <span>Scanned PDF detected. OCR processing may take longer.</span>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Locating question headers and boundary splits. This may take 5-15 seconds for large PDFs.
+                  Locating question range directly without loading unnecessary pages.
                 </p>
               </div>
             </div>
@@ -837,6 +921,13 @@ export function CreateSeriesFromPdfModal({
           {/* ------------------------------------------------------------ */}
           {step === 'preview' && (
             <div className="space-y-5">
+              {isScannedPdf && (
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2 font-medium">
+                  <span>ℹ️</span>
+                  <span>Scanned PDF detected. Text was extracted via OCR processing.</span>
+                </div>
+              )}
+
               {/* Range & Found Summary Bar */}
               <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>

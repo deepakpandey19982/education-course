@@ -80,6 +80,7 @@ export async function parseQuestionFile(
     defaultMarks?: number;
     defaultNegativeMarks?: number;
     defaultLanguage?: string;
+    onProgress?: (event: import('./pdf-parser').PdfProgressEvent) => void;
   } = {}
 ): Promise<ParseResult> {
   const ext = fileName.toLowerCase().split('.').pop() || '';
@@ -91,6 +92,7 @@ export async function parseQuestionFile(
   let rawQuestions: ParsedQuestion[] = [];
   let pagesOrRows = 1;
   let parsingMethod: 'text' | 'ocr' | 'excel' | 'docx' = 'text';
+  let isScanned = false;
   let detectedColumnMapping: Record<string, string> | undefined;
   let rangeInfo: {
     requested_range?: { from: number; to: number };
@@ -142,13 +144,16 @@ export async function parseQuestionFile(
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
         defaultLanguage: options.defaultLanguage,
+        onProgress: options.onProgress,
       });
       rawQuestions = parsed.questions;
       pagesOrRows = parsed.pagesProcessed;
       parsingMethod = parsed.parsingMethod;
+      isScanned = parsed.isScanned;
       rangeInfo = parsed.rangeInfo;
     } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
       parsingMethod = 'ocr';
+      isScanned = true;
       const parsed = await parseImageOcr(buffer, {
         defaultMarks: options.defaultMarks,
         defaultNegativeMarks: options.defaultNegativeMarks,
@@ -193,6 +198,7 @@ export async function parseQuestionFile(
       questions: [],
     };
   }
+
 
 
   if (rawQuestions.length === 0) {
@@ -339,7 +345,9 @@ export async function parseQuestionFile(
     found_question_numbers: finalRangeInfo?.found_question_numbers,
     missing_question_numbers: finalRangeInfo?.missing_question_numbers,
     is_range_complete: finalRangeInfo?.is_range_complete,
+    is_scanned: isScanned,
     questions: finalQuestions,
   };
 }
+
 

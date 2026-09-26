@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
-import { parseQuestionFile } from '@/lib/question-parser';
+import { parseQuestionFile, cachePdfBuffer, getCachedPdfBuffer } from '@/lib/question-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds max duration for PDF parsing
@@ -30,16 +30,13 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
+    const fileIdParam = (formData.get('fileId') as string | null) || undefined;
     const fromQuestionRaw = formData.get('fromQuestion') as string | null;
     const toQuestionRaw = formData.get('toQuestion') as string | null;
     const defaultSubjectName = (formData.get('defaultSubjectName') as string | null) || undefined;
     const defaultMarksRaw = formData.get('defaultMarks') as string | null;
     const defaultNegativeMarksRaw = formData.get('defaultNegativeMarks') as string | null;
     const defaultLanguage = (formData.get('defaultLanguage') as string | null) || 'English';
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided. Please upload a PDF file.' }, { status: 400 });
-    }
 
     const fromQuestion = fromQuestionRaw ? parseInt(fromQuestionRaw, 10) : undefined;
     const toQuestion = toQuestionRaw ? parseInt(toQuestionRaw, 10) : undefined;
@@ -52,14 +49,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Valid "To Question Number" (>= From Question) is required.' }, { status: 400 });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: `File size exceeds the 50MB limit (provided: ${(file.size / 1024 / 1024).toFixed(1)}MB)` },
-        { status: 400 }
-      );
+    // Resolve PDF Buffer: Check in-memory cache first if fileId provided
+    let buffer: Buffer | null = null;
+    let activeFileId = fileIdParam;
+    let fileName = file?.name || 'document.pdf';
+
+    if (activeFileId) {
+      buffer = getCachedPdfBuffer(activeFileId);
     }
 
-    const fileName = file.name || 'document.pdf';
+    if (!buffer) {
+      if (!file) {
+        return NextResponse.json(
+          { error: 'No PDF file provided or session expired. Please re-select the PDF file.' },
+          { status: 400 }
+        );
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          { error: `File size exceeds the 50MB limit (provided: ${(file.size / 1024 / 1024).toFixed(1)}MB)` },
+          { status: 400 }
+        );
+      }
+
+      const crypto = await import('crypto');
+      buffer = Buffer.from(await file.arrayBuffer());
+      activeFileId = `pdf-${crypto.randomBytes(8).toString('hex')}`;
+      cachePdfBuffer(activeFileId, buffer);
+    }
+
     const ext = fileName.toLowerCase().split('.').pop() || '';
 
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
@@ -82,8 +101,6 @@ export async function POST(req: Request) {
       .order('created_at', { ascending: false })
       .limit(500);
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-
     const parseResult = await parseQuestionFile(buffer, fileName, {
       fromQuestion,
       toQuestion,
@@ -100,9 +117,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ...parseResult,
+      file_id: activeFileId,
       existing_series_titles: existingSeriesTitles,
       all_subjects: (allSubjects || []).map((s) => s.name),
     });
+
   } catch (error: any) {
     console.error('API /api/admin/test-series/create-from-pdf/parse error:', error);
     return NextResponse.json(

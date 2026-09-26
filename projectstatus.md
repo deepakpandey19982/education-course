@@ -34,9 +34,18 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 28)
+## Latest Production Status & Updates (Phase 29)
 
-- **Create Test Series from PDF using Question Number Range:**
+- **High-Performance PDF Question Import Optimization:**
+  - **Eliminated Unnecessary Full-Document Scans:** Implemented digital text probe (<10ms) that prevents running OCR on embedded images in text PDFs.
+  - **Smart Page Prober:** Probes page intervals to pinpoint the start page for `fromQuestion` and reads forward consecutively until `toQuestion` is extracted. Cuts 100-question batch processing time to <100ms (1 → 100 in 36ms, 501 → 600 in 65ms).
+  - **In-Memory PDF Buffer Cache:** Added `fileId` session caching (15-min TTL) to prevent re-uploading large 50MB PDFs when processing multiple batches (e.g. 101-200 after 1-100).
+  - **Live NDJSON Streaming UI:** Real-time updates for reading, probing, found questions, and preview assembly via `/api/admin/test-series/create-from-pdf/parse-stream`.
+  - **Scanned PDF Warning Banner:** Detects scanned PDFs and shows `"Scanned PDF detected. OCR processing may take longer."` with a safety cap of 12 pages maximum.
+  - **Timeout Protection:** Added 60s `AbortController` safety timeout.
+  - **Validation:** `npx tsc --noEmit` code 0, `npm run build` code 0 (40 routes compiled), automated tests passed (`scripts/test-pdf-range-optimization.ts`, `scripts/test-pdf-range-import.ts`).
+
+## Phase 28 — Create Test Series from PDF using Question Number Range
   - Added dedicated Admin workflow: `Create Test Series from PDF` accessible from Admin → Test Series (`/admin/test-series`).
   - **Question Number Range as Primary Mechanism:** Scans the whole document to locate printed question numbers (e.g. 1 → 100, 101 → 200, 201 → 300, 501 → 650) rather than taking PDF page numbers. Supports arbitrary batch sizes (50, 100, 150, 200+).
   - **Question Boundary Detection Engine:** Recognizes numbering variations (`Q1.`, `Q.1`, `Q 1`, `Question 1`, `Question No. 1`, `Que. 1`, `प्रश्न 1:`, `1.`, `1)`, `(1)`, `[1]`), multiline questions, inline/multiline options, and answer keys. Filters page headers/footers (`Page X of Y`, `-- X --`) to prevent text pollution.

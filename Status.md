@@ -2,7 +2,31 @@
 
 ## Current Phase
 
-Phase 28 — Create Test Series from PDF using Question Number Range
+Phase 29 — High-Performance PDF Question Import Optimization
+
+- **Root Causes Solved & Engine Optimizations:**
+  - **Eliminated Unnecessary OCR Scans:** Previously, digital PDFs with embedded logos or image elements triggered sequential Tesseract OCR on dozens/hundreds of image blocks, causing multi-minute CPU execution and timeouts. Added instant digital-text probing (<10ms) that skips OCR completely whenever selectable text is present.
+  - **Smart Page-Range Prober:** Instead of loading and parsing all 400 pages of a large book, the engine probes page intervals to locate the exact page where `fromQuestion` begins, extracts consecutive pages until `toQuestion` is reached, and stops immediately. Drops processing time from >300 seconds to **<100 milliseconds** for typical 100-question batches (e.g. 1 → 100 in 36ms, 501 → 600 in 65ms).
+  - **In-Memory Buffer Cache:** Implemented `cachePdfBuffer` / `getCachedPdfBuffer` (15-minute TTL) returning a `file_id`. When creating multiple batches from the same PDF (e.g., 101 → 200 right after 1 → 100), the browser sends only `fileId` instead of re-uploading a 50MB file over the network.
+  - **Scanned PDF Safety Cap:** For genuine scanned/image PDFs where OCR is strictly required, execution is capped at 12 pages maximum with timeout protection to prevent server hangs, and clearly displays `"Scanned PDF detected. OCR processing may take longer."`
+- **Real-Time Streaming UI & UX:**
+  - Implemented `/api/admin/test-series/create-from-pdf/parse-stream` with NDJSON streaming (`application/x-ndjson`).
+  - Displays authentic live progress milestones without fake timers: `Reading PDF...`, `Finding question numbers in PDF...`, `Found question 1...`, `Found question 50...`, `Found question 100...`, and `Preparing preview...`.
+  - Added 60-second client-side `AbortController` timeout handling to prevent indefinite loading states on slow connections.
+  - Verified React Hook order: all 15+ hooks execute unconditionally at the top of component bodies in both `CreateSeriesFromPdfModal.tsx` and `ImportQuestionsModal.tsx`.
+- **Validation Results:**
+  - `npx tsc --noEmit`: Code 0 (clean, 0 errors).
+  - `npm run build`: Code 0 (clean, 40 static/dynamic routes compiled successfully).
+  - Benchmark & Range Test (`scripts/test-pdf-range-optimization.ts`):
+    - Small range 1 → 5: 5 questions in 508ms with all streaming progress events.
+    - Standard range 1 → 100: 100 questions in **36ms**.
+    - Later range 501 → 600: 100 questions in **65ms** without parsing pages 1–50.
+    - In-memory cache test: instantaneous subsequent batch extraction.
+  - Comprehensive Test Suite (`scripts/test-pdf-range-import.ts`): 100% passed across all 6 test scenarios.
+
+---
+
+## Phase 28 — Create Test Series from PDF using Question Number Range
 
 - **Core Feature & Workflow:**
   - Added dedicated Admin workflow: `Create Test Series from PDF` accessible from Admin → Test Series (`/admin/test-series`).

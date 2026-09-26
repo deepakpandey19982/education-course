@@ -40,8 +40,11 @@ export interface ParseResult {
   found_question_numbers?: number[];
   missing_question_numbers?: number[];
   is_range_complete?: boolean;
+  file_id?: string;
+  is_scanned?: boolean;
   questions: ParsedQuestion[];
 }
+
 
 export interface QuestionImportCommitPayload {
   testId: string;
