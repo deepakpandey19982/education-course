@@ -81,18 +81,17 @@ export async function POST(req: Request) {
           const matchedSub = subList.find((s) => s.name.toLowerCase() === (q.subject_name || '').toLowerCase());
           const qSubId = q.subject_id || matchedSub?.id || defaultSubId;
           const cleanText = q.question_text?.trim() || '';
-          const taggedText = qSubId ? encodeSubjectTag(cleanText, qSubId) : cleanText;
+          const taggedExplanation = encodeSubjectTag(q.explanation?.trim() || '', qSubId);
 
           return {
             test_id: testId,
-            subject_id: qSubId,
-            question_text: taggedText,
+            question_text: cleanText,
             option_a: q.option_a?.trim() || '',
             option_b: q.option_b?.trim() || '',
             option_c: q.option_c?.trim() || '',
             option_d: q.option_d?.trim() || '',
             correct_option: q.correct_option || 'A',
-            explanation: q.explanation?.trim() || null,
+            explanation: taggedExplanation || null,
             marks: Number(q.marks) || Number(targetTest.marks_per_correct) || 1,
             negative_marks: Number(q.negative_marks) || Number(targetTest.negative_marks) || 0,
             language: q.language || targetTest.language || 'English',
@@ -102,14 +101,25 @@ export async function POST(req: Request) {
           };
         });
 
-        const { data: inserted, error: insertErr } = await admin
+        let { data: inserted, error: insertErr } = await admin
           .from('questions')
           .insert(rows)
           .select('id');
 
+        if (insertErr && insertErr.message?.includes('subject_id')) {
+          const fallbackRows = rows.map((r: any) => {
+            const copy = { ...r };
+            delete copy.subject_id;
+            return copy;
+          });
+          const retry = await admin.from('questions').insert(fallbackRows).select('id');
+          inserted = retry.data;
+          insertErr = retry.error;
+        }
+
         if (insertErr) {
           console.error('Batch insert error in import_existing:', insertErr);
-          throw new Error(`Failed inserting questions: ${insertErr.message}`);
+          throw new Error(`Failed inserting questions at item ${i + 1}: ${insertErr.message}`);
         }
 
         if (inserted) {
@@ -302,18 +312,17 @@ export async function POST(req: Request) {
       const batch = questions.slice(i, i + BATCH_SIZE);
       const rows = batch.map((q: any, idx: number) => {
         const cleanText = q.question_text?.trim() || '';
-        const taggedText = targetSubjectId ? encodeSubjectTag(cleanText, targetSubjectId) : cleanText;
+        const taggedExplanation = encodeSubjectTag(q.explanation?.trim() || '', targetSubjectId);
 
         return {
           test_id: createdTestId,
-          subject_id: targetSubjectId,
-          question_text: taggedText,
+          question_text: cleanText,
           option_a: q.option_a?.trim() || '',
           option_b: q.option_b?.trim() || '',
           option_c: q.option_c?.trim() || '',
           option_d: q.option_d?.trim() || '',
           correct_option: q.correct_option || 'A',
-          explanation: q.explanation?.trim() || null,
+          explanation: taggedExplanation || null,
           marks: Number(q.marks) || marksPerCorrect,
           negative_marks: Number(q.negative_marks) || negMarks,
           language: q.language || testLanguage,
@@ -323,10 +332,21 @@ export async function POST(req: Request) {
         };
       });
 
-      const { data: inserted, error: insertErr } = await admin
+      let { data: inserted, error: insertErr } = await admin
         .from('questions')
         .insert(rows)
         .select('id');
+
+      if (insertErr && insertErr.message?.includes('subject_id')) {
+        const fallbackRows = rows.map((r: any) => {
+          const copy = { ...r };
+          delete copy.subject_id;
+          return copy;
+        });
+        const retry = await admin.from('questions').insert(fallbackRows).select('id');
+        inserted = retry.data;
+        insertErr = retry.error;
+      }
 
       if (insertErr) {
         console.error(`Failed to insert questions batch ${i}:`, insertErr);

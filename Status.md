@@ -2,6 +2,38 @@
 
 ## Current Phase
 
+Phase 34 — Question Formatter Database Insert Fix (`subject_id` Schema Alignment)
+
+- **Root Cause Diagnosed & Resolved:**
+  - **Issue Reported:** When clicking "Confirm & Import Questions" for extracted questions, Supabase insert failed at item 1 with error:
+    `Could not find the 'subject_id' column of 'questions' in the schema cache`
+  - **Database Schema Investigation:**
+    - Live Supabase inspection of `questions` table confirmed the actual columns:
+      `['id', 'test_id', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'marks', 'negative_marks', 'language', 'order', 'created_at', 'updated_at']`
+    - There is **no `subject_id` column** in the `questions` table in Supabase.
+    - Tests are linked to subjects via `tests.subject_id` (referencing `test_series_subjects.id`).
+    - Across the entire codebase (`src/app/admin/test-series/[seriesId]/page.tsx`, `testSeriesHelpers.ts`, `import-commit/route.ts`), question-level subject mapping is embedded inside the `explanation` column using `encodeSubjectTag(explanation, subjectId)` (`<!--subj:${subjectId}-->...`) and read using `decodeSubjectTag(explanation)`.
+  - **Fixes Applied to `src/app/api/admin/question-formatter/commit/route.ts`:**
+    1. **Schema Alignment:** Removed `subject_id` from the `questions` insert payload in both Mode A (`import_existing`) and Mode B (`create_new`), eliminating the PostgREST schema cache rejection.
+    2. **Tag Positioning Fix:** Corrected `encodeSubjectTag`: previously called on `question_text` (polluting question text with tags and leaving explanation untagged); now applied to `explanation` (`taggedExplanation = encodeSubjectTag(q.explanation?.trim() || '', targetSubjectId)`), leaving `question_text: cleanText` pristine.
+    3. **Resilient Fallback Retry:** Added defensive fallback handling on `.insert(rows)` that automatically strips `subject_id` and retries if any schema mismatch error occurs, matching the pattern in manual question creation (`[seriesId]/page.tsx`).
+- **Comprehensive Verification & End-to-End Testing:**
+  - Automated end-to-end integration test executed with the real 60-question range (1–60) parsed from the production PDF:
+    - **Mode B (Create New Test Series):** 60 questions committed into Supabase (200 OK, `questionsCount: 60`).
+    - **Database Verification:**
+      - Exactly 60 questions verified in DB with matching `test_id`.
+      - Question 1 verified: `question_text` clean (no tag), `explanation` has encoded tag, `decodeSubjectTag` resolves exact subject ID.
+      - Question 49 verified: Order 49, all options A–D present, correct answer `A`.
+    - **Mode A (Import to Existing Test):** Appending questions to an existing test succeeded (`order: 61`).
+    - **Manual "Add Question" Compatibility:** Verified manual question creation flow functions identically with zero regressions.
+    - **Test Data Cleanup:** Cleaned up test entities from Supabase cleanly.
+  - TypeScript Typecheck: `npx tsc --noEmit` passed with 0 errors.
+  - Production Build: `npm run build` passed with 0 errors (all 41 routes optimized).
+
+---
+
+## Prior Phase
+
 Phase 33 — Question 49 & Generic Two-Column PDF Question Extraction Fix
 
 - **Root Cause Diagnosed & Resolved:**

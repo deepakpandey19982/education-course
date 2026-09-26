@@ -34,9 +34,22 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 33)
+## Latest Production Status & Updates (Phase 34)
 
-- **Question 49 & Generic Two-Column PDF Question Extraction Fix:**
+- **Question Formatter Database Insert Fix (`subject_id` Schema Alignment):**
+  - **Root Cause:** In Supabase, the `questions` table schema does not contain a `subject_id` column (it uses `'id', 'test_id', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'marks', 'negative_marks', 'language', 'order', 'created_at', 'updated_at'`). Subject associations are stored at the test level (`tests.subject_id`) and at the question level via encoded tags in `explanation` (`encodeSubjectTag` / `decodeSubjectTag`). Attempting to insert `subject_id` in `questions` caused PostgREST error: `Could not find the 'subject_id' column of 'questions' in the schema cache`.
+  - **Schema Alignment:**
+    - Cleaned `question_text` of accidental tags.
+    - Encoded subject tag into `explanation` (`<!--subj:${subjectId}-->`).
+    - Removed `subject_id` from rows insert payload in both `import_existing` and `create_new` modes in `src/app/api/admin/question-formatter/commit/route.ts`.
+    - Added automated schema-fallback retry for maximum robustness.
+  - **Verification:**
+    - Real 60-question PDF extraction and commit test: All 60 questions committed with status 200 OK.
+    - DB verification: Exactly 60 questions, clean `question_text`, valid options A-D, valid answers, and subject tags correctly resolved via `decodeSubjectTag`.
+    - Manual question creation compatibility: 100% verified.
+  - **Quality Gates:** `npx tsc --noEmit` code 0 (0 errors), `npm run build` code 0 (41 routes optimized).
+
+## Phase 33 — Question 49 & Generic Two-Column PDF Question Extraction Fix
   - **Font Transliteration Ligature Bleed Fixed:** Question 48 option (d) in KrutiDev 010 font contained `fpÉ` (`चिह्न`). Transliteration library erroneously mapped `É` to `र्fa`, shifting a short-i matra across the newline to bleed `िं` before Question 49's number (`िं49.`). Pre-processed ligatures (`fpÉ` -> `चिह्न`, `É` -> `ह्न`, `ÉLo` -> `ह्रस्व`) and stripped leading non-spacing vowel signs/combining marks.
   - **KrutiDev Period Character Normalization:** Mapped KrutiDev period artifacts `(\d{1,5})ण्` to `$1.` and added `ण्`, `|`, `।`, and `]` to valid question delimiters, restoring questions `84ण्`, `91ण्`, and `111ण्`.
   - **Table of Contents Exclusion:** Excluded Table of Contents index lines via `isTableOfContentsLine()`, eliminating phantom question duplicates.
