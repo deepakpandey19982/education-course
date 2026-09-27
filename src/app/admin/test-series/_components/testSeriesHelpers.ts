@@ -2,17 +2,83 @@ import { supabase } from '@/lib/supabase';
 import type { TestSeries, TestSeriesSubject, Test, Question } from '@/types/supabase';
 
 export function encodeSubjectTag(explanation: string | null | undefined, subjectId: string | null | undefined): string {
-  const cleanExp = (explanation || '').replace(/<!--subj:[a-f0-9-]+-->/gi, '').trim();
+  const cleanExp = (explanation || '')
+    .replace(/<!--subj:[a-f0-9-]+-->/gi, '')
+    .replace(/<!--qimg:[^>]+-->/gi, '')
+    .replace(/<!--opt_[a-d]_img:[^>]+-->/gi, '')
+    .trim();
   if (!subjectId) return cleanExp;
   return `<!--subj:${subjectId}-->${cleanExp}`;
 }
 
-export function decodeSubjectTag(explanation: string | null | undefined): { subjectId: string | null; cleanExplanation: string } {
-  if (!explanation) return { subjectId: null, cleanExplanation: '' };
+export function encodeQuestionExplanation(
+  explanation: string | null | undefined,
+  meta: {
+    subjectId?: string | null;
+    questionImageUrl?: string | null;
+    optionAImageUrl?: string | null;
+    optionBImageUrl?: string | null;
+    optionCImageUrl?: string | null;
+    optionDImageUrl?: string | null;
+  }
+): string {
+  const cleanExp = (explanation || '')
+    .replace(/<!--subj:[a-f0-9-]+-->/gi, '')
+    .replace(/<!--qimg:[^>]+-->/gi, '')
+    .replace(/<!--opt_[a-d]_img:[^>]+-->/gi, '')
+    .trim();
+
+  let tags = '';
+  if (meta.subjectId) tags += `<!--subj:${meta.subjectId}-->`;
+  if (meta.questionImageUrl) tags += `<!--qimg:${meta.questionImageUrl}-->`;
+  if (meta.optionAImageUrl) tags += `<!--opt_a_img:${meta.optionAImageUrl}-->`;
+  if (meta.optionBImageUrl) tags += `<!--opt_b_img:${meta.optionBImageUrl}-->`;
+  if (meta.optionCImageUrl) tags += `<!--opt_c_img:${meta.optionCImageUrl}-->`;
+  if (meta.optionDImageUrl) tags += `<!--opt_d_img:${meta.optionDImageUrl}-->`;
+
+  return `${tags}${cleanExp}`;
+}
+
+export function decodeSubjectTag(explanation: string | null | undefined): {
+  subjectId: string | null;
+  questionImageUrl?: string | null;
+  optionAImageUrl?: string | null;
+  optionBImageUrl?: string | null;
+  optionCImageUrl?: string | null;
+  optionDImageUrl?: string | null;
+  cleanExplanation: string;
+} {
+  if (!explanation) {
+    return {
+      subjectId: null,
+      questionImageUrl: null,
+      optionAImageUrl: null,
+      optionBImageUrl: null,
+      optionCImageUrl: null,
+      optionDImageUrl: null,
+      cleanExplanation: '',
+    };
+  }
   const match = explanation.match(/<!--subj:([a-f0-9-]+)-->/i);
-  const cleanExplanation = explanation.replace(/<!--subj:[a-f0-9-]+-->/gi, '').trim();
+  const qImgMatch = explanation.match(/<!--qimg:([^\s>]+)-->/i);
+  const optAMatch = explanation.match(/<!--opt_a_img:([^\s>]+)-->/i);
+  const optBMatch = explanation.match(/<!--opt_b_img:([^\s>]+)-->/i);
+  const optCMatch = explanation.match(/<!--opt_c_img:([^\s>]+)-->/i);
+  const optDMatch = explanation.match(/<!--opt_d_img:([^\s>]+)-->/i);
+
+  const cleanExplanation = explanation
+    .replace(/<!--subj:[a-f0-9-]+-->/gi, '')
+    .replace(/<!--qimg:[^>]+-->/gi, '')
+    .replace(/<!--opt_[a-d]_img:[^>]+-->/gi, '')
+    .trim();
+
   return {
     subjectId: match ? match[1] : null,
+    questionImageUrl: qImgMatch ? qImgMatch[1] : null,
+    optionAImageUrl: optAMatch ? optAMatch[1] : null,
+    optionBImageUrl: optBMatch ? optBMatch[1] : null,
+    optionCImageUrl: optCMatch ? optCMatch[1] : null,
+    optionDImageUrl: optDMatch ? optDMatch[1] : null,
     cleanExplanation,
   };
 }

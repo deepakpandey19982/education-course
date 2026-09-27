@@ -293,3 +293,102 @@ export function stripQuestionAnswers(question: Record<string, unknown>) {
   delete safeQuestion.explanation;
   return safeQuestion;
 }
+
+/**
+ * Resiliently inserts questions into Supabase, automatically adapting to schema
+ * variations (e.g. missing subject_id or image_url columns in older migrations)
+ * without throwing schema cache errors.
+ */
+export async function insertQuestionRowsWithFallback(
+  admin: SupabaseClient,
+  rawRows: Array<Record<string, any>>
+): Promise<Array<{ id: string }>> {
+  if (!rawRows || rawRows.length === 0) return [];
+
+  const OPTIONAL_COLUMNS = [
+    'subject_id',
+    'question_image_url',
+    'option_a_image_url',
+    'option_b_image_url',
+    'option_c_image_url',
+    'option_d_image_url',
+  ];
+
+  const unsupportedColumns = new Set<string>();
+  const CHUNK_SIZE = 50;
+  const allInserted: Array<{ id: string }> = [];
+
+  for (let i = 0; i < rawRows.length; i += CHUNK_SIZE) {
+    const chunk = rawRows.slice(i, i + CHUNK_SIZE);
+    let currentRows = chunk.map((r) => {
+      const copy: Record<string, any> = { ...r };
+      for (const col of unsupportedColumns) {
+        delete copy[col];
+      }
+      return copy;
+    });
+
+    while (true) {
+      let { data, error } = await admin
+        .from('questions')
+        .insert(currentRows)
+        .select('id');
+
+      if (!error) {
+        if (data && Array.isArray(data)) {
+          allInserted.push(...data);
+        }
+        break; // chunk succeeded
+      }
+
+      // Check if error is due to a missing column in schema cache
+      const match = error.message?.match(/Could not find the '([^']+)' column of 'questions' in the schema cache/i);
+      const missingCol = match ? match[1] : null;
+
+      if (missingCol && OPTIONAL_COLUMNS.includes(missingCol)) {
+        unsupportedColumns.add(missingCol);
+        for (const row of currentRows) {
+          delete row[missingCol];
+        }
+        continue;
+      }
+
+      // Fallback check: if message mentions any optional column
+      let removedAny = false;
+      for (const col of OPTIONAL_COLUMNS) {
+        if (error.message?.includes(col)) {
+          unsupportedColumns.add(col);
+          for (const row of currentRows) {
+            delete row[col];
+          }
+          removedAny = true;
+        }
+      }
+
+      if (removedAny) {
+        continue;
+      }
+
+      // If still failing and any optional column is present, strip ALL optional columns as final recovery
+      const hasAnyOptional = currentRows.some((r) =>
+        OPTIONAL_COLUMNS.some((col) => r[col] !== undefined)
+      );
+      if (hasAnyOptional) {
+        for (const col of OPTIONAL_COLUMNS) {
+          unsupportedColumns.add(col);
+        }
+        for (const row of currentRows) {
+          for (const col of OPTIONAL_COLUMNS) {
+            delete row[col];
+          }
+        }
+        continue;
+      }
+
+      console.error('Fatal question insert error:', error);
+      throw new Error(`Database insert failed: ${error.message}`);
+    }
+  }
+
+  return allInserted;
+}

@@ -2,12 +2,46 @@
 
 ## Current Phase
 
-Phase 43 — Fraction Preservation and False Diagram Detection Prevention
+Phase 44 — Question Import Database Schema Alignment & Resilient Batch Ingestion
 
 - **Summary of Problem & Root Cause:**
-  1. *Fractions / Numerical Expressions Lost (e.g. Q86):* In `86. MK : 169/121 :: JH : ?`, the fraction `169/121` was dropped entirely, showing `MK :: JH : ?`. In the PDF text layer, vertically stacked fractions have numerator `169` positioned at `y ≈ 684.9`, baseline `MK : :: JH : ?` at `y ≈ 678.5`, and denominator `121` at `y ≈ 670.6`. Because `yDiff > 3.5`, they were split onto separate visual lines and eliminated by noise filters as isolated numbers.
-  2. *False "Diagram MCQ" Detection (e.g. Q95):* Q95 is a normal text question with words `1. Necrology 2. Necromancy 3. Necropolis 4. Necrophilia`. The parser falsely marked it as "Diagram MCQ" with a small page/image crop and dropped the numbered words. The numbered items `1. ... 2. ...` triggered option detection, which overwrote options and created a visual vertical gap (`qGap >= 45`) between question text and options that was mistakenly treated as a diagram drawing.
-  3. *Distinguish Real Diagrams from Text:* Real diagram questions (Q93 circle puzzle, Q94 matrix, Q104, Q107 dice, Q114, Q115) contain genuine visual figures/drawings and must retain their images, whereas normal text questions (Q83, Q86, Q95, Q96) must never receive a fake page/image crop or "Diagram MCQ" badge.
+  1. *Schema Cache Error on Import Commit:* When importing questions from Smart Question Import preview via `handleCommitImport` in `ImportQuestionsModal.tsx`, the API `/api/admin/test-series/import-commit` threw `Database insert failed: Could not find the 'subject_id' column of 'questions' in the schema cache`.
+  2. *Investigation of Existing DB Architecture:*
+     - The Postgres `questions` table in Supabase contains: `id`, `test_id`, `question_text`, `option_a`, `option_b`, `option_c`, `option_d`, `correct_option`, `explanation`, `marks`, `negative_marks`, `language`, `order`, `created_at`, `updated_at`.
+     - In the project's established database architecture, `subject_id` is tracked on the `tests` table (`tests.subject_id`) and multi-subject test scoping is encoded in `tests.instructions` (`<!--subjects:[...]-->`), while question-to-subject association is encoded inside `questions.explanation` (`<!--subj:${subjectId}-->`).
+     - Neither `subject_id` nor the `*_image_url` columns exist in the active PostgREST schema cache of `questions`.
+  3. *Flawed Fallback Logic in Commit API:* In `/api/admin/test-series/import-commit/route.ts`, the fallback caught the first missing column error (`option_a_image_url`) and only stripped `image_url` columns from `fallbackChunk`, retaining `subject_id`. On retry, PostgREST failed with `Could not find the 'subject_id' column...`, throwing an unhandled error. Furthermore, `tests.update({ subject_ids: [...] })` failed because `subject_ids` is also not a physical column on `tests`.
+
+- **Architectural Fixes Implemented:**
+  1. **Resilient Ingestion Helper (`src/lib/test-series-server.ts`):**
+     - Implemented `insertQuestionRowsWithFallback(admin, rawRows)`.
+     - Dynamically probes missing columns from PostgREST schema cache error messages (`subject_id`, `question_image_url`, `option_a_image_url` through `option_d_image_url`), purges unsupported columns cleanly, and retries in a resilient loop.
+     - Caches stripped column names per batch so subsequent chunks insert on the first try without redundant errors.
+     - Reused across all import routes: `import-commit/route.ts`, `create-from-pdf/commit/route.ts`, and `question-formatter/commit/route.ts`.
+  2. **Metadata Tag Encoding & Decoding (`src/app/admin/test-series/_components/testSeriesHelpers.ts`):**
+     - Added `encodeQuestionExplanation(explanation, meta)`: encodes both subject ID (`<!--subj:...-->`) and diagram/option image URLs (`<!--qimg:...-->`, `<!--opt_*_img:...-->`) into `explanation` so no visual or relational data is lost even if physical DB columns are absent.
+     - Enhanced `decodeSubjectTag(explanation)`: parses subject ID, question image, and option images, while stripping all tags from `cleanExplanation` so students viewing solutions never see metadata tokens.
+     - Updated `src/app/api/tests/[testId]/attempt/route.ts` and `src/app/api/test-attempts/[attemptId]/result/route.ts` to decode images and clean explanations.
+  3. **Resilient Test Configuration Update (`import-commit/route.ts`):**
+     - Updates `tests.instructions` with `encodeTestSubjectsTag` and catches `subject_ids` column absence with clean fallback.
+     - Populates `tests.subject_id` with the primary imported subject ID if null.
+  4. **Database Migration File (`supabase/migrations/20260927_question_import_schema_alignment.sql`):**
+     - Added consolidated, idempotent migration file for `subject_id`, `*_image_url`, and `tests.subject_ids` columns and indexes for future Supabase SQL runner / CLI migrations.
+
+- **Verification & Testing Results:**
+  - **Exact Target Case (Questions 81–120):**
+    - Parsed from original PDF: exactly 40 questions found, 40 Valid, 0 Needs Review.
+    - Verified Q83 (`624 : 426 :: 745 : ?`), Q86 (`MK : 169/121 :: JH : ?`), Q95 (clean text MCQ, 0 images), Q100 (duplicate options A/B पुत्र valid).
+    - Executed import commit against Supabase: all 40 questions successfully inserted into the `questions` table!
+    - Verified database query: exactly 40 rows retrieved and confirmed in Supabase.
+  - **Quality Gates:**
+    - TypeScript Typecheck (`npx tsc --noEmit`): 0 errors.
+    - Production Build (`npm run build`): Succeeded (41 static/dynamic pages compiled).
+    - Regression Suites (`scripts/test-smart-parser.ts`): 100% PASS.
+
+---
+
+## Prior Phase (Phase 43)
 
 - **Architectural Fixes Implemented:**
   1. **Stacked Fraction Reconstruction (`src/lib/question-parser/pdf-parser.ts`):**

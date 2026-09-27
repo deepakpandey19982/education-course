@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
-import { encodeSubjectTag, encodeTestSubjectsTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
+import { getRequestUser, getSupabaseAdmin, insertQuestionRowsWithFallback } from '@/lib/test-series-server';
+import { encodeSubjectTag, encodeQuestionExplanation, encodeTestSubjectsTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +81,14 @@ export async function POST(req: Request) {
           const matchedSub = subList.find((s) => s.name.toLowerCase() === (q.subject_name || '').toLowerCase());
           const qSubId = q.subject_id || matchedSub?.id || defaultSubId;
           const cleanText = q.question_text?.trim() || '';
-          const taggedExplanation = encodeSubjectTag(q.explanation?.trim() || '', qSubId);
+          const taggedExplanation = encodeQuestionExplanation(q.explanation?.trim() || '', {
+            subjectId: qSubId,
+            questionImageUrl: q.question_image_url || null,
+            optionAImageUrl: q.option_a_image_url || null,
+            optionBImageUrl: q.option_b_image_url || null,
+            optionCImageUrl: q.option_c_image_url || null,
+            optionDImageUrl: q.option_d_image_url || null,
+          });
 
           return {
             test_id: testId,
@@ -106,34 +113,7 @@ export async function POST(req: Request) {
           };
         });
 
-        let { data: inserted, error: insertErr } = await admin
-          .from('questions')
-          .insert(rows)
-          .select('id');
-
-        if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
-          const fallbackRows = rows.map((r: any) => {
-            const copy = { ...r };
-            if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
-            if (insertErr?.message?.includes('image_url')) {
-              delete copy.question_image_url;
-              delete copy.option_a_image_url;
-              delete copy.option_b_image_url;
-              delete copy.option_c_image_url;
-              delete copy.option_d_image_url;
-            }
-            return copy;
-          });
-          const retry = await admin.from('questions').insert(fallbackRows).select('id');
-          inserted = retry.data;
-          insertErr = retry.error;
-        }
-
-        if (insertErr) {
-          console.error('Batch insert error in import_existing:', insertErr);
-          throw new Error(`Failed inserting questions at item ${i + 1}: ${insertErr.message}`);
-        }
-
+        const inserted = await insertQuestionRowsWithFallback(admin, rows);
         if (inserted) {
           insertedQuestionIds.push(...inserted.map((r) => r.id));
         }
@@ -324,7 +304,14 @@ export async function POST(req: Request) {
       const batch = questions.slice(i, i + BATCH_SIZE);
       const rows = batch.map((q: any, idx: number) => {
         const cleanText = q.question_text?.trim() || '';
-        const taggedExplanation = encodeSubjectTag(q.explanation?.trim() || '', targetSubjectId);
+        const taggedExplanation = encodeQuestionExplanation(q.explanation?.trim() || '', {
+          subjectId: targetSubjectId,
+          questionImageUrl: q.question_image_url || null,
+          optionAImageUrl: q.option_a_image_url || null,
+          optionBImageUrl: q.option_b_image_url || null,
+          optionCImageUrl: q.option_c_image_url || null,
+          optionDImageUrl: q.option_d_image_url || null,
+        });
 
         return {
           test_id: createdTestId,
@@ -349,34 +336,7 @@ export async function POST(req: Request) {
         };
       });
 
-      let { data: inserted, error: insertErr } = await admin
-        .from('questions')
-        .insert(rows)
-        .select('id');
-
-      if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
-        const fallbackRows = rows.map((r: any) => {
-          const copy = { ...r };
-          if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
-          if (insertErr?.message?.includes('image_url')) {
-            delete copy.question_image_url;
-            delete copy.option_a_image_url;
-            delete copy.option_b_image_url;
-            delete copy.option_c_image_url;
-            delete copy.option_d_image_url;
-          }
-          return copy;
-        });
-        const retry = await admin.from('questions').insert(fallbackRows).select('id');
-        inserted = retry.data;
-        insertErr = retry.error;
-      }
-
-      if (insertErr) {
-        console.error(`Failed to insert questions batch ${i}:`, insertErr);
-        throw new Error(`Failed inserting questions at item ${i + 1}: ${insertErr.message}`);
-      }
-
+      const inserted = await insertQuestionRowsWithFallback(admin, rows);
       if (inserted) {
         insertedIds.push(...inserted.map((r) => r.id));
       }

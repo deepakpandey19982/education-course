@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
-import { encodeSubjectTag, encodeTestSubjectsTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
+import { getRequestUser, getSupabaseAdmin, insertQuestionRowsWithFallback } from '@/lib/test-series-server';
+import { encodeSubjectTag, encodeQuestionExplanation, encodeTestSubjectsTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
 import type { CreateSeriesFromPdfCommitPayload } from '@/lib/question-parser/types';
 
 export const dynamic = 'force-dynamic';
@@ -196,7 +196,14 @@ export async function POST(req: Request) {
     // Step 4: Insert All Questions into this Test
     // -------------------------------------------------------------
     const rowsToInsert = questions.map((q, idx) => {
-      const taggedExplanation = encodeSubjectTag(q.explanation || '', targetSubjectId);
+      const taggedExplanation = encodeQuestionExplanation(q.explanation || '', {
+        subjectId: targetSubjectId,
+        questionImageUrl: q.question_image_url || null,
+        optionAImageUrl: q.option_a_image_url || null,
+        optionBImageUrl: q.option_b_image_url || null,
+        optionCImageUrl: q.option_c_image_url || null,
+        optionDImageUrl: q.option_d_image_url || null,
+      });
 
       return {
         test_id: testId,
@@ -222,37 +229,8 @@ export async function POST(req: Request) {
       };
     });
 
-    const CHUNK_SIZE = 50;
-    let insertedCount = 0;
-
-    for (let i = 0; i < rowsToInsert.length; i += CHUNK_SIZE) {
-      const chunk = rowsToInsert.slice(i, i + CHUNK_SIZE);
-      let { error: insertErr } = await admin.from('questions').insert(chunk);
-
-      if (insertErr && (insertErr.message?.includes('subject_id') || insertErr.message?.includes('image_url'))) {
-        const fallbackChunk = chunk.map((c: any) => {
-          const copy: any = { ...c };
-          if (insertErr?.message?.includes('subject_id')) delete copy.subject_id;
-          if (insertErr?.message?.includes('image_url')) {
-            delete copy.question_image_url;
-            delete copy.option_a_image_url;
-            delete copy.option_b_image_url;
-            delete copy.option_c_image_url;
-            delete copy.option_d_image_url;
-          }
-          return copy;
-        });
-        const retry = await admin.from('questions').insert(fallbackChunk);
-        insertErr = retry.error;
-      }
-
-      if (insertErr) {
-        console.error('Failed to insert question batch:', insertErr);
-        throw new Error(`Database question insert failed: ${insertErr.message}`);
-      }
-
-      insertedCount += chunk.length;
-    }
+    const insertedRows = await insertQuestionRowsWithFallback(admin, rowsToInsert);
+    const insertedCount = insertedRows.length > 0 ? insertedRows.length : rowsToInsert.length;
 
     return NextResponse.json({
       success: true,

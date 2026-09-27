@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestUser, getSupabaseAdmin } from '@/lib/test-series-server';
+import { decodeSubjectTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,11 +58,30 @@ export async function GET(
 
     const answersByQuestion = new Map((answers ?? []).map((answer) => [answer.question_id, answer]));
     const analysis = (questions as any[]).map((question: any) => {
-      const cleanExplanation = question.explanation
-        ? question.explanation.replace(/<!--subj:[a-f0-9-]+-->/gi, '').trim()
-        : null;
+      let qImg = question.question_image_url || null;
+      let optAImg = question.option_a_image_url || null;
+      let optBImg = question.option_b_image_url || null;
+      let optCImg = question.option_c_image_url || null;
+      let optDImg = question.option_d_image_url || null;
+      let cleanExplanation = question.explanation;
+
+      if (typeof question.explanation === 'string') {
+        const decoded = decodeSubjectTag(question.explanation);
+        cleanExplanation = decoded.cleanExplanation;
+        if (!qImg && decoded.questionImageUrl) qImg = decoded.questionImageUrl;
+        if (!optAImg && decoded.optionAImageUrl) optAImg = decoded.optionAImageUrl;
+        if (!optBImg && decoded.optionBImageUrl) optBImg = decoded.optionBImageUrl;
+        if (!optCImg && decoded.optionCImageUrl) optCImg = decoded.optionCImageUrl;
+        if (!optDImg && decoded.optionDImageUrl) optDImg = decoded.optionDImageUrl;
+      }
+
       return {
         ...question,
+        question_image_url: qImg,
+        option_a_image_url: optAImg,
+        option_b_image_url: optBImg,
+        option_c_image_url: optCImg,
+        option_d_image_url: optDImg,
         explanation: cleanExplanation || null,
         answer: answersByQuestion.get(question.id) ?? null,
       };

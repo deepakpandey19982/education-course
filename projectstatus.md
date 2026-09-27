@@ -34,7 +34,17 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 43)
+## Latest Production Status & Updates (Phase 44)
+
+- **Question Import Database Schema Alignment & Resilient Batch Ingestion:**
+  - **Feature Overview:** Fixed database schema mismatch during question import (`Could not find the 'subject_id' column of 'questions' in the schema cache`). Aligned import commit APIs with the project's existing database architecture and implemented adaptive schema handling.
+  - **Schema Architecture Alignment:** In the established Supabase architecture, question-to-subject associations are encoded within `questions.explanation` (`<!--subj:${subjectId}-->`), while test-level subject scoping is tracked on `tests.subject_id` and `tests.instructions` (`<!--subjects:[...]-->`). Neither `subject_id` nor the `*_image_url` columns are active columns in the PostgREST schema cache.
+  - **Resilient Batch Insertion Helper:** Added `insertQuestionRowsWithFallback` in `src/lib/test-series-server.ts`. Automatically detects missing optional columns from PostgREST errors, safely strips them from the batch, and retries in a robust loop. Caches stripped columns so subsequent batches insert on the first attempt without schema cache errors.
+  - **Metadata Tag Encoding & Decoding:** Updated `encodeQuestionExplanation` and `decodeSubjectTag` in `testSeriesHelpers.ts` to preserve both subject ID and diagram/option images in `explanation`. Updated attempt and result endpoints (`/api/tests/[testId]/attempt` and `/api/test-attempts/[attemptId]/result`) to decode images and clean explanations for students.
+  - **Migration File:** Added `supabase/migrations/20260927_question_import_schema_alignment.sql` to provide complete DDL alignment for `questions` and `tests` tables.
+  - **Verification:** Tested exact case with Questions 81–120: 40 questions parsed, 40 valid, 0 needs review. Committed all 40 questions to Supabase; verified 40 questions persisted and retrieved cleanly. TypeScript passed (0 errors) and production build succeeded.
+
+## Prior Phase (Phase 43)
 
 - **Fraction Preservation and False Diagram Detection Prevention:**
   - **Feature Overview:** Solved two critical PDF extraction issues: preserving fractions/numerical expressions (e.g. Q86 `MK : 169/121 :: JH : ?`) without dropping stacked numbers, and eliminating false "Diagram MCQ" detection on normal text questions (e.g. Q95 numbered sequence items).

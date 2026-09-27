@@ -5,7 +5,7 @@ import {
   getSupabaseAdmin,
   stripQuestionAnswers,
 } from '@/lib/test-series-server';
-import { resolveTestSubjectIds } from '@/app/admin/test-series/_components/testSeriesHelpers';
+import { resolveTestSubjectIds, decodeSubjectTag } from '@/app/admin/test-series/_components/testSeriesHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,15 +175,31 @@ export async function POST(
 
     const mappedQuestions = (questions ?? []).map((q: any) => {
       let subjId = q.subject_id;
-      if (!subjId && typeof q.explanation === 'string') {
-        const match = q.explanation.match(/<!--subj:([a-f0-9-]+)-->/i);
-        if (match) subjId = match[1];
+      let qImg = q.question_image_url || null;
+      let optAImg = q.option_a_image_url || null;
+      let optBImg = q.option_b_image_url || null;
+      let optCImg = q.option_c_image_url || null;
+      let optDImg = q.option_d_image_url || null;
+
+      if (typeof q.explanation === 'string') {
+        const decoded = decodeSubjectTag(q.explanation);
+        if (!subjId && decoded.subjectId) subjId = decoded.subjectId;
+        if (!qImg && decoded.questionImageUrl) qImg = decoded.questionImageUrl;
+        if (!optAImg && decoded.optionAImageUrl) optAImg = decoded.optionAImageUrl;
+        if (!optBImg && decoded.optionBImageUrl) optBImg = decoded.optionBImageUrl;
+        if (!optCImg && decoded.optionCImageUrl) optCImg = decoded.optionCImageUrl;
+        if (!optDImg && decoded.optionDImageUrl) optDImg = decoded.optionDImageUrl;
       }
       subjId = subjId || testMeta.subject_id || orderedSubjects[0]?.id || null;
 
       return {
         ...stripQuestionAnswers(q),
         subject_id: subjId,
+        question_image_url: qImg,
+        option_a_image_url: optAImg,
+        option_b_image_url: optBImg,
+        option_c_image_url: optCImg,
+        option_d_image_url: optDImg,
       };
     });
 
