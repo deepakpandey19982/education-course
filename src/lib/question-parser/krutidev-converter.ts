@@ -126,6 +126,12 @@ export function convertKrutiDevToUnicode(rawText: string): string {
     // In KrutiDev, period '.' typed on English keyboard converts to 'ण्'.
     // Restore question numbering like "84ण्", "91ण्", "111ण्" to "84.", "91.", "111."
     .replace(/(\d{1,5})ण्/g, '$1.')
+    // In KrutiDev font, '%' was used for ':' (ratio) and '%%' / '% %' for '::' (proportion) in reasoning questions
+    // e.g. 624 ः 426 ः ः 745 ः ? -> 624 : 426 :: 745 : ?
+    .replace(/ः\s*ः/g, '::')
+    .replace(/([0-9a-zA-Z\?]+)\s*ः\s*([0-9a-zA-Z\?]+)/g, '$1 : $2')
+    .replace(/([0-9a-zA-Z]+)\s*ः\s*(\?)/g, '$1 : $2')
+    .replace(/(\?)\s*ः\s*([0-9a-zA-Z]+)/g, '$1 : $2')
     // Clean any stray combining marks / vowel signs that precede a question number at line start
     .replace(/(?:^|\n)[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963]+(\d{1,5})/g, '\n$1');
 

@@ -34,7 +34,18 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 41)
+## Latest Production Status & Updates (Phase 42)
+
+- **Punctuation Preservation, Left/Right Diagram Layout Extraction, and Option Validation:**
+  - **Feature Overview:** Hardened parser and extraction pipeline to address real exam PDF nuances: duplicate option values (valid per source PDF), colons and proportion punctuation (`:`, `::`), left-column diagram detection (Q114), OCR noise elimination on diagram questions (Q107), and image options.
+  - **Duplicate Option Validation:** Disabled "Duplicate option values detected" validation failure in `src/lib/question-parser/text-extractor.ts`. Original options A, B, C, D are preserved exactly as extracted, and questions with duplicate options (e.g. Q100) are treated as valid.
+  - **Punctuation & Colon Preservation:** Implemented `normalizeColonAndPunctuation` in `pdf-parser.ts` and enhanced `krutidev-converter.ts` & `text-extractor.ts` to preserve `:` and `::` punctuation without turning them into visarga `ः` or ellipses (e.g. `83. 624 : 426 :: 745 : ?`).
+  - **Left-Column & Cross-Column Diagram Association:** Enhanced `formatColumn` in `pdf-parser.ts` to support questions situated at the bottom of the left column whose diagram is at the column footer and options at the top of the right column (e.g. Q114). High-resolution canvas rendering crops the diagram and associates it with the correct question.
+  - **Diagram OCR Isolation:** Detects question sentence end boundary (`?`, `।`, etc.) in `pdf-parser.ts` and skips intermediate OCR noise lines (e.g. dice colors, figure letters) from being dumped into `question_text`.
+  - **Image Options Support:** Validates questions with diagram/image options (`option_x_image_url`), preventing false "Missing Option" errors when visual options are present.
+  - **Verification:** Verified Q83 (`624 : 426 :: 745 : ?`), Q100 (duplicate options A/B पुत्र valid), Q107 (clean question text, diagram image preserved), Q114 (left-column diagram preserved, 4 image options), Q104, Q115, Q93, Q94. Verified Q1–Q60 normal text questions (60/60 valid). All test suites passed. TypeScript passed (0 errors) and `npm run build` completed successfully.
+
+## Prior Phase (Phase 41)
 
 - **Multi-Column Layout & Diagram MCQ Extraction Pipeline Hardening:**
   - **Feature Overview:** Fixed layout parser and text extraction for mixed-layout Hindi PDFs, resolving inline multi-column options (Q87–92), boundary pollution from instruction blocks (Q86), and diagram question image extraction (Q93 circular number puzzle and Q94 numeric matrix).

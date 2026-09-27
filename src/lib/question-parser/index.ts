@@ -314,7 +314,7 @@ export async function parseQuestionFile(
     let isDuplicate = false;
 
     if (normText.length > 10) {
-      if (existingSet.has(normKey)) {
+      if (existingSet.has(normText) || existingSet.has(normKey)) {
         isDuplicate = true;
         issues.push('Possible duplicate of existing test question');
       } else if (seenInBatch.has(normKey)) {

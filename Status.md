@@ -2,9 +2,52 @@
 
 ## Current Phase
 
-Phase 41 — Multi-Column Layout and Diagram MCQ Extraction Pipeline Hardening
+Phase 42 — Punctuation Preservation, Left/Right Diagram Layout Extraction, and Option Validation
 
 - **Summary of Problem & Root Cause:**
+  1. *Duplicate Option Values:* Real exam PDFs (such as Question 100/20 with Options A. पुत्र, B. पुत्र, C. प्रपौत्र, D. पौत्री) naturally contain duplicate option text. The parser was falsely marking them as "Needs Review" with "Duplicate option values detected".
+  2. *Colon and Proportion Punctuation Loss:* In reasoning analogy questions such as `83. 624 : 426 :: 745 : ?`, KrutiDev `%` and `%%` characters were converted to Sanskrit visarga `ः` or normalized away as ellipsis, corrupting the question text.
+  3. *Left-Column Diagram Layout (e.g. Q114):* In two-column pages, questions near the bottom of `colLeft` with diagrams (and their options placed at the top of `colRight`) were missed or unassociated because the parser assumed question diagrams only appeared before options within the same column.
+  4. *Diagram OCR Noise Contamination (e.g. Q107):* Diagram text lines (such as dice face colors `dkyk yky gjk liQsn dkyk Hkwjk ihyk`, mirror lines `M`, `N`, etc.) were leaking into `question_text`.
+  5. *Diagram/Image Options:* Questions with visual diagram options (e.g. Q104, Q114) had empty text for options and needed full image option support (`option_a_image_url` through `option_d_image_url`).
+
+- **Architectural Fixes Implemented:**
+  1. **Duplicate Option Value Validation (`src/lib/question-parser/text-extractor.ts`):**
+     - Removed `validationIssues.push('Duplicate option values detected')`.
+     - Preserves options A, B, C, D exactly as extracted from the PDF without modification, deduplication, or false validation failures.
+  2. **Colon & Double-Colon Punctuation Preservation (`pdf-parser.ts`, `krutidev-converter.ts`, `text-extractor.ts`):**
+     - Added `normalizeColonAndPunctuation` in `pdf-parser.ts` to restore KrutiDev visarga/percent mappings (`replace(/ः\s*ः/g, '::')` and `replace(/([0-9a-zA-Z\?]+)\s*ः\s*([0-9a-zA-Z\?]+)/g, '$1 : $2')`).
+     - Added proportion `::` and colon `:` mappings in `krutidev-converter.ts`.
+     - Preserved exact `:` and `::` punctuation in `text-extractor.ts` line normalization.
+  3. **Left-Column and Cross-Column Diagram Association (`pdf-parser.ts` & `text-extractor.ts`):**
+     - Enhanced `formatColumn` in `pdf-parser.ts` to detect bottom-of-column questions in `colLeft` with diagram gaps. Crops diagram bounding box and injects `[[QUESTION_IMAGE:...]]`.
+     - Detects leading option diagrams at the top of `colRight` (`hasLeadingOptDiagram`) and emits `[[OPTIONS_DIAGRAM_IMAGE:...]]`.
+     - In `text-extractor.ts`, parsed `[[OPTION_A_IMAGE:...]]` through `[[OPTION_D_IMAGE:...]]` and `[[OPTIONS_DIAGRAM_IMAGE:...]]`, setting `is_image_based = true` and populating option image URLs.
+  4. **Diagram OCR Noise Isolation (`pdf-parser.ts` & `text-extractor.ts`):**
+     - In `pdf-parser.ts`, `formatColumn` tracks `qSentenceEndIdx` (identifying question ending punctuation `?`, `।`, etc.).
+     - Skips all intermediate diagram label OCR lines (e.g. `dkyk yky gjk...`, `M`, `N`) from question text and crops visual diagram instead.
+     - In `text-extractor.ts`, ignores diagram marker headers (`प्रश्न आकृति`, `उत्तर आकृतियाँ`, etc.) from being appended to `questionLines`.
+  5. **Validation Rules for Diagram Questions & Options (`text-extractor.ts` & `index.ts`):**
+     - A question is valid if it has valid question text + 4 options, OR question image + 4 options, OR question image + image/text options.
+     - Options with `option_x_image_url` are recognized as valid and not flagged as missing.
+  6. **Instruction Header Regex Hardening (`text-extractor.ts`):**
+     - Restrained `isInstLine` regex so standalone questions like `Q1.` or `4.` are not mistakenly matched as instruction boundaries.
+  7. **Duplicate Detection Hardening (`index.ts`):**
+     - Checks both `normText` and `normKey` against `existingSet` for accurate duplicate detection.
+
+- **Verification & Testing Results:**
+  - **Q83 (Analogy Punctuation):** Text extracted as `624 : 426 :: 745 : ?` with exact colons `U+003a` and double-colon `::` intact. Status: `valid`.
+  - **Q100 (Duplicate Options):** Extracted with Options A: पुत्र, B: पुत्र, C: प्रपौत्र, D: पौत्री. Status: `valid`, issues: `[]`.
+  - **Q107 (Right-Column Diagram):** Text extracted cleanly without OCR noise ("निम्नलिखित चित्रों में एक ही पासे की तीन विभिन्न स्थितियाँ दिखायी गई हैं। लाल पृष्ठ के विपरीत कौन-सा रंग होगा?"). Question diagram image preserved. Status: `valid`.
+  - **Q114 (Left-Column Diagram & Image Options):** Question diagram image extracted from left column. Options A–D have `[img: true]`. Status: `valid`.
+  - **Q93, Q94, Q104, Q115:** All diagrams and options extracted cleanly with status: `valid`.
+  - **Normal Hindi MCQ Suite (Q1–Q60):** 60/60 questions detected with 100% valid status, zero regression.
+  - **Smart Parser Engine Tests (`scripts/test-smart-parser.ts`):** Text parsing, 50-question Excel parsing, and duplicate detection tests all passed.
+  - **Build & Quality Gates:**
+    - `npx tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded (41 static/dynamic pages compiled).
+
+## Prior Phase (Phase 41)
   - In mixed-layout Hindi PDFs (e.g. Disha UP Police Practice Set), questions 87–92 formatted options in 2x2 grids: `87. (a) IKMO (b) ACEG` on line 1 and `(c) FHJL (d) TVWY` on line 2. The previous parser treated line 1 as question text and reported "Missing Option A" and "Missing Option B".
   - Section instruction headers such as `निर्देश (प्र.सं. 87–92): ...` leaked into the previous question's Option D (`(d) 100/64`) because JavaScript regex word boundary `\b` does not match after Devanagari characters (e.g. `श\b` fails before space).
   - Diagram questions (such as Question 93's circular number puzzle with 2, 3, 4, 8, 27, ? and Question 94's numeric matrix) were producing garbage OCR (e.g. `"\"`) as question text while missing the visual diagram.

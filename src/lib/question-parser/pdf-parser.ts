@@ -112,6 +112,16 @@ export function formatChemicalFormulas(line: string): string {
   );
 }
 
+// Preserves colon ':' and proportion '::' in analogy and reasoning questions (e.g. 624 : 426 :: 745 : ?)
+export function normalizeColonAndPunctuation(line: string): string {
+  return line
+    .replace(/ः\s*ः/g, '::')
+    .replace(/([0-9a-zA-Z\?]+)\s*ः\s*([0-9a-zA-Z\?]+)/g, '$1 : $2')
+    .replace(/([0-9a-zA-Z]+)\s*ः\s*(\?)/g, '$1 : $2')
+    .replace(/(\?)\s*ः\s*([0-9a-zA-Z]+)/g, '$1 : $2')
+    .replace(/\s*::\s*/g, ' :: ');
+}
+
 // Helper to extract embedded JPEG streams from raw PDF buffer if getImage has canvas restrictions
 function extractRawJpegsFromPdf(buffer: Buffer): Buffer[] {
   const images: Buffer[] = [];
@@ -251,7 +261,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
       const x = it.transform[4];
       if (currentY === null || Math.abs(currentY - y) > 3.5) {
         if (currentLine.length > 0) {
-          const l = formatChemicalFormulas(currentLine.join(' ').trim());
+          const l = normalizeColonAndPunctuation(formatChemicalFormulas(currentLine.join(' ').trim()));
           if (!isInstructionOrNoise(l)) {
             visualLines.push({ y: currentY!, text: l, items: currentItems });
           }
@@ -271,7 +281,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
       }
     }
     if (currentLine.length > 0) {
-      const l = formatChemicalFormulas(currentLine.join(' ').trim());
+      const l = normalizeColonAndPunctuation(formatChemicalFormulas(currentLine.join(' ').trim()));
       if (!isInstructionOrNoise(l)) {
         visualLines.push({ y: currentY!, text: l, items: currentItems });
       }
@@ -280,7 +290,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
     // Detect diagram regions across questions in this column
     const qStartRegex = /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)\]\|ण्।]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)\]\|ण्।])(?:\s+|$)))/i;
     const optMarkerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/;
-    const diagramKeywordRegex = /vkÑfr|आकृति|चित्र|लुप्त|yqIr|iz'u\s*vkÑfr|mÙkj\s*vkÑfr/i;
+    const diagramKeywordRegex = /vkÑfr|vkÑfÙk|आकृति|आकृतियाँ|आकृत्तियाँ|चित्र|चित्रों|दर्पण|प्रतिबिम्ब|लुप्त|पासा|पासे|yqIr|iz'u\s*vkÑfr|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk/i;
 
     interface DiagramPlan {
       qLineIdx: number;
@@ -291,6 +301,36 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
     }
 
     const diagrams: DiagramPlan[] = [];
+
+    // Check if column starts with leading options or options diagram continuing from previous column (e.g. Q114)
+    const firstQLineIdx = visualLines.findIndex((vl) => qStartRegex.test(vl.text));
+    const leadingLimit = firstQLineIdx !== -1 ? firstQLineIdx : visualLines.length;
+    if (leadingLimit > 0) {
+      const leadingLines = visualLines.slice(0, leadingLimit);
+      const hasLeadingOptDiagram = leadingLines.some((x) =>
+        /mÙkj\s*vkÑfr|उत्तर\s*आकृतियाँ|mRrj\s*vkÑfÙk|उत्तर\s*आकृत्तियाँ/i.test(x.text) ||
+        optMarkerRegex.test(x.text)
+      );
+      if (hasLeadingOptDiagram) {
+        const topY = leadingLines[0].y + 5;
+        const bottomY = firstQLineIdx !== -1 ? visualLines[firstQLineIdx].y + 12 : 35;
+        const leadingSkipSet = new Set<number>();
+        for (let lk = 0; lk < leadingLimit; lk++) {
+          if (/^(?:उत्तर\s*आकृ|mÙkj\s*vkÑ|mRrj\s*vkÑ)/i.test(visualLines[lk].text.trim())) {
+            leadingSkipSet.add(lk);
+          }
+        }
+        if (topY - bottomY >= 35) {
+          diagrams.push({
+            qLineIdx: -1, // token injected at start of column
+            topY,
+            bottomY,
+            skipLineIndices: leadingSkipSet,
+            isOptionsDiagram: true,
+          });
+        }
+      }
+    }
 
     for (let i = 0; i < visualLines.length; i++) {
       const line = visualLines[i];
@@ -310,42 +350,79 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
           }
         }
 
-        if (optLineIdx !== -1) {
-          const gap = line.y - visualLines[optLineIdx].y;
-          const gapLines = visualLines.slice(i + 1, optLineIdx);
-          const gapText = gapLines.map((x) => x.text).join(' ').trim();
-          const hasDiagramKeyword = diagramKeywordRegex.test(line.text) || gapLines.some((x) => diagramKeywordRegex.test(x.text));
-          const isMostlySymbolsOrShort = gapText.length < 25 || /^[\d\\\/\s\.\,\-\?]+$/.test(gapText);
+        const questionEndLimit = optLineIdx !== -1 ? optLineIdx : (nextQIdx !== -1 ? nextQIdx : visualLines.length);
 
-          if ((gap >= 38 && (isMostlySymbolsOrShort || hasDiagramKeyword)) || gapLines.some((x) => /iz'u\s*vkÑfr|प्रश्न\s*आकृतियाँ/i.test(x.text))) {
-            const skipSet = new Set<number>();
-            if (isMostlySymbolsOrShort) {
-              for (let k = i + 1; k < optLineIdx; k++) {
-                skipSet.add(k);
+        // Find where readable question sentence ends and diagram region begins
+        let qSentenceEndIdx = i;
+        for (let k = i; k < questionEndLimit; k++) {
+          const txt = visualLines[k].text.trim();
+          // Stop if line is explicitly a diagram marker header or isolated marker
+          if (
+            /^(?:प्रश्न\s*आकृति(?:याँ)?|iz'u\s*vkÑfr|उत्तर\s*आकृति(?:याँ|त्तियाँ)?|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk)/i.test(txt) ||
+            /^[MN]$/.test(txt) ||
+            /^[A-D](\s+[A-D])*$/.test(txt)
+          ) {
+            break;
+          }
+          qSentenceEndIdx = k;
+          // If line ends with sentence terminator and next line has diagram marker, gap, or labels
+          if (/(?:[\?।!\.:\\]|\bहोगी\?|\bहोगा\?|\bहैं\?|\bहै\?|\bकीजिए[।\.]|\bकरें[।\.]|\bचुनिए[।\.]|\bबताइए[।\.])$/.test(txt)) {
+            if (k + 1 < questionEndLimit) {
+              const nextTxt = visualLines[k + 1].text.trim();
+              const nextGap = visualLines[k].y - visualLines[k + 1].y;
+              if (
+                /^(?:प्रश्न\s*आकृति|iz'u\s*vkÑfr|उत्तर\s*आकृति|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk)/i.test(nextTxt) ||
+                /^[MN]$/.test(nextTxt) ||
+                /^[A-D](\s+[A-D])*$/.test(nextTxt) ||
+                nextGap >= 28 ||
+                diagramKeywordRegex.test(txt)
+              ) {
+                break;
               }
             }
-            diagrams.push({
-              qLineIdx: i,
-              topY: line.y,
-              bottomY: visualLines[optLineIdx].y,
-              skipLineIndices: skipSet,
-            });
           }
+        }
 
-          // Check if option figures (उत्तर आकृतियाँ) exist
-          const hasOptionDiagramKeyword = visualLines.slice(optLineIdx, nextQIdx !== -1 ? nextQIdx : visualLines.length).some((x) => /mÙkj\s*vkÑfr|उत्तर\s*आकृतियाँ/i.test(x.text));
-          if (hasOptionDiagramKeyword) {
-            const optEndIdx = nextQIdx !== -1 ? nextQIdx - 1 : visualLines.length - 1;
-            const optTopY = visualLines[optLineIdx].y;
-            const optBottomY = visualLines[optEndIdx].y - 20;
-            diagrams.push({
-              qLineIdx: optLineIdx,
-              topY: optTopY,
-              bottomY: optBottomY,
-              skipLineIndices: new Set<number>(),
-              isOptionsDiagram: true,
-            });
+        // Check if Question Diagram exists (either before options in same column, OR before column bottom/next question)
+        const qEndLine = visualLines[qSentenceEndIdx];
+        const lowerBoundY = optLineIdx !== -1 ? visualLines[optLineIdx].y : 40;
+        const qGap = qEndLine.y - lowerBoundY;
+        const intermediateLines = visualLines.slice(qSentenceEndIdx + 1, questionEndLimit);
+        const hasDiagKeyword =
+          diagramKeywordRegex.test(visualLines.slice(i, qSentenceEndIdx + 1).map((x) => x.text).join(' ')) ||
+          intermediateLines.some((x) => diagramKeywordRegex.test(x.text));
+
+        if ((qGap >= 32 && (hasDiagKeyword || intermediateLines.length > 0)) || qGap >= 45) {
+          const skipSet = new Set<number>();
+          // All intermediate lines between question sentence end and options/next are diagram OCR/labels
+          for (let k = qSentenceEndIdx + 1; k < questionEndLimit; k++) {
+            skipSet.add(k);
           }
+          diagrams.push({
+            qLineIdx: qSentenceEndIdx,
+            topY: qEndLine.y - 2,
+            bottomY: lowerBoundY + (optLineIdx !== -1 ? 2 : 0),
+            skipLineIndices: skipSet,
+          });
+        }
+
+        // Check if option figures (उत्तर आकृतियाँ) exist in this column
+        const optSearchRange = visualLines.slice(qSentenceEndIdx + 1, nextQIdx !== -1 ? nextQIdx : visualLines.length);
+        const optDiagRelIdx = optSearchRange.findIndex((x) =>
+          /mÙkj\s*vkÑ|उत्तर\s*आकृ/i.test(x.text)
+        );
+        if (optDiagRelIdx !== -1) {
+          const optDiagLineIdx = (qSentenceEndIdx + 1) + optDiagRelIdx;
+          const optEndIdx = nextQIdx !== -1 ? nextQIdx - 1 : visualLines.length - 1;
+          const optTopY = visualLines[optDiagLineIdx].y + 5;
+          const optBottomY = Math.max(35, visualLines[optEndIdx].y - 20);
+          diagrams.push({
+            qLineIdx: optLineIdx !== -1 ? optLineIdx : optDiagLineIdx,
+            topY: optTopY,
+            bottomY: optBottomY,
+            skipLineIndices: new Set<number>([optDiagLineIdx]),
+            isOptionsDiagram: true,
+          });
         }
       }
     }
@@ -391,6 +468,11 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
 
     // Assemble final column lines
     const finalLines: string[] = [];
+    if (diagramTokens.has(-1)) {
+      for (const token of diagramTokens.get(-1)!) {
+        finalLines.push(token);
+      }
+    }
     for (let i = 0; i < visualLines.length; i++) {
       if (allSkipLines.has(i)) continue;
       finalLines.push(visualLines[i].text);

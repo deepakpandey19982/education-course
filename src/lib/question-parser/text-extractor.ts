@@ -247,7 +247,13 @@ export function extractQuestionsWithRangeFromText(
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/(\d{1,5})ण्/g, '$1.')
-    .replace(/(?:^|\n)[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963]+(\d{1,5})/g, '\n$1');
+    .replace(/(?:^|\n)[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963]+(\d{1,5})/g, '\n$1')
+    // Preserve colon ':' and proportion '::' in analogy and reasoning questions (e.g. 624 : 426 :: 745 : ?)
+    .replace(/ः\s*ः/g, '::')
+    .replace(/([0-9a-zA-Z\?]+)\s*ः\s*([0-9a-zA-Z\?]+)/g, '$1 : $2')
+    .replace(/([0-9a-zA-Z]+)\s*ः\s*(\?)/g, '$1 : $2')
+    .replace(/(\?)\s*ः\s*([0-9a-zA-Z]+)/g, '$1 : $2')
+    .replace(/\s*::\s*/g, ' :: ');
 
   const lines = normalized.split('\n');
 
@@ -400,21 +406,21 @@ export function extractQuestionsWithRangeFromText(
       const line = rawLine.trim();
       if (!line || isHeaderOrFooterLine(line) || isTableOfContentsLine(line)) continue;
 
-      // Check for instruction boundary line (e.g. निर्देश (प्र.सं. 87–92): ..., funsZ'k (iz-l- 87&92)%)
+      // Check for instruction boundary line (e.g. निर्देश (प्र.सं. 87–92): ..., funsZ'k (iz-l- 87&92)%, (प्र.सं. 87–92): ...)
       const isInstLine =
         /^(?:निर्देश|funsZ'k|instructions?|directions?|दिशा[\-\s]*निर्देश)(?:\s|$|[\(\:\.\-\—%])/i.test(line) ||
-        /^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+/i.test(line);
+        /^[;\(]\s*(?:iz[\-\s]*l|प्र[\.\s]*(?:सं|संस|स)\.?|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+\s*(?:&|[-–—\u2013\u2014]|to|से)\s*\d+[)द्ध]?/i.test(line);
 
       if (isInstLine) {
         pushSectionBlock(); // Clean boundary: terminate any active question so instructions never enter option D!
         const rangeMatch = line.match(
-          /(?:[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*(\d{1,4})\s*(?:&|[-–—]|to|से)\s*(\d{1,4})[)द्ध]?|\b(\d{1,4})\s*(?:&|[-–—]|to|से)\s*(\d{1,4})\b)/i
+          /(?:[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*(?:सं|संस|स)\.?|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*(\d{1,4})\s*(?:&|[-–—\u2013\u2014]|to|से)\s*(\d{1,4})[)द्ध]?|\b(\d{1,4})\s*(?:&|[-–—\u2013\u2014]|to|से)\s*(\d{1,4})\b)/i
         );
         const fromQ = rangeMatch ? parseInt(rangeMatch[1] || rangeMatch[3], 10) : undefined;
         const toQ = rangeMatch ? parseInt(rangeMatch[2] || rangeMatch[4], 10) : undefined;
         const cleanInst = line
           .replace(/^(?:निर्देश|funsZ'k|instructions?|directions?)\s*(?:\(.*?\)|;.*?द्ध|[;\(].*?(?:\)|द्ध))?[:\.\-\—\s%ः]*/i, '')
-          .replace(/^[;\(]?\s*(?:iz[\-\s]*l|प्र[\.\s]*[संस]|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+.*?(?:\)|द्ध)[:\.\-\—\s%ः]*/i, '')
+          .replace(/^[;\(]\s*(?:iz[\-\s]*l|प्र[\.\s]*(?:सं|संस|स)\.?|q(?:uestion)?s?\.?|nos?\.?)\s*[:\.\-\—]?\s*\d+.*?(?:\)|द्ध)[:\.\-\—\s%ः]*/i, '')
           .replace(/^fuEufyf\[kr\s*izR;sd\s*iz'u\s*esa\],?\s*/i, '')
           .replace(/^निम्नलिखित\s*(?:प्रत्येक)?\s*प्रश्न(?:ों)?\s*(?:में|मे)[,\s]*/i, '')
           .trim();
@@ -600,6 +606,17 @@ export function extractQuestionsWithRangeFromText(
         continue;
       }
 
+      const singleOptImgMatch = line.match(/\[\[OPTION_([A-D])_IMAGE:(data:image\/[^\]]+)\]\]/);
+      if (singleOptImgMatch) {
+        const k = singleOptImgMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D';
+        if (k === 'A') activeBlock.optionAImageUrl = singleOptImgMatch[2];
+        if (k === 'B') activeBlock.optionBImageUrl = singleOptImgMatch[2];
+        if (k === 'C') activeBlock.optionCImageUrl = singleOptImgMatch[2];
+        if (k === 'D') activeBlock.optionDImageUrl = singleOptImgMatch[2];
+        activeBlock.isDiagramQuestion = true;
+        continue;
+      }
+
       // Check for Answer line
       const ansMatch = line.match(answerLineRegex);
       if (ansMatch) {
@@ -663,8 +680,9 @@ export function extractQuestionsWithRangeFromText(
 
       // Question text continuation (STRICT GUARD: Only allowed BEFORE any options have started!)
       if (Object.keys(activeBlock.options).length === 0) {
-        if (/प्रश्न\s*आकृतियाँ|iz'u\s*vkÑfr|उत्तर\s*आकृतियाँ|mÙkj\s*vkÑfr/i.test(line)) {
+        if (/^(?:प्रश्न\s*आकृ|iz'u\s*vkÑ|उत्तर\s*आकृ|mÙkj\s*vkÑ|mRrj\s*vkÑ)/i.test(line)) {
           activeBlock.isDiagramQuestion = true;
+          continue;
         }
         activeBlock.questionLines.push(line);
       }
@@ -761,12 +779,7 @@ export function extractQuestionsWithRangeFromText(
     if (!hasOptD) validationIssues.push('Missing Option D');
     if (!correctOption) validationIssues.push('Missing Correct Answer');
 
-    // Check for duplicate options (only among non-empty text options)
-    const activeOpts = [optA, optB, optC, optD].filter(Boolean);
-    const uniqueOpts = new Set(activeOpts);
-    if (activeOpts.length >= 2 && uniqueOpts.size < activeOpts.length) {
-      validationIssues.push('Duplicate option values detected');
-    }
+    // Duplicate option values are valid (source PDF may legitimately have duplicate options)
 
     // Duplicate question number within the same section
     const dupCount = sectionQNumCount.get(`${block.sectionId}:${block.qNum}`) || 1;
