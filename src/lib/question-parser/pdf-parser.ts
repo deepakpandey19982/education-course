@@ -235,7 +235,80 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
   }
 
   const formatColumn = async (colItems: any[], isRightCol: boolean = false) => {
-    colItems.sort((a, b) => {
+    // Pre-pass: Reconstruct vertically stacked fractions (e.g. 169/121 in Q86, 1/2 in Q149)
+    const itemsToMerge = colItems.map((it) => ({
+      ...it,
+      x: it.transform[4],
+      y: it.transform[5],
+      w: it.width || 0,
+      str: it.str || '',
+    }));
+
+    const mergedColItems: any[] = [];
+    const usedIndices = new Set<number>();
+
+    for (let i = 0; i < itemsToMerge.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const itA = itemsToMerge[i];
+      const strA = itA.str.trim();
+
+      if (/^\d+(?:\.\d+)?$/.test(strA)) {
+        let bestMatchIdx = -1;
+        let minXDiff = 999;
+
+        for (let j = 0; j < itemsToMerge.length; j++) {
+          if (i === j || usedIndices.has(j)) continue;
+          const itB = itemsToMerge[j];
+          const strB = itB.str.trim();
+          if (!/^\d+(?:\.\d+)?$/.test(strB)) continue;
+
+          const yDiff = itA.y - itB.y;
+          const xDiff = Math.abs(itA.x - itB.x);
+
+          if (yDiff >= 6 && yDiff <= 22 && xDiff <= 8) {
+            const midY = (itA.y + itB.y) / 2;
+            const minX = Math.min(itA.x, itB.x);
+            const maxX = Math.max(itA.x + itA.w, itB.x + itB.w);
+
+            const neighborsA = itemsToMerge.filter((k, idx) => idx !== i && Math.abs(k.y - itA.y) <= 3.0 && Math.abs(k.x - itA.x) < 45);
+            const neighborsB = itemsToMerge.filter((k, idx) => idx !== j && Math.abs(k.y - itB.y) <= 3.0 && Math.abs(k.x - itB.x) < 45);
+
+            if (neighborsA.length === 0 && neighborsB.length === 0) {
+              const baselineItems = itemsToMerge.filter((k, idx) => idx !== i && idx !== j && Math.abs(k.y - midY) <= 3.5);
+              const hasLeft = baselineItems.some((k) => k.x + k.w <= minX + 2 && minX - (k.x + k.w) < 30);
+              const hasRight = baselineItems.some((k) => k.x >= maxX - 2 && k.x - maxX < 30);
+
+              if (hasLeft || hasRight) {
+                if (xDiff < minXDiff) {
+                  minXDiff = xDiff;
+                  bestMatchIdx = j;
+                }
+              }
+            }
+          }
+        }
+
+        if (bestMatchIdx !== -1) {
+          const itB = itemsToMerge[bestMatchIdx];
+          usedIndices.add(i);
+          usedIndices.add(bestMatchIdx);
+          const midY = (itA.y + itB.y) / 2;
+          const minX = Math.min(itA.x, itB.x);
+          const fracStr = `${strA}/${itB.str.trim()}`;
+          mergedColItems.push({
+            ...itA,
+            str: fracStr,
+            transform: [itA.transform[0], itA.transform[1], itA.transform[2], itA.transform[3], minX, midY],
+            width: Math.max(itA.w, itB.w) + 8,
+          });
+          continue;
+        }
+      }
+
+      mergedColItems.push(itA);
+    }
+
+    mergedColItems.sort((a, b) => {
       const yA = a.transform[5];
       const yB = b.transform[5];
       if (Math.abs(yA - yB) > 3.5) {
@@ -256,7 +329,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
     let currentY: number | null = null;
     let lastX = 0;
 
-    for (const it of colItems) {
+    for (const it of mergedColItems) {
       const y = it.transform[5];
       const x = it.transform[4];
       if (currentY === null || Math.abs(currentY - y) > 3.5) {
@@ -289,8 +362,9 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
 
     // Detect diagram regions across questions in this column
     const qStartRegex = /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)(?:\s*(?:no\.?|नंबर|संख्या|सं\.?|क्र\.?|number|num\.?))?\s*(\d{1,5})(?:[\s:\.\-\)\]\|ण्।]+|$)|(?:(?:\((\d{1,5})\)|\[(\d{1,5})\]|(\d{1,5})\s*[\.\:\-\)\]\|ण्।])(?:\s+|$)))/i;
-    const optMarkerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/;
-    const diagramKeywordRegex = /vkÑfr|vkÑfÙk|आकृति|आकृतियाँ|आकृत्तियाँ|चित्र|चित्रों|दर्पण|प्रतिबिम्ब|लुप्त|पासा|पासे|yqIr|iz'u\s*vkÑfr|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk/i;
+    const optMarkerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-Dक-घ])[\.\)\-\]]|\[([a-dA-D1-4क-घ])\])/;
+    const diagramKeywordRegex =
+      /vkÑfr|vkÑfÙk|आकृति|आकृतियाँ|आकृत्तियाँ|चित्र|चित्रों|fp=|fp=kksa|दर्पण|प्रतिबिम्ब|niZ\.k|izfrfcEc|पासा|पासे|iklk|ikls|yqIr\s*vkÑfr|लुप्त\s*आकृति|iz'u\s*vkÑfr|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk/i;
 
     interface DiagramPlan {
       qLineIdx: number;
@@ -332,18 +406,41 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
       }
     }
 
+    let runningQNum = 0;
     for (let i = 0; i < visualLines.length; i++) {
       const line = visualLines[i];
       const qm = line.text.match(qStartRegex);
       if (qm) {
+        const parsedQNum = parseInt(qm[1] || qm[2] || qm[3] || qm[4], 10);
+        const isExplicit = Boolean(
+          line.text.match(
+            /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)/i
+          )
+        );
+
+        // If this line has an un-prefixed number <= runningQNum, it is an internal numbered statement (e.g. 1. Necrology), NOT a question start!
+        if (runningQNum > 1 && !isExplicit && parsedQNum <= runningQNum) {
+          continue;
+        }
+        runningQNum = parsedQNum;
+
         // Find where options start for this question
         let optLineIdx = -1;
         let nextQIdx = -1;
 
         for (let j = i + 1; j < Math.min(visualLines.length, i + 15); j++) {
-          if (visualLines[j].text.match(qStartRegex)) {
-            nextQIdx = j;
-            break;
+          const nextQm = visualLines[j].text.match(qStartRegex);
+          if (nextQm) {
+            const nextQNum = parseInt(nextQm[1] || nextQm[2] || nextQm[3] || nextQm[4], 10);
+            const isExplicitNext = Boolean(
+              visualLines[j].text.match(
+                /^(?:[\u0901-\u0903\u093A-\u094F\u0951-\u0957\u0962\u0963•\-\*\~›»\>\.\|\u2022\u25cf\u25cb\s]*)(?:Q(?:uestion|ue)?\.?|प्रश्न|प्र\.?)/i
+              )
+            );
+            if (isExplicitNext || nextQNum > parsedQNum) {
+              nextQIdx = j;
+              break;
+            }
           }
           if (optLineIdx === -1 && optMarkerRegex.test(visualLines[j].text)) {
             optLineIdx = j;
@@ -351,6 +448,10 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
         }
 
         const questionEndLimit = optLineIdx !== -1 ? optLineIdx : (nextQIdx !== -1 ? nextQIdx : visualLines.length);
+        const fullQText = visualLines.slice(i, questionEndLimit).map((x) => x.text).join(' ');
+        const hasDiagKeyword =
+          diagramKeywordRegex.test(fullQText) ||
+          visualLines.slice(i, questionEndLimit).some((x) => /^[MN]$/i.test(x.text.trim()) || diagramKeywordRegex.test(x.text));
 
         // Find where readable question sentence ends and diagram region begins
         let qSentenceEndIdx = i;
@@ -365,7 +466,7 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
             break;
           }
           qSentenceEndIdx = k;
-          // If line ends with sentence terminator and next line has diagram marker, gap, or labels
+          // If line ends with sentence terminator and this is a diagram question, or next line has diagram marker/gap
           if (/(?:[\?।!\.:\\]|\bहोगी\?|\bहोगा\?|\bहैं\?|\bहै\?|\bकीजिए[।\.]|\bकरें[।\.]|\bचुनिए[।\.]|\bबताइए[।\.])$/.test(txt)) {
             if (k + 1 < questionEndLimit) {
               const nextTxt = visualLines[k + 1].text.trim();
@@ -374,8 +475,8 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
                 /^(?:प्रश्न\s*आकृति|iz'u\s*vkÑfr|उत्तर\s*आकृति|mÙkj\s*vkÑfr|mRrj\s*vkÑfÙk)/i.test(nextTxt) ||
                 /^[MN]$/.test(nextTxt) ||
                 /^[A-D](\s+[A-D])*$/.test(nextTxt) ||
-                nextGap >= 28 ||
-                diagramKeywordRegex.test(txt)
+                nextGap >= 32 ||
+                hasDiagKeyword
               ) {
                 break;
               }
@@ -388,13 +489,16 @@ export async function extractPageTextColumnAware(page: any): Promise<string> {
         const lowerBoundY = optLineIdx !== -1 ? visualLines[optLineIdx].y : 40;
         const qGap = qEndLine.y - lowerBoundY;
         const intermediateLines = visualLines.slice(qSentenceEndIdx + 1, questionEndLimit);
-        const hasDiagKeyword =
-          diagramKeywordRegex.test(visualLines.slice(i, qSentenceEndIdx + 1).map((x) => x.text).join(' ')) ||
-          intermediateLines.some((x) => diagramKeywordRegex.test(x.text));
 
-        if ((qGap >= 32 && (hasDiagKeyword || intermediateLines.length > 0)) || qGap >= 45) {
+        // Real diagram: explicit visual keywords/markers, OR an empty gap >= 45 with only numbers/symbols or no text (e.g. Q93 circle drawing with numbers 2, 3, 4, 8, 27)
+        const hasOnlySymbolsOrNumbers =
+          intermediateLines.length > 0 &&
+          intermediateLines.every((x) => /^[\d\\\/\s\.\,\-\?\*\^\#\$\@\!]+$/.test(x.text.trim()));
+        const isRealDiagram = hasDiagKeyword || (qGap >= 45 && (intermediateLines.length === 0 || hasOnlySymbolsOrNumbers));
+
+        if (isRealDiagram && (qGap >= 30 || intermediateLines.length > 0)) {
           const skipSet = new Set<number>();
-          // All intermediate lines between question sentence end and options/next are diagram OCR/labels
+          // When this is a verified diagram question, all intermediate lines between question sentence end and options/next are diagram OCR/labels
           for (let k = qSentenceEndIdx + 1; k < questionEndLimit; k++) {
             skipSet.add(k);
           }

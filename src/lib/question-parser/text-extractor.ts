@@ -197,7 +197,8 @@ interface RawBlock {
  * Understands multi-set PDFs (e.g. Practice Set-1 with Answers 1-160, then Practice Set-2 with Answers 1-160).
  */
 function extractInlineOptions(line: string): Array<{ key: 'A' | 'B' | 'C' | 'D'; text: string }> | null {
-  const markerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-D1-4क-घ])[\.\)\-\]])/g;
+  // Unparenthesized numbers like "1." or "2." are NOT options — they are internal numbered statements
+  const markerRegex = /(?:^|\s|\t)(?:\(([a-dA-D1-4क-घ])\)|([a-dA-Dक-घ])[\.\)\-\]]|\[([a-dA-D1-4क-घ])\])/g;
   const markers: Array<{ key: 'A' | 'B' | 'C' | 'D'; start: number; end: number }> = [];
   let match;
   while ((match = markerRegex.exec(line)) !== null) {
@@ -735,12 +736,14 @@ export function extractQuestionsWithRangeFromText(
     const hasOptionCImage = Boolean(block.optionCImageUrl);
     const hasOptionDImage = Boolean(block.optionDImageUrl);
 
-    const isDiagramQ =
-      block.isDiagramQuestion ||
+    const isDiagramQ = Boolean(
       hasQuestionImage ||
       hasOptionAImage ||
-      /आकृति|चित्र|दर्पण|प्रतिबिम्ब|लुप्त|वेन|पासा|vkÑfr|प्रश्न\s*आकृति|उत्तर\s*आकृति/i.test(questionText) ||
-      (block.options.A !== undefined && block.options.B !== undefined && !optA && !optB);
+      hasOptionBImage ||
+      hasOptionCImage ||
+      hasOptionDImage ||
+      (block.options.A !== undefined && block.options.B !== undefined && !optA && !optB && block.isDiagramQuestion)
+    );
 
     if (isDiagramQ || hasQuestionImage) {
       if (/^[\d\\\/\s\.\,\-\?]+$/.test(questionText) || questionText.length <= 3) {

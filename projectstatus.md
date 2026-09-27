@@ -34,7 +34,17 @@ Education-Course/
 └── README.md
 ```
 
-## Latest Production Status & Updates (Phase 42)
+## Latest Production Status & Updates (Phase 43)
+
+- **Fraction Preservation and False Diagram Detection Prevention:**
+  - **Feature Overview:** Solved two critical PDF extraction issues: preserving fractions/numerical expressions (e.g. Q86 `MK : 169/121 :: JH : ?`) without dropping stacked numbers, and eliminating false "Diagram MCQ" detection on normal text questions (e.g. Q95 numbered sequence items).
+  - **Stacked Fraction Reconstruction:** Implemented an ultra-precise fraction merging pre-pass in `formatColumn` (`pdf-parser.ts`). Detects vertically separated numerator and denominator digit pairs (`6 <= dy <= 22`, `|dx| <= 8`) that align with a baseline neighbor line, and fuses them into `${num}/${denom}` at baseline coordinate. Preserves exact fractions (`169/121`, `3/4`, `1/2`, etc.) without approximations.
+  - **Option Regex Hardening:** Updated `markerRegex` in `text-extractor.ts` to require parentheses for numeric options (`\([1-4]\)` or `\[[1-4]\]`), preventing numbered sequence items (`1. Necrology 2. Necromancy`) from being hijacked as inline options A and B. Added monotonic sequence tracking (`runningQNum`) in `pdf-parser.ts` to prevent internal list numbers from triggering phantom questions.
+  - **Strict Real Diagram Detection:** Hardened `diagramKeywordRegex` and `isRealDiagram` logic in `pdf-parser.ts` and `text-extractor.ts`. A question is only classified as a "Diagram MCQ" and given an image URL when an authentic visual figure/drawing exists or diagram keywords are present. Normal text questions (Q83, Q86, Q95, Q96) remain clean text MCQs with no fake image crops or badges.
+  - **Preserved Existing Features:** Duplicate options remain valid (Q100 / Q20 A/B: पुत्र), punctuation (`:`, `::`) preserved (Q83), real diagrams in left and right columns (Q114, Q107, Q104, Q115, Q93) detected with high-resolution image crops.
+  - **Verification:** Verified Q86 contains `169/121`, Q95 is a clean text MCQ without diagram badge, all target questions (Q83, Q86, Q93, Q94, Q95, Q96, Q100, Q104, Q107, Q114, Q115) valid, regression suite 100% pass, TypeScript clean (0 errors), `npm run build` completed successfully.
+
+## Prior Phase (Phase 42)
 
 - **Punctuation Preservation, Left/Right Diagram Layout Extraction, and Option Validation:**
   - **Feature Overview:** Hardened parser and extraction pipeline to address real exam PDF nuances: duplicate option values (valid per source PDF), colons and proportion punctuation (`:`, `::`), left-column diagram detection (Q114), OCR noise elimination on diagram questions (Q107), and image options.

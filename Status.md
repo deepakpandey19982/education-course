@@ -2,14 +2,48 @@
 
 ## Current Phase
 
-Phase 42 — Punctuation Preservation, Left/Right Diagram Layout Extraction, and Option Validation
+Phase 43 — Fraction Preservation and False Diagram Detection Prevention
 
 - **Summary of Problem & Root Cause:**
-  1. *Duplicate Option Values:* Real exam PDFs (such as Question 100/20 with Options A. पुत्र, B. पुत्र, C. प्रपौत्र, D. पौत्री) naturally contain duplicate option text. The parser was falsely marking them as "Needs Review" with "Duplicate option values detected".
-  2. *Colon and Proportion Punctuation Loss:* In reasoning analogy questions such as `83. 624 : 426 :: 745 : ?`, KrutiDev `%` and `%%` characters were converted to Sanskrit visarga `ः` or normalized away as ellipsis, corrupting the question text.
-  3. *Left-Column Diagram Layout (e.g. Q114):* In two-column pages, questions near the bottom of `colLeft` with diagrams (and their options placed at the top of `colRight`) were missed or unassociated because the parser assumed question diagrams only appeared before options within the same column.
-  4. *Diagram OCR Noise Contamination (e.g. Q107):* Diagram text lines (such as dice face colors `dkyk yky gjk liQsn dkyk Hkwjk ihyk`, mirror lines `M`, `N`, etc.) were leaking into `question_text`.
-  5. *Diagram/Image Options:* Questions with visual diagram options (e.g. Q104, Q114) had empty text for options and needed full image option support (`option_a_image_url` through `option_d_image_url`).
+  1. *Fractions / Numerical Expressions Lost (e.g. Q86):* In `86. MK : 169/121 :: JH : ?`, the fraction `169/121` was dropped entirely, showing `MK :: JH : ?`. In the PDF text layer, vertically stacked fractions have numerator `169` positioned at `y ≈ 684.9`, baseline `MK : :: JH : ?` at `y ≈ 678.5`, and denominator `121` at `y ≈ 670.6`. Because `yDiff > 3.5`, they were split onto separate visual lines and eliminated by noise filters as isolated numbers.
+  2. *False "Diagram MCQ" Detection (e.g. Q95):* Q95 is a normal text question with words `1. Necrology 2. Necromancy 3. Necropolis 4. Necrophilia`. The parser falsely marked it as "Diagram MCQ" with a small page/image crop and dropped the numbered words. The numbered items `1. ... 2. ...` triggered option detection, which overwrote options and created a visual vertical gap (`qGap >= 45`) between question text and options that was mistakenly treated as a diagram drawing.
+  3. *Distinguish Real Diagrams from Text:* Real diagram questions (Q93 circle puzzle, Q94 matrix, Q104, Q107 dice, Q114, Q115) contain genuine visual figures/drawings and must retain their images, whereas normal text questions (Q83, Q86, Q95, Q96) must never receive a fake page/image crop or "Diagram MCQ" badge.
+
+- **Architectural Fixes Implemented:**
+  1. **Stacked Fraction Reconstruction (`src/lib/question-parser/pdf-parser.ts`):**
+     - Implemented an ultra-precise fraction merging pre-pass in `formatColumn`:
+       - Identifies vertically stacked digit pairs where `itA` (numerator) and `itB` (denominator) have horizontal alignment `|x - x| <= 8`, vertical separation `6 <= dy <= 22`, both are isolated on their respective Y levels, and a baseline neighbor line exists at midpoint `midY` within horizontal distance `<= 30 pt`.
+       - Merges them into `${num}/${denom}` at baseline coordinate `midY`, perfectly restoring fractions (`169/121`, `3/4`, `1/2`, etc.) in place without approximation.
+  2. **Option Regex Hardening & Preventing Numbered Sequence Hijacking (`pdf-parser.ts` & `text-extractor.ts`):**
+     - In `text-extractor.ts`, updated `markerRegex` so single unparenthesized numbers (`1.`, `2.`) are NOT matched as options; numeric options must be parenthesized `(1)`, `[1]`, etc. This prevents numbered lists (`1. Necrology 2. Necromancy`) from being hijacked as options A and B.
+     - In `pdf-parser.ts`, added sequential question tracking (`runningQNum`) to prevent lines starting with `1.` or `2.` inside a multi-item question (like Q95) from being treated as new questions.
+  3. **Strict Visual Diagram vs Normal Text Distinction (`pdf-parser.ts` & `text-extractor.ts`):**
+     - Updated `diagramKeywordRegex` in `pdf-parser.ts` to include KrutiDev terms (`fp=kksa`, `ikls`, `niZ.k`, `izfrfcEc`) and excluded solitary `लुप्त` without figure keywords from classifying text questions as diagrams.
+     - Enforced `isRealDiagram` condition: requires explicit diagram keywords OR large drawing gaps with solitary numeric/symbolic tokens.
+     - In `text-extractor.ts`, updated `isDiagramQ` so questions are only tagged as diagram MCQs when an actual question/option image URL exists.
+  4. **Preserved All Previous Capabilities:**
+     - Duplicate options remain valid (e.g. Q100 / Q20 A: पुत्र, B: पुत्र).
+     - Colons `:` and proportion `::` remain intact (e.g. Q83 `624 : 426 :: 745 : ?`).
+     - Left-side real diagrams (Q114) and right-side diagrams (Q107, Q104, Q115, Q93) continue working.
+     - Image-based options continue working.
+
+- **Verification & Testing Results:**
+  - **Q86 (Fraction):** Extracted as `MK : 169/121 :: JH : ?` with `169/121` intact. `has_question_image: false`, `is_image_based: false`, status: `valid`.
+  - **Q95 (Normal Text MCQ):** Extracted as normal text question with words `1. Necrology 2. Necromancy 3. Necropolis 4. Necrophilia` intact. `has_question_image: false`, `is_image_based: false`, status: `valid` (no "Diagram MCQ" badge or fake image crop).
+  - **Q83 (Analogy Punctuation):** `624 : 426 :: 745 : ?` intact, text-only, status: `valid`.
+  - **Q100 (Duplicate Options):** Options A: पुत्र, B: पुत्र, C: प्रपौत्र, D: पौत्री. Status: `valid`.
+  - **Q93, Q94, Q104, Q107, Q114, Q115 (Real Diagrams):** Real diagrams detected and associated correctly with image URLs, status: `valid`.
+  - **Full Regression Test Suite:**
+    - `test-smart-parser.ts`: PASS (Text, 50-Q Excel, Duplicate detection).
+    - `test-clean-extraction-suite.ts`: 100% PASS.
+    - `test-main-1-60.ts`: 60/60 questions PASS (100% valid).
+  - **Build & Quality Gates:**
+    - `npx tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded (41 static/dynamic pages compiled).
+
+---
+
+## Prior Phase (Phase 42)
 
 - **Architectural Fixes Implemented:**
   1. **Duplicate Option Value Validation (`src/lib/question-parser/text-extractor.ts`):**
